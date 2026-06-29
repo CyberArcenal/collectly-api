@@ -1,0 +1,317 @@
+<!-- templates/dashboard.html -->
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - License Management System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h1><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h1>
+            <p class="mb-0">Welcome back, {{ user.username }}! Here's an overview of your license management system.</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-light me-2">
+                <i class="fas fa-download me-1"></i> Export
+            </button>
+            <button class="btn btn-light">
+                <i class="fas fa-sync-alt me-1"></i> Refresh
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card dashboard-card">
+            <div class="card-body stat-card">
+                <div class="card-icon">
+                    <i class="fas fa-key"></i>
+                </div>
+                <div class="stat-number">{{ total_licenses }}</div>
+                <div class="stat-label">Total Licenses</div>
+                <small class="text-success">
+                    <i class="fas fa-arrow-up"></i> +{{ active_licenses }} active
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card dashboard-card">
+            <div class="card-body stat-card">
+                <div class="card-icon">
+                    <i class="fas fa-credit-card"></i>
+                </div>
+                <div class="stat-number">{{ total_transactions }}</div>
+                <div class="stat-label">Transactions</div>
+                <small class="text-success">
+                    <i class="fas fa-money-bill-wave"></i> ${{ total_revenue }}
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card dashboard-card">
+            <div class="card-body stat-card">
+                <div class="card-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-number">{{ total_users }}</div>
+                <div class="stat-label">Active Users</div>
+                <small class="text-success">
+                    <i class="fas fa-user-plus"></i> +{{ new_users_today }} today
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card dashboard-card">
+            <div class="card-body stat-card">
+                <div class="card-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-number">{{ expiring_soon }}</div>
+                <div class="stat-label">Expiring Soon</div>
+                <small class="text-danger">
+                    <i class="fas fa-clock"></i> Next 7 days
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity & Quick Stats -->
+<div class="row">
+    <!-- Recent Licenses -->
+    <div class="col-md-8">
+        <div class="card dashboard-card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-history me-2"></i>Recent Licenses
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover data-table" id="recentLicensesTable">
+                        <thead>
+                            <tr>
+                                <th>License Key</th>
+                                <th>Product</th>
+                                <th>Customer</th>
+                                <th>Status</th>
+                                <th>Expires</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for license in recent_licenses %}
+                            <tr>
+                                <td>
+                                    <span class="license-key" title="Click to copy" 
+                                          onclick="copyLicenseKey('{{ license.license_key }}')"
+                                          style="cursor: pointer;">
+                                        {{ license.license_key|truncatechars:12 }}
+                                    </span>
+                                </td>
+                                <td>{{ license.product_code }}</td>
+                                <td>{{ license.customer_name|default:"-" }}</td>
+                                <td>
+                                    {% if license.status == 'active' %}
+                                        <span class="badge badge-status badge-active">Active</span>
+                                    {% elif license.status == 'expired' %}
+                                        <span class="badge badge-status badge-expired">Expired</span>
+                                    {% elif license.status == 'suspended' %}
+                                        <span class="badge badge-status badge-suspended">Suspended</span>
+                                    {% else %}
+                                        <span class="badge badge-status badge-pending">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ license.expiry_date|date:"Y-m-d" }}</td>
+                                <td>
+                                    <a href="{% url 'license_detail' license.id %}" 
+                                       class="btn btn-action btn-view" 
+                                       data-bs-toggle="tooltip" 
+                                       title="View License">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'license_edit' license.id %}" 
+                                       class="btn btn-action btn-edit" 
+                                       data-bs-toggle="tooltip" 
+                                       title="Edit License">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="fas fa-key fa-2x mb-2"></i>
+                                    <p>No licenses found.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-end mt-3">
+                    <a href="{% url 'license_list' %}" class="btn btn-primary">
+                        View All Licenses <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="col-md-4">
+        <div class="card dashboard-card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>License Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    {% for status in license_stats %}
+                    <div class="list-group-item border-0 d-flex justify-content-between align-items-center">
+                        <span>
+                            {% if status.status == 'active' %}
+                                <i class="fas fa-circle text-success me-2"></i>
+                            {% elif status.status == 'expired' %}
+                                <i class="fas fa-circle text-danger me-2"></i>
+                            {% elif status.status == 'suspended' %}
+                                <i class="fas fa-circle text-warning me-2"></i>
+                            {% else %}
+                                <i class="fas fa-circle text-secondary me-2"></i>
+                            {% endif %}
+                            {{ status.status|title }}
+                        </span>
+                        <span class="badge bg-primary rounded-pill">{{ status.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="card dashboard-card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'license_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle me-2"></i>Create New License
+                    </a>
+                    <a href="{% url 'transaction_create' %}" class="btn btn-success">
+                        <i class="fas fa-credit-card me-2"></i>Record Transaction
+                    </a>
+                    <a href="{% url 'report_list' %}" class="btn btn-info">
+                        <i class="fas fa-chart-bar me-2"></i>Generate Report
+                    </a>
+                    <a href="{% url 'license_import' %}" class="btn btn-warning">
+                        <i class="fas fa-file-import me-2"></i>Import Licenses
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Transactions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card dashboard-card">
+            <div class="card-header bg-white">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h5 class="mb-0">
+                            <i class="fas fa-exchange-alt me-2"></i>Recent Transactions
+                        </h5>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" 
+                                   class="form-control search-input" 
+                                   placeholder="Search transactions..."
+                                   data-table="transactionsTable">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover data-table" id="transactionsTable">
+                        <thead>
+                            <tr>
+                                <th>Transaction ID</th>
+                                <th>User</th>
+                                <th>Amount</th>
+                                <th>Gateway</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in recent_transactions %}
+                            <tr>
+                                <td>#{{ transaction.transaction_id }}</td>
+                                <td>{{ transaction.user_name }}</td>
+                                <td>
+                                    <strong>{{ transaction.currency }} {{ transaction.amount }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark">
+                                        <i class="fas fa-credit-card me-1"></i>
+                                        {{ transaction.payment_gateway|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if transaction.payment_status == 'completed' %}
+                                        <span class="badge bg-success">Completed</span>
+                                    {% elif transaction.payment_status == 'pending' %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% elif transaction.payment_status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ transaction.payment_status|title }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ transaction.transaction_date|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    <a href="{% url 'transaction_detail' transaction.transaction_id %}" 
+                                       class="btn btn-action btn-view" 
+                                       data-bs-toggle="tooltip" 
+                                       title="View Transaction">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="fas fa-credit-card fa-2x mb-2"></i>
+                                    <p>No transactions found.</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-end mt-3">
+                    <a href="{% url 'transaction_list' %}" class="btn btn-primary">
+                        View All Transactions <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

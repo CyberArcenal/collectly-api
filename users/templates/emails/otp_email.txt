@@ -1,0 +1,14 @@
+Hi {% if user %}{{ user.get_full_name }}{% else %}there{% endif %},
+
+Use this code to continue your request on {{ site_name }}:
+
+    {{ otp_code }}
+
+This code expires at {{ expires_at|date:"Y-m-d H:i" }}.
+
+If you didn’t request this, you can safely ignore this email
+or visit {{ support_url }} for help.
+
+Thank you for choosing {{ site_name }}.
+
+— The {{ site_name }} Team

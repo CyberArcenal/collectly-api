@@ -1,0 +1,293 @@
+<!-- templates/licensing/license_list.html -->
+{% extends 'base.html' %}
+
+{% block title %}Licenses - License Management System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="row align-items-center">
+        <div class="col-md-6">
+            <h1><i class="fas fa-key me-2"></i>License Management</h1>
+            <p class="mb-0">Manage all your software licenses in one place.</p>
+        </div>
+        <div class="col-md-6 text-end">
+            <div class="btn-group" role="group">
+                <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-download me-1"></i> Export
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#"><i class="fas fa-file-csv me-2"></i> CSV</a></li>
+                    <li><a class="dropdown-item" href="#"><i class="fas fa-file-excel me-2"></i> Excel</a></li>
+                    <li><a class="dropdown-item" href="#"><i class="fas fa-file-pdf me-2"></i> PDF</a></li>
+                </ul>
+                <a href="{% url 'license_import' %}" class="btn btn-light">
+                    <i class="fas fa-file-import me-1"></i> Import
+                </a>
+                <a href="{% url 'license_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus-circle me-1"></i> Create License
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card dashboard-card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="expired" {% if request.GET.status == 'expired' %}selected{% endif %}>Expired</option>
+                    <option value="suspended" {% if request.GET.status == 'suspended' %}selected{% endif %}>Suspended</option>
+                    <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">License Type</label>
+                <select name="license_type" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="trial" {% if request.GET.license_type == 'trial' %}selected{% endif %}>Trial</option>
+                    <option value="personal" {% if request.GET.license_type == 'personal' %}selected{% endif %}>Personal</option>
+                    <option value="business" {% if request.GET.license_type == 'business' %}selected{% endif %}>Business</option>
+                    <option value="enterprise" {% if request.GET.license_type == 'enterprise' %}selected{% endif %}>Enterprise</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Product</label>
+                <select name="product_code" class="form-select">
+                    <option value="">All Products</option>
+                    {% for product in products %}
+                    <option value="{{ product.code }}" {% if request.GET.product_code == product.code %}selected{% endif %}>
+                        {{ product.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="btn-group w-100">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter me-1"></i> Filter
+                    </button>
+                    <a href="{% url 'license_list' %}" class="btn btn-light">
+                        <i class="fas fa-redo me-1"></i> Reset
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- License Table -->
+<div class="card dashboard-card">
+    <div class="card-header bg-white">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Licenses ({{ licenses.paginator.count }})
+                </h5>
+            </div>
+            <div class="col-md-6">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" 
+                           class="form-control search-input" 
+                           placeholder="Search licenses..."
+                           data-table="licensesTable">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover data-table" id="licensesTable">
+                <thead>
+                    <tr>
+                        <th>License Key</th>
+                        <th>Product</th>
+                        <th>Type</th>
+                        <th>Customer</th>
+                        <th>Expires</th>
+                        <th>Devices</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for license in licenses %}
+                    <tr>
+                        <td>
+                            <span class="license-key" title="Click to copy" 
+                                  onclick="copyLicenseKey('{{ license.license_key }}')"
+                                  style="cursor: pointer;">
+                                {{ license.license_key|truncatechars:12 }}
+                            </span>
+                            {% if license.is_expired %}
+                                <span class="badge bg-danger ms-1" data-bs-toggle="tooltip" title="Expired">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong>{{ license.product_code }}</strong>
+                            {% if license.plan_code %}
+                                <br><small class="text-muted">{{ license.plan_code }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if license.license_type == 'trial' %}
+                                <span class="badge bg-info">{{ license.license_type|title }}</span>
+                            {% elif license.license_type == 'personal' %}
+                                <span class="badge bg-primary">{{ license.license_type|title }}</span>
+                            {% elif license.license_type == 'business' %}
+                                <span class="badge bg-success">{{ license.license_type|title }}</span>
+                            {% elif license.license_type == 'enterprise' %}
+                                <span class="badge bg-purple">{{ license.license_type|title }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ license.license_type|title }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if license.customer_name %}
+                                <div>{{ license.customer_name }}</div>
+                                <small class="text-muted">{{ license.customer_email|default:"" }}</small>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ license.expiry_date|date:"Y-m-d" }}
+                            {% if license.days_remaining <= 7 and license.days_remaining > 0 %}
+                                <br><small class="text-warning">{{ license.days_remaining }} days left</small>
+                            {% elif license.days_remaining <= 0 %}
+                                <br><small class="text-danger">Expired</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="progress" style="height: 8px;" data-bs-toggle="tooltip" 
+                                 title="{{ license.activation_count }}/{{ license.max_devices }} devices">
+                                <div class="progress-bar {% if license.activation_count >= license.max_devices %}bg-danger{% else %}bg-success{% endif %}" 
+                                     role="progressbar" 
+                                     style="width: {{ license.activation_count|divisibleby:license.max_devices|default:0|multiply:100 }}%">
+                                </div>
+                            </div>
+                            <small>{{ license.activation_count }}/{{ license.max_devices }}</small>
+                        </td>
+                        <td>
+                            {% if license.status == 'active' %}
+                                <span class="badge badge-status badge-active">Active</span>
+                            {% elif license.status == 'expired' %}
+                                <span class="badge badge-status badge-expired">Expired</span>
+                            {% elif license.status == 'suspended' %}
+                                <span class="badge badge-status badge-suspended">Suspended</span>
+                            {% elif license.status == 'inactive' %}
+                                <span class="badge badge-status badge-pending">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{% url 'license_detail' license.id %}" 
+                                   class="btn btn-action btn-view" 
+                                   data-bs-toggle="tooltip" 
+                                   title="View License">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'license_edit' license.id %}" 
+                                   class="btn btn-action btn-edit" 
+                                   data-bs-toggle="tooltip" 
+                                   title="Edit License">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'license_activate' license.id %}" 
+                                   class="btn btn-action btn-success" 
+                                   data-bs-toggle="tooltip" 
+                                   title="Activate License">
+                                    <i class="fas fa-play"></i>
+                                </a>
+                                <button onclick="confirmDelete('{% url 'license_delete' license.id %}', '{{ license.license_key }}')" 
+                                        class="btn btn-action btn-delete" 
+                                        data-bs-toggle="tooltip" 
+                                        title="Delete License">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">
+                            <i class="fas fa-key fa-3x mb-3"></i>
+                            <h5>No licenses found</h5>
+                            <p class="mb-0">Create your first license to get started.</p>
+                            <a href="{% url 'license_create' %}" class="btn btn-primary mt-3">
+                                <i class="fas fa-plus-circle me-1"></i> Create License
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if licenses.paginator.num_pages > 1 %}
+        <nav aria-label="License pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if licenses.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                        <i class="fas fa-angle-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ licenses.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                        <i class="fas fa-angle-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+                
+                {% for num in licenses.paginator.page_range %}
+                    {% if licenses.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > licenses.number|add:'-3' and num < licenses.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if licenses.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ licenses.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                        <i class="fas fa-angle-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ licenses.paginator.num_pages }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                        <i class="fas fa-angle-double-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            <p class="text-center text-muted mt-2">
+                Showing {{ licenses.start_index }} to {{ licenses.end_index }} of {{ licenses.paginator.count }} licenses
+            </p>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize tooltips
+    $(function () {
+        $('[data-bs-toggle="tooltip"]').tooltip()
+    })
+</script>
+{% endblock %}
