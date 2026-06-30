@@ -1,5 +1,5 @@
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Activation Center Platform API",
+    "TITLE": "Collectly Platform API",
     "DESCRIPTION": "API for the activation center management",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,

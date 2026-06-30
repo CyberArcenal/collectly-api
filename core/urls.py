@@ -16,7 +16,6 @@ from users.views.login.login import LoginView
 from users.views.login.logout import LogoutView
 from users.views.login.verify import TokenVerifyView
 from users.views.security.jwt import RefreshTokenView
-from users.views.web import base
 
 logger = logging.getLogger(__name__)
 
