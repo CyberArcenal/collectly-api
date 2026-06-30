@@ -46,6 +46,18 @@ class Borrower(BaseModel):
         related_name='borrower_profile',
         help_text="Associated system user account (if borrower has login access)"
     )
+    credit_rating = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        choices=[
+            ('Excellent', 'Excellent'),
+            ('Good', 'Good'),
+            ('Fair', 'Fair'),
+            ('Poor', 'Poor'),
+        ],
+        help_text="Credit rating based on latest credit check"
+    )
     
     class Meta:
         db_table = 'borrowers'

@@ -1,6 +1,6 @@
 import logging
 import json
-from django.db.models import Q, Avg, Count
+from django.db.models import Q
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class SystemSettingService:
     """
     Service layer for SystemSetting operations.
+    Cache clearing is now handled by signals.
     """
 
     # ============================================================
@@ -54,14 +55,14 @@ class SystemSettingService:
         setting = SystemSettingService.get_by_key(key, setting_type)
         if not setting:
             return default
-        
+
         value = setting.value
         # Try to parse JSON
         try:
             return json.loads(value)
         except (json.JSONDecodeError, TypeError):
             pass
-        
+
         # Return as string
         return value
 
@@ -111,7 +112,7 @@ class SystemSettingService:
         Get paginated list of settings.
         """
         qs = SystemSetting.objects.filter(deleted_at__isnull=True)
-        
+
         if filters:
             if filters.get('setting_type'):
                 qs = qs.filter(setting_type=filters['setting_type'])
@@ -124,7 +125,7 @@ class SystemSettingService:
                     Q(value__icontains=search) |
                     Q(description__icontains=search)
                 )
-        
+
         qs = qs.order_by('setting_type', 'key')
         return paginate_queryset(qs, page, limit)
 
@@ -136,13 +137,15 @@ class SystemSettingService:
         settings = SystemSetting.objects.filter(
             deleted_at__isnull=True
         ).order_by('setting_type', 'key')
-        
+
         grouped = {}
         for setting in settings:
             if setting.setting_type not in grouped:
                 grouped[setting.setting_type] = {}
-            grouped[setting.setting_type][setting.key] = SystemSettingService.get_value(setting.key, setting.setting_type)
-        
+            grouped[setting.setting_type][setting.key] = SystemSettingService.get_value(
+                setting.key, setting.setting_type
+            )
+
         return grouped
 
     @staticmethod
@@ -154,11 +157,13 @@ class SystemSettingService:
             is_public=True,
             deleted_at__isnull=True
         ).order_by('setting_type', 'key')
-        
+
         result = {}
         for setting in settings:
-            result[setting.key] = SystemSettingService.get_value(setting.key, setting.setting_type)
-        
+            result[setting.key] = SystemSettingService.get_value(
+                setting.key, setting.setting_type
+            )
+
         return result
 
     # ============================================================
@@ -170,12 +175,13 @@ class SystemSettingService:
     def create(data, user=None, request=None):
         """
         Create a new setting.
+        Cache clearing is handled by signals.
         """
         # Check if setting already exists
         existing = SystemSettingService.get_by_key(data['key'], data.get('setting_type'))
         if existing:
             raise ValidationError({'key': f'Setting already exists: {data["key"]}'})
-        
+
         setting = SystemSetting.objects.create(
             key=data['key'],
             value=json.dumps(data['value']) if isinstance(data['value'], (dict, list)) else str(data['value']),
@@ -183,7 +189,7 @@ class SystemSettingService:
             description=data.get('description'),
             is_public=data.get('is_public', False)
         )
-        
+
         # Audit log
         if user:
             log_audit_event(
@@ -194,7 +200,7 @@ class SystemSettingService:
                 object_id=str(setting.id),
                 changes={'data': data}
             )
-        
+
         logger.info(f"System setting created: {setting.key} = {setting.value}")
         return setting
 
@@ -203,22 +209,23 @@ class SystemSettingService:
     def update(setting_id, data, user=None, request=None):
         """
         Update a setting.
+        Cache clearing is handled by signals.
         """
         setting = SystemSettingService.get_by_id(setting_id)
         if not setting:
             raise ValidationError({'id': 'Setting not found.'})
-        
+
         if 'value' in data:
             setting.value = json.dumps(data['value']) if isinstance(data['value'], (dict, list)) else str(data['value'])
-        
+
         if 'description' in data:
             setting.description = data['description']
-        
+
         if 'is_public' in data:
             setting.is_public = data['is_public']
-        
+
         setting.save()
-        
+
         # Audit log
         if user:
             log_audit_event(
@@ -229,7 +236,7 @@ class SystemSettingService:
                 object_id=str(setting.id),
                 changes={'data': data}
             )
-        
+
         logger.info(f"System setting updated: {setting.key} = {setting.value}")
         return setting
 
@@ -238,11 +245,12 @@ class SystemSettingService:
     def set_value(key, value, setting_type=None, description=None, is_public=False, user=None, request=None):
         """
         Set a setting value (create or update).
+        Cache clearing is handled by signals.
         """
         setting = SystemSettingService.get_by_key(key, setting_type)
-        
+
         value_str = json.dumps(value) if isinstance(value, (dict, list)) else str(value)
-        
+
         if setting:
             old_value = setting.value
             setting.value = value_str
@@ -250,7 +258,7 @@ class SystemSettingService:
                 setting.description = description
             setting.is_public = is_public
             setting.save()
-            
+
             if user:
                 log_audit_event(
                     request=request,
@@ -260,7 +268,7 @@ class SystemSettingService:
                     object_id=str(setting.id),
                     changes={'old_value': old_value, 'new_value': value_str}
                 )
-            
+
             logger.info(f"System setting updated: {key} = {value_str}")
             return setting
         else:
@@ -281,13 +289,14 @@ class SystemSettingService:
     def delete(setting_id, user=None, request=None):
         """
         Soft delete a setting.
+        Cache clearing is handled by signals.
         """
         setting = SystemSettingService.get_by_id(setting_id)
         if not setting:
             raise ValidationError({'id': 'Setting not found.'})
-        
+
         setting.soft_delete()
-        
+
         # Audit log
         if user:
             log_audit_event(
@@ -298,7 +307,7 @@ class SystemSettingService:
                 object_id=str(setting.id),
                 changes={'deleted_at': setting.deleted_at}
             )
-        
+
         logger.info(f"System setting soft-deleted: {setting.key}")
         return setting
 
@@ -307,11 +316,12 @@ class SystemSettingService:
     def delete_by_key(key, setting_type=None, user=None, request=None):
         """
         Delete a setting by key.
+        Cache clearing is handled by signals.
         """
         setting = SystemSettingService.get_by_key(key, setting_type)
         if not setting:
             raise ValidationError({'key': 'Setting not found.'})
-        
+
         return SystemSettingService.delete(setting.id, user, request)
 
     # ============================================================
@@ -325,7 +335,7 @@ class SystemSettingService:
         """
         from django.conf import settings
         import platform
-        
+
         return {
             'version': '1.0.0',
             'name': 'Collectly API',

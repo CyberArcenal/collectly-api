@@ -7,12 +7,100 @@ from django.utils import timezone
 from audit.utils.log import log_audit_event
 from notifications.models.notification import Notification
 from debts.models.debt import Debt
+from users.services.notification_recipients import get_admin_and_staff_users
 from utils.pagination import paginate_queryset
 
 logger = logging.getLogger(__name__)
 
 
 class NotificationService:
+    @staticmethod
+    def notify_admins_and_staff(title, message, type="info", metadata=None, user="system"):
+        """
+        Send notification to all admin and staff users.
+
+        Args:
+            title: Notification title
+            message: Notification message
+            type: Notification type
+            metadata: Additional metadata
+            user: User performing the action
+
+        Returns:
+            int: Number of notifications created
+        """
+        recipients = get_admin_and_staff_users()
+        count = 0
+
+        for recipient in recipients:
+            try:
+                NotificationService.create(
+                    data={
+                        'title': title,
+                        'message': message,
+                        'type': type,
+                        'metadata': metadata or {},
+                    },
+                    user=user,
+                    request=None
+                )
+                count += 1
+            except Exception as e:
+                logger.error(f"Failed to send notification to user {recipient.id}: {e}")
+
+        logger.info(f"Sent notification to {count} admin/staff users: {title}")
+        return count
+
+    @staticmethod
+    def notify_all_admins(title, message, type="info", metadata=None, user="system"):
+        """Send notification to all admin users only."""
+        from users.services.notification_recipients import get_admin_users
+        recipients = get_admin_users()
+        count = 0
+
+        for recipient in recipients:
+            try:
+                NotificationService.create(
+                    data={
+                        'title': title,
+                        'message': message,
+                        'type': type,
+                        'metadata': metadata or {},
+                    },
+                    user=user,
+                    request=None
+                )
+                count += 1
+            except Exception as e:
+                logger.error(f"Failed to send notification to admin {recipient.id}: {e}")
+
+        return count
+
+    @staticmethod
+    def notify_admins_staff_managers(title, message, type="info", metadata=None, user="system"):
+        """Send notification to admin, staff, and manager users."""
+        from users.services.notification_recipients import get_admin_staff_manager_users
+        recipients = get_admin_staff_manager_users()
+        count = 0
+
+        for recipient in recipients:
+            try:
+                NotificationService.create(
+                    data={
+                        'title': title,
+                        'message': message,
+                        'type': type,
+                        'metadata': metadata or {},
+                    },
+                    user=user,
+                    request=None
+                )
+                count += 1
+            except Exception as e:
+                logger.error(f"Failed to send notification to user {recipient.id}: {e}")
+
+        return count
+    
     """
     Service layer for Notification CRUD operations.
     """

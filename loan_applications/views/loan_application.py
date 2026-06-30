@@ -1,0 +1,775 @@
+import logging
+from django.db import transaction
+from rest_framework.views import APIView
+from rest_framework import status, serializers
+from rest_framework.permissions import IsAuthenticated
+
+from audit.utils.log import log_audit_event
+from loan_applications.models.loan_application import LoanApplication
+from loan_applications.serializers.loan_application import (
+    LoanApplicationReadSerializer,
+    LoanApplicationListSerializer,
+    LoanApplicationCreateSerializer,
+    LoanApplicationUpdateSerializer,
+    LoanApplicationApproveSerializer,
+    LoanApplicationRejectSerializer,
+)
+from loan_applications.services.loan_application import LoanApplicationService
+from users.permissions.base import IsAccountActive, can_read, can_edit, is_admin
+from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
+from utils.security import get_client_ip
+
+from drf_spectacular.utils import (
+    extend_schema,
+    OpenApiParameter,
+    OpenApiExample,
+    inline_serializer,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ----------------------------------------------------------------------
+# Response serializers for documentation
+# ----------------------------------------------------------------------
+
+class LoanApplicationListResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    pagination = BasePaginatedSerializer()
+    data = LoanApplicationListSerializer(many=True)
+
+
+class LoanApplicationDetailResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    data = LoanApplicationReadSerializer()
+
+
+class LoanApplicationCreateResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    data = LoanApplicationReadSerializer()
+
+
+class LoanApplicationUpdateResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    data = LoanApplicationReadSerializer()
+
+
+class LoanApplicationDeleteResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    data = serializers.DictField(allow_null=True)
+
+
+class LoanApplicationApproveResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    data = LoanApplicationReadSerializer()
+
+
+class LoanApplicationRejectResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    data = LoanApplicationReadSerializer()
+
+
+class LoanApplicationStatisticsResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    data = serializers.DictField()
+
+
+class ErrorResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=False)
+    message = serializers.CharField()
+    data = serializers.DictField(allow_null=True, required=False)
+
+
+# ----------------------------------------------------------------------
+# View
+# ----------------------------------------------------------------------
+
+class LoanApplicationCRUDView(APIView):
+    """
+    CRUD operations for loan applications.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+    pagination_class = CustomPagination
+
+    # ------------------------------------------------------------------
+    # GET /loan-applications/  (list) and GET /loan-applications/<id>/ (retrieve)
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        parameters=[
+            OpenApiParameter(name="page", type=int, description="Page number", required=False),
+            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
+            OpenApiParameter(name="status", type=str, description="Filter by status (pending, approved, rejected)", required=False),
+            OpenApiParameter(name="debtor_id", type=int, description="Filter by debtor ID", required=False),
+            OpenApiParameter(name="search", type=str, description="Search by debtor name or purpose", required=False),
+            OpenApiParameter(name="from_date", type=str, description="Filter from date", required=False),
+            OpenApiParameter(name="to_date", type=str, description="Filter to date", required=False),
+            OpenApiParameter(name="include_deleted", type=bool, description="Include soft-deleted", required=False),
+        ],
+        responses={
+            200: LoanApplicationListResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Retrieve a single loan application (if id provided) or a paginated list."
+    )
+    def get(self, request, id=None):
+        """Retrieve single loan application or list all."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to view loan applications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            if id:
+                include_deleted = request.query_params.get('include_deleted', 'false').lower() == 'true'
+                application = LoanApplicationService.get_by_id(id, include_deleted)
+                if not application:
+                    return _error(
+                        data={"detail": "Loan application not found."},
+                        message="Loan application not found.",
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                serializer = LoanApplicationReadSerializer(application, context={"request": request})
+
+                log_audit_event(
+                    request=request,
+                    user=user,
+                    action_type="read",
+                    model_name="LoanApplication",
+                    object_id=str(id),
+                    ip_address=client_ip,
+                    user_agent=user_agent,
+                )
+
+                return _success(
+                    data=serializer.data,
+                    message="Loan application retrieved successfully.",
+                    status=status.HTTP_200_OK,
+                )
+
+            # List with filters
+            filters = {
+                'status': request.query_params.get('status'),
+                'debtor_id': request.query_params.get('debtor_id'),
+                'search': request.query_params.get('search'),
+                'from_date': request.query_params.get('from_date'),
+                'to_date': request.query_params.get('to_date'),
+                'include_deleted': request.query_params.get('include_deleted', 'false').lower() == 'true',
+            }
+            filters = {k: v for k, v in filters.items() if v is not None}
+
+            page = int(request.query_params.get('page', 1))
+            limit = int(request.query_params.get('page_size', 20))
+            sort_by = request.query_params.get('sort_by', 'created_at')
+            sort_order = request.query_params.get('sort_order', 'desc')
+
+            result = LoanApplicationService.get_list(
+                filters=filters,
+                page=page,
+                limit=limit,
+                sort_by=sort_by,
+                sort_order=sort_order
+            )
+
+            paginator = self.pagination_class()
+            response = paginator.get_paginated_response(
+                data=result['data'],
+                message="Loan applications retrieved successfully.",
+                pagination=result['pagination']
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="read",
+                model_name="LoanApplication",
+                object_id="list",
+                changes={"count": result['pagination']['total']},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Loan application retrieval error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # ------------------------------------------------------------------
+    # POST /loan-applications/
+    # WITH TRANSACTION
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        request=LoanApplicationCreateSerializer,
+        responses={
+            201: LoanApplicationCreateResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Create a new loan application. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Create a new loan application."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to create loan applications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = LoanApplicationCreateSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            transaction.set_rollback(True)
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="create",
+                model_name="LoanApplication",
+                object_id="new",
+                changes={"error": serializer.errors, "data": request.data},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+            return _error(
+                data=serializer.errors,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            application = LoanApplicationService.create(
+                data=serializer.validated_data,
+                user=user,
+                request=request
+            )
+
+            read_serializer = LoanApplicationReadSerializer(application, context={"request": request})
+
+            return _success(
+                data=read_serializer.data,
+                message="Loan application created successfully.",
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Loan application creation failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to create loan application.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # ------------------------------------------------------------------
+    # PUT /loan-applications/<id>/
+    # WITH TRANSACTION
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        request=LoanApplicationUpdateSerializer,
+        responses={
+            200: LoanApplicationUpdateResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Full update of an existing loan application. Admin/Staff only. Only pending applications can be updated."
+    )
+    @transaction.atomic
+    def put(self, request, id):
+        """Full update of a loan application."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to update loan applications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        application = LoanApplicationService.get_by_id(id)
+        if not application:
+            return _error(
+                data={"detail": "Loan application not found."},
+                message="Loan application not found.",
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = LoanApplicationUpdateSerializer(
+            application,
+            data=request.data,
+            context={"request": request}
+        )
+
+        if not serializer.is_valid():
+            transaction.set_rollback(True)
+            return _error(
+                data=serializer.errors,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            updated = LoanApplicationService.update(
+                application_id=id,
+                data=serializer.validated_data,
+                user=user,
+                request=request
+            )
+
+            read_serializer = LoanApplicationReadSerializer(updated, context={"request": request})
+
+            return _success(
+                data=read_serializer.data,
+                message="Loan application updated successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Loan application update failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to update loan application.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # ------------------------------------------------------------------
+    # PATCH /loan-applications/<id>/
+    # WITH TRANSACTION
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        request=LoanApplicationUpdateSerializer,
+        responses={
+            200: LoanApplicationUpdateResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Partial update of an existing loan application. Admin/Staff only. Only pending applications can be updated."
+    )
+    @transaction.atomic
+    def patch(self, request, id):
+        """Partial update of a loan application."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to update loan applications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        application = LoanApplicationService.get_by_id(id)
+        if not application:
+            return _error(
+                data={"detail": "Loan application not found."},
+                message="Loan application not found.",
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = LoanApplicationUpdateSerializer(
+            application,
+            data=request.data,
+            partial=True,
+            context={"request": request}
+        )
+
+        if not serializer.is_valid():
+            transaction.set_rollback(True)
+            return _error(
+                data=serializer.errors,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            updated = LoanApplicationService.update(
+                application_id=id,
+                data=serializer.validated_data,
+                user=user,
+                request=request
+            )
+
+            read_serializer = LoanApplicationReadSerializer(updated, context={"request": request})
+
+            return _success(
+                data=read_serializer.data,
+                message="Loan application updated successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Loan application partial update failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to update loan application.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # ------------------------------------------------------------------
+    # DELETE /loan-applications/<id>/
+    # WITH TRANSACTION
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        responses={
+            204: LoanApplicationDeleteResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Soft delete a loan application. Admin/Staff only. Only pending applications can be deleted."
+    )
+    @transaction.atomic
+    def delete(self, request, id):
+        """Soft delete a loan application."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to delete loan applications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        application = LoanApplicationService.get_by_id(id)
+        if not application:
+            return _error(
+                data={"detail": "Loan application not found."},
+                message="Loan application not found.",
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            LoanApplicationService.delete(
+                application_id=id,
+                user=user,
+                request=request
+            )
+
+            return _success(
+                data=None,
+                message="Loan application deleted successfully.",
+                status=status.HTTP_204_NO_CONTENT,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Loan application deletion failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to delete loan application.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ----------------------------------------------------------------------
+# Loan Application Approve View
+# ----------------------------------------------------------------------
+
+class LoanApplicationApproveView(APIView):
+    """
+    Approve a loan application.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        request=LoanApplicationApproveSerializer,
+        responses={
+            200: LoanApplicationApproveResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Approve a pending loan application. Admin/Manager only."
+    )
+    @transaction.atomic
+    def post(self, request, id):
+        """Approve a loan application."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to approve loan applications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        application = LoanApplicationService.get_by_id(id)
+        if not application:
+            return _error(
+                data={"detail": "Loan application not found."},
+                message="Loan application not found.",
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = LoanApplicationApproveSerializer(
+            data=request.data,
+            context={"request": request, "user": user}
+        )
+        serializer.instance = application
+
+        if not serializer.is_valid():
+            transaction.set_rollback(True)
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="update",
+                model_name="LoanApplication",
+                object_id=str(id),
+                changes={"error": serializer.errors, "data": request.data},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+            return _error(
+                data=serializer.errors,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            approved = serializer.save()
+
+            read_serializer = LoanApplicationReadSerializer(approved, context={"request": request})
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="loan_application_approved",
+                model_name="LoanApplication",
+                object_id=str(id),
+                changes={"approved_by": serializer.validated_data.get('approved_by', user.username)},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=read_serializer.data,
+                message="Loan application approved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Loan application approval failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to approve loan application.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ----------------------------------------------------------------------
+# Loan Application Reject View
+# ----------------------------------------------------------------------
+
+class LoanApplicationRejectView(APIView):
+    """
+    Reject a loan application.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        request=LoanApplicationRejectSerializer,
+        responses={
+            200: LoanApplicationRejectResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Reject a pending loan application. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request, id):
+        """Reject a loan application."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to reject loan applications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        application = LoanApplicationService.get_by_id(id)
+        if not application:
+            return _error(
+                data={"detail": "Loan application not found."},
+                message="Loan application not found.",
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = LoanApplicationRejectSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+        serializer.instance = application
+
+        if not serializer.is_valid():
+            transaction.set_rollback(True)
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="update",
+                model_name="LoanApplication",
+                object_id=str(id),
+                changes={"error": serializer.errors, "data": request.data},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+            return _error(
+                data=serializer.errors,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            rejected = serializer.save()
+
+            read_serializer = LoanApplicationReadSerializer(rejected, context={"request": request})
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="loan_application_rejected",
+                model_name="LoanApplication",
+                object_id=str(id),
+                changes={"rejection_reason": serializer.validated_data.get('rejection_reason')},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=read_serializer.data,
+                message="Loan application rejected successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Loan application rejection failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to reject loan application.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ----------------------------------------------------------------------
+# Loan Application Statistics View
+# ----------------------------------------------------------------------
+
+class LoanApplicationStatisticsView(APIView):
+    """
+    Get loan application statistics.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        responses={
+            200: LoanApplicationStatisticsResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get loan application statistics including counts by status and total amounts."
+    )
+    def get(self, request):
+        """Get loan application statistics."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to view loan application statistics."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            stats = LoanApplicationService.get_statistics()
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="stats_read",
+                model_name="LoanApplication",
+                object_id="stats",
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=stats,
+                message="Loan application statistics retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Loan application statistics error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to retrieve loan application statistics.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

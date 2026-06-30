@@ -1,23 +1,32 @@
-# BarangaySystem/celery.py
-
 import os
 import django
-from django.conf import settings
 from celery import Celery
+from django.conf import settings
 
-# 1. Itakda ang settings module
+# 1. Set the settings module
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings.dev')
 
-# 2. I-initialize ang Django at i-apply ang LOGGING config
-# django.setup()
+# 2. Initialize Django (only once)
+django.setup()
 
-# 3. I-setup ang Celery
+# 3. Setup Celery
 app = Celery('core')
+
+# 4. Load configuration from Django settings
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
-# 4. Autodiscover tasks
-app.autodiscover_tasks()
+# 5. Autodiscover tasks from all installed apps
+app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
 
-if __name__ == "__main__":
-    # Huwag kalimutang gamitin ang worker_main() para sa Windows
-    app.worker_main()
+# 6. Optional: Load Django's logging configuration
+app.conf.update(
+    worker_hijack_root_logger=False,
+    worker_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(message)s',
+    worker_task_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(task_name)s[%(task_id)s]: %(message)s',
+)
+
+
+@app.task(bind=True)
+def debug_task(self):
+    """Debug task to test Celery is working."""
+    print(f'Request: {self.request!r}')

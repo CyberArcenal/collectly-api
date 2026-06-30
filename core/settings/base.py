@@ -22,6 +22,7 @@ from .components.cors               import *
 from .components.celery             import *
 from .components.time               import *
 from .components.mail               import *
+from .components.twilio             import *
 # from .components.pdfkit             import *
 from .components.jwt                import *
 from .components.spectacular        import *
