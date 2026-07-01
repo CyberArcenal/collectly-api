@@ -773,3 +773,158 @@ class LoanApplicationStatisticsView(APIView):
                 message="Failed to retrieve loan application statistics.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+            
+from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
+from rest_framework import serializers
+from django.core.exceptions import ValidationError
+
+# ===================================================================
+# LOAN APPLICATION RESTORE VIEW
+# ===================================================================
+
+class LoanApplicationRestoreView(APIView):
+    """
+    Restore a soft-deleted loan application. Admin only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        responses={
+            200: LoanApplicationDetailResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Restore a soft-deleted loan application. Admin only."
+    )
+    @transaction.atomic
+    def post(self, request, id):
+        """Restore a soft-deleted loan application."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user):
+            return _error(
+                data={"detail": "You do not have permission to restore loan applications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            application = LoanApplicationService.restore(
+                application_id=id,
+                user=user,
+                request=request
+            )
+
+            serializer = LoanApplicationReadSerializer(application, context={"request": request})
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="restore",
+                model_name="LoanApplication",
+                object_id=str(id),
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=serializer.data,
+                message="Loan application restored successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Loan application restore failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to restore loan application.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# LOAN APPLICATION PERMANENT DELETE VIEW
+# ===================================================================
+
+class LoanApplicationPermanentDeleteView(APIView):
+    """
+    Permanently delete a loan application (hard delete). Admin only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        responses={
+            204: LoanApplicationDeleteResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Permanently delete a loan application (hard delete). Admin only. Only pending applications can be permanently deleted."
+    )
+    @transaction.atomic
+    def delete(self, request, id):
+        """Permanently delete a loan application."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user):
+            return _error(
+                data={"detail": "You do not have permission to permanently delete loan applications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            LoanApplicationService.permanent_delete(
+                application_id=id,
+                user=user,
+                request=request
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="permanent_delete",
+                model_name="LoanApplication",
+                object_id=str(id),
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=None,
+                message="Loan application permanently deleted successfully.",
+                status=status.HTTP_204_NO_CONTENT,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Loan application permanent delete failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to permanently delete loan application.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

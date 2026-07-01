@@ -3,7 +3,7 @@ from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework import status, serializers
 from rest_framework.permissions import IsAuthenticated
-
+from django.utils import timezone
 from audit.utils.log import log_audit_event
 from notifications.models.notification import Notification
 from notifications.serializers.notification import (
@@ -805,5 +805,671 @@ class NotificationStatisticsView(APIView):
             return _error(
                 data={"detail": str(exc)},
                 message="Failed to retrieve notification statistics.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            
+            
+from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
+from rest_framework import serializers
+from django.core.exceptions import ValidationError
+
+# ===================================================================
+# NOTIFICATION RESTORE VIEW
+# ===================================================================
+
+class NotificationRestoreView(APIView):
+    """
+    Restore a soft-deleted notification. Admin only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notifications"],
+        responses={
+            200: NotificationDetailResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Restore a soft-deleted notification. Admin only."
+    )
+    @transaction.atomic
+    def post(self, request, id):
+        """Restore a soft-deleted notification."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user):
+            return _error(
+                data={"detail": "You do not have permission to restore notifications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            notification = NotificationService.restore(
+                notification_id=id,
+                user=user,
+                request=request
+            )
+
+            serializer = NotificationReadSerializer(notification, context={"request": request})
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="restore",
+                model_name="Notification",
+                object_id=str(id),
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=serializer.data,
+                message="Notification restored successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Notification restore failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to restore notification.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION PERMANENT DELETE VIEW
+# ===================================================================
+
+class NotificationPermanentDeleteView(APIView):
+    """
+    Permanently delete a notification (hard delete). Admin only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notifications"],
+        responses={
+            204: NotificationDeleteResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Permanently delete a notification (hard delete). Admin only."
+    )
+    @transaction.atomic
+    def delete(self, request, id):
+        """Permanently delete a notification."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user):
+            return _error(
+                data={"detail": "You do not have permission to permanently delete notifications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            NotificationService.permanent_delete(
+                notification_id=id,
+                user=user,
+                request=request
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="permanent_delete",
+                model_name="Notification",
+                object_id=str(id),
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=None,
+                message="Notification permanently deleted successfully.",
+                status=status.HTTP_204_NO_CONTENT,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Notification permanent delete failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to permanently delete notification.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION MARK MANY READ VIEW
+# ===================================================================
+
+class NotificationMarkManyReadView(APIView):
+    """
+    Mark multiple notifications as read.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notifications"],
+        request=inline_serializer(
+            name="MarkManyReadRequest",
+            fields={
+                "ids": serializers.ListField(
+                    child=serializers.IntegerField(),
+                    help_text="List of notification IDs to mark as read"
+                ),
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name="MarkManyReadResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Mark multiple notifications as read. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Mark multiple notifications as read."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to mark notifications as read."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        ids = request.data.get("ids")
+        if not ids or not isinstance(ids, list):
+            return _error(
+                data={"detail": "ids must be a non-empty list."},
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = NotificationService.mark_many_as_read(
+                notification_ids=ids,
+                user=user,
+                request=request
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="notifications_mark_many_read",
+                model_name="Notification",
+                object_id="many",
+                changes={"count": result['updated_count']},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={"updatedCount": result['updated_count']},
+                message=f"Marked {result['updated_count']} notifications as read.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Mark many read failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to mark notifications as read.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION BULK CREATE VIEW
+# ===================================================================
+
+class NotificationBulkCreateView(APIView):
+    """
+    Bulk create multiple notifications. Admin/Staff only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notifications"],
+        request=inline_serializer(
+            name="BulkCreateRequest",
+            fields={
+                "notificationsArray": serializers.ListField(
+                    child=NotificationCreateSerializer()
+                ),
+            }
+        ),
+        responses={
+            201: inline_serializer(
+                name="BulkCreateResponse",
+                fields={
+                    "created": NotificationReadSerializer(many=True),
+                    "errors": serializers.ListField(
+                        child=serializers.DictField()
+                    )
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Bulk create multiple notifications. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Bulk create multiple notifications."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to create notifications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        notifications_data = request.data.get("notificationsArray")
+        if not isinstance(notifications_data, list):
+            return _error(
+                data={"detail": "notificationsArray must be a list."},
+                message="Invalid request format.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = NotificationService.bulk_create(
+                notifications_data, 
+                user=user, 
+                request=request
+            )
+            
+            created_serialized = NotificationReadSerializer(
+                result['created'], 
+                many=True, 
+                context={"request": request}
+            ).data
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="bulk_create",
+                model_name="Notification",
+                object_id="bulk",
+                changes={"count": len(result['created']), "errors": len(result['errors'])},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "created": created_serialized,
+                    "errors": result['errors']
+                },
+                message="Bulk create completed successfully.",
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Bulk create failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to bulk create notifications.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION BULK UPDATE VIEW
+# ===================================================================
+
+class NotificationBulkUpdateView(APIView):
+    """
+    Bulk update multiple notifications. Admin/Staff only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notifications"],
+        request=inline_serializer(
+            name="BulkUpdateRequest",
+            fields={
+                "updatesArray": serializers.ListField(
+                    child=serializers.DictField()
+                ),
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name="BulkUpdateResponse",
+                fields={
+                    "updated": NotificationReadSerializer(many=True),
+                    "errors": serializers.ListField(
+                        child=serializers.DictField()
+                    )
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Bulk update multiple notifications. Admin/Staff only."
+    )
+    @transaction.atomic
+    def put(self, request):
+        """Bulk update multiple notifications."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to update notifications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        updates = request.data.get("updatesArray")
+        if not isinstance(updates, list):
+            return _error(
+                data={"detail": "updatesArray must be a list."},
+                message="Invalid request format.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = NotificationService.bulk_update(
+                updates, 
+                user=user, 
+                request=request
+            )
+            
+            updated_serialized = NotificationReadSerializer(
+                result['updated'], 
+                many=True, 
+                context={"request": request}
+            ).data
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="bulk_update",
+                model_name="Notification",
+                object_id="bulk",
+                changes={"count": len(result['updated']), "errors": len(result['errors'])},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "updated": updated_serialized,
+                    "errors": result['errors']
+                },
+                message="Bulk update completed successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Bulk update failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to bulk update notifications.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION IMPORT VIEW
+# ===================================================================
+
+class NotificationImportView(APIView):
+    """
+    Import notifications from CSV content. Admin/Staff only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notifications"],
+        request=inline_serializer(
+            name="ImportRequest",
+            fields={
+                "fileContent": serializers.CharField(),
+                "fileName": serializers.CharField(required=False),
+            }
+        ),
+        responses={
+            201: inline_serializer(
+                name="ImportResponse",
+                fields={
+                    "imported": NotificationReadSerializer(many=True),
+                    "errors": serializers.ListField(
+                        child=serializers.DictField()
+                    )
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Import notifications from CSV content. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Import notifications from CSV."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to import notifications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        file_content = request.data.get("fileContent")
+        if not file_content:
+            return _error(
+                data={"detail": "fileContent is required."},
+                message="Invalid request.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            import csv
+            from io import StringIO
+            reader = csv.DictReader(StringIO(file_content))
+            notifications_data = list(reader)
+        except Exception as e:
+            return _error(
+                data={"detail": f"Invalid CSV: {str(e)}"},
+                message="CSV parsing error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = NotificationService.bulk_create(
+                notifications_data, 
+                user=user, 
+                request=request
+            )
+            
+            imported_serialized = NotificationReadSerializer(
+                result['created'], 
+                many=True, 
+                context={"request": request}
+            ).data
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="import_csv",
+                model_name="Notification",
+                object_id="import",
+                changes={"count": len(result['created']), "errors": len(result['errors'])},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "imported": imported_serialized,
+                    "errors": result['errors']
+                },
+                message="CSV import completed successfully.",
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("CSV import failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to import notifications.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION EXPORT VIEW
+# ===================================================================
+
+class NotificationExportView(APIView):
+    """
+    Export notifications to CSV or JSON.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notifications"],
+        request=inline_serializer(
+            name="ExportRequest",
+            fields={
+                "format": serializers.ChoiceField(choices=["csv", "json"], default="json"),
+                "filters": serializers.DictField(required=False),
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name="ExportResponse",
+                fields={
+                    "format": serializers.CharField(),
+                    "data": serializers.CharField(help_text="CSV string or JSON array"),
+                    "filename": serializers.CharField()
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Export notifications to CSV or JSON."
+    )
+    def post(self, request):
+        """Export notifications."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to export notifications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        fmt = request.data.get("format", "json")
+        filters = request.data.get("filters", {})
+
+        try:
+            exported_data = NotificationService.export_notifications(filters)
+            
+            if fmt == "csv":
+                import csv
+                from io import StringIO
+                output = StringIO()
+                if exported_data:
+                    fieldnames = exported_data[0].keys()
+                    writer = csv.DictWriter(output, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(exported_data)
+                data_str = output.getvalue()
+                filename = f"notifications_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            else:  # json
+                import json
+                data_str = json.dumps(exported_data, default=str)
+                filename = f"notifications_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="export",
+                model_name="Notification",
+                object_id="export",
+                changes={"format": fmt, "count": len(exported_data)},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "format": fmt,
+                    "data": data_str,
+                    "filename": filename
+                },
+                message="Export completed successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Export failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to export notifications.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

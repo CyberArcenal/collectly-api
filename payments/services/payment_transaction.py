@@ -11,6 +11,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from audit.utils.log import log_audit_event
+from borrowers.models.borrower import Borrower
 from payments.models.payment_transaction import PaymentTransaction
 from debts.models.debt import Debt
 from payment_methods.models.payment_method import PaymentMethod
@@ -569,3 +570,331 @@ class PaymentTransactionService:
             'payment_count': stats.get('payment_count') or 0,
             'last_payment_date': stats.get('last_payment_date'),
         }
+
+    # ============================================================
+    # RESTORE & PERMANENT DELETE
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def restore(payment_id: int, user=None, request=None) -> PaymentTransaction:
+        """
+        Restore a soft-deleted payment.
+        
+        Args:
+            payment_id: ID of the payment to restore
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            PaymentTransaction: The restored payment instance
+        """
+        payment = PaymentTransaction.objects.filter(id=payment_id).first()
+        if not payment:
+            raise ValidationError({'id': 'Payment not found.'})
+        
+        if not payment.deleted_at:
+            raise ValidationError({'id': 'Payment is not deleted.'})
+        
+        # Restore the payment
+        payment.restore()
+        
+        # Restore debt balances
+        debt = payment.debt
+        if debt:
+            debt.paid_amount += payment.amount
+            debt.remaining_amount = debt.total_amount - debt.paid_amount
+            if debt.remaining_amount < 0:
+                debt.remaining_amount = Decimal('0')
+            debt.save()
+        
+        # Restore payment method stats
+        if payment.method:
+            from payment_methods.services.payment_method import PaymentMethodService
+            PaymentMethodService.increment_stats(payment.method.id, payment.amount)
+        
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='payment_restore',
+                model_name='PaymentTransaction',
+                object_id=str(payment.id),
+                changes={'restored_at': timezone.now()}
+            )
+        
+        logger.info(f"Payment restored: {payment.id}")
+        return payment
+
+
+    @staticmethod
+    @transaction.atomic
+    def permanent_delete(payment_id: int, user=None, request=None) -> None:
+        """
+        Permanently delete a payment (hard delete).
+        
+        Args:
+            payment_id: ID of the payment to permanently delete
+            user: User performing the action
+            request: HTTP request object
+        """
+        payment = PaymentTransaction.objects.filter(id=payment_id).first()
+        if not payment:
+            raise ValidationError({'id': 'Payment not found.'})
+        
+        # If not voided, void it first
+        if not payment.deleted_at:
+            # Void the payment (reverses amounts)
+            PaymentTransactionService.void_payment(payment_id, user, request)
+            payment.refresh_from_db()
+        
+        # Audit log before deletion
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='payment_permanent_delete',
+                model_name='PaymentTransaction',
+                object_id=str(payment.id),
+                changes={'permanent': True}
+            )
+        
+        payment.delete()
+        logger.info(f"Payment permanently deleted: {payment_id}")
+
+
+    # ============================================================
+    # BULK OPERATIONS
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def bulk_create(payments_data: List[Dict[str, Any]], user=None, request=None) -> Dict[str, Any]:
+        """
+        Bulk create multiple payments.
+        
+        Args:
+            payments_data: List of payment data dictionaries
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {'created': list of created payments, 'errors': list of errors}
+        """
+        results = {'created': [], 'errors': []}
+        
+        for data in payments_data:
+            try:
+                # Validate required fields
+                if not data.get('debt_id'):
+                    raise ValidationError({'debt_id': 'Debt ID is required.'})
+                if not data.get('amount'):
+                    raise ValidationError({'amount': 'Amount is required.'})
+                if not data.get('payment_date'):
+                    raise ValidationError({'payment_date': 'Payment date is required.'})
+                
+                # Add recorded_by if not provided
+                if not data.get('recorded_by') and user:
+                    data['recorded_by'] = user
+                
+                payment = PaymentTransactionService.create(data, user, request)
+                results['created'].append(payment)
+            except Exception as e:
+                results['errors'].append({
+                    'payment': data,
+                    'error': str(e)
+                })
+        
+        return results
+
+
+    @staticmethod
+    @transaction.atomic
+    def bulk_update(updates: List[Dict[str, Any]], user=None, request=None) -> Dict[str, Any]:
+        """
+        Bulk update multiple payments.
+        
+        Args:
+            updates: List of dicts with 'id' and 'updates' keys
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {'updated': list of updated payments, 'errors': list of errors}
+        """
+        results = {'updated': [], 'errors': []}
+        
+        for item in updates:
+            try:
+                payment_id = item.get('id')
+                data = item.get('updates', {})
+                
+                if not payment_id:
+                    raise ValidationError({'id': 'Payment ID is required.'})
+                
+                is_admin_user = user and user.is_admin if hasattr(user, 'is_admin') else False
+                updated = PaymentTransactionService.update(
+                    payment_id=payment_id,
+                    data=data,
+                    user=user,
+                    request=request,
+                    is_admin=is_admin_user
+                )
+                results['updated'].append(updated)
+            except Exception as e:
+                results['errors'].append({
+                    'id': item.get('id'),
+                    'updates': item.get('updates', {}),
+                    'error': str(e)
+                })
+        
+        return results
+
+
+    # ============================================================
+    # EXPORT
+    # ============================================================
+
+    @staticmethod
+    def export_payments(filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Export payments data for reporting.
+        
+        Args:
+            filters: Optional filters
+        
+        Returns:
+            list: List of payment dictionaries with selected fields
+        """
+        qs = PaymentTransaction.objects.filter(deleted_at__isnull=True).select_related(
+            'debt', 'debt__borrower', 'method'
+        )
+        
+        if filters:
+            if filters.get('debt_id'):
+                qs = qs.filter(debt_id=filters['debt_id'])
+            if filters.get('borrower_id'):
+                qs = qs.filter(debt__borrower_id=filters['borrower_id'])
+            if filters.get('method_id'):
+                qs = qs.filter(method_id=filters['method_id'])
+            if filters.get('payment_date_from'):
+                qs = qs.filter(payment_date__gte=filters['payment_date_from'])
+            if filters.get('payment_date_to'):
+                qs = qs.filter(payment_date__lte=filters['payment_date_to'])
+        
+        export_data = []
+        for payment in qs:
+            export_data.append({
+                'id': payment.id,
+                'debt_id': payment.debt_id,
+                'debt_name': payment.debt.name if payment.debt else None,
+                'borrower_name': payment.debt.borrower.name if payment.debt and payment.debt.borrower else None,
+                'borrower_contact': payment.debt.borrower.contact if payment.debt and payment.debt.borrower else None,
+                'amount': float(payment.amount),
+                'payment_date': payment.payment_date.isoformat(),
+                'reference': payment.reference,
+                'notes': payment.notes,
+                'method_name': payment.method.name if payment.method else None,
+                'recorded_at': payment.recorded_at.isoformat(),
+                'recorded_by': payment.recorded_by.username if payment.recorded_by else None,
+            })
+        
+        return export_data
+
+
+    # ============================================================
+    # IMPORT FROM CSV
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def import_from_csv(file_path: str, user=None, request=None) -> Dict[str, Any]:
+        """
+        Import payments from CSV file.
+        
+        Args:
+            file_path: Path to CSV file
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {'imported': list of imported payments, 'errors': list of errors}
+        """
+        import csv
+        from io import StringIO
+        
+        results = {'imported': [], 'errors': []}
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            reader = csv.DictReader(StringIO(content))
+            row_number = 1
+            
+            for row in reader:
+                row_number += 1
+                try:
+                    # Validate required fields
+                    debt_name = row.get('debt_name')
+                    if not debt_name:
+                        raise ValidationError({'debt_name': 'Debt name is required.'})
+                    
+                    # Find debt
+                    debt = Debt.objects.filter(
+                        name__icontains=debt_name,
+                        deleted_at__isnull=True
+                    ).first()
+                    
+                    if not debt:
+                        # Try to find by borrower name
+                        borrower_name = row.get('borrower_name')
+                        if borrower_name:
+                            borrower = Borrower.objects.filter(
+                                name__icontains=borrower_name,
+                                deleted_at__isnull=True
+                            ).first()
+                            if borrower:
+                                debt = Debt.objects.filter(
+                                    borrower=borrower,
+                                    deleted_at__isnull=True
+                                ).first()
+                    
+                    if not debt:
+                        raise ValidationError({'debt_name': f'Debt "{debt_name}" not found.'})
+                    
+                    # Find payment method
+                    method_name = row.get('method_name', 'Cash')
+                    method = PaymentMethod.objects.filter(
+                        name__icontains=method_name,
+                        deleted_at__isnull=True
+                    ).first()
+                    
+                    # Prepare payment data
+                    payment_data = {
+                        'debt_id': debt.id,
+                        'method_id': method.id if method else None,
+                        'amount': Decimal(row.get('amount', 0)),
+                        'payment_date': row.get('payment_date'),
+                        'reference': row.get('reference'),
+                        'notes': row.get('notes'),
+                    }
+                    
+                    if user:
+                        payment_data['recorded_by'] = user
+                    
+                    payment = PaymentTransactionService.create(payment_data, user, request)
+                    results['imported'].append(payment)
+                    
+                except Exception as e:
+                    results['errors'].append({
+                        'row': row_number,
+                        'data': row,
+                        'error': str(e)
+                    })
+            
+            return results
+        
+        except Exception as e:
+            raise ValidationError({'file': f'Failed to read CSV: {str(e)}'})

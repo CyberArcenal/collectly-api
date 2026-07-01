@@ -1,6 +1,16 @@
+# urls/base.py
 from django.urls import path
 
-from borrowers.views.borrower import BorrowerCRUDView
+from borrowers.views.borrower import (
+    BorrowerCRUDView,
+    BorrowerRestoreView,
+    BorrowerPermanentDeleteView,
+    BorrowerBulkCreateView,
+    BorrowerBulkUpdateView,
+    BorrowerImportView,
+    BorrowerExportView,
+    BorrowerStatisticsView,
+)
 from borrowers.views.credit_check_log import (
     CreditCheckLogCRUDView,
     CreditCheckStatsView,
@@ -12,18 +22,61 @@ urlpatterns = [
     # Borrower CRUD
     # ============================================================
     path(
-        "borrowers/",
+        "",
         BorrowerCRUDView.as_view(),
         name="borrower-list-create"
     ),
     path(
-        "borrowers/<int:id>/",
+        "<int:id>/",
         BorrowerCRUDView.as_view(),
         name="borrower-detail"
     ),
 
     # ============================================================
-    # Credit Check Log CRUD
+    # Restore and Permanent Delete
+    # ============================================================
+    path(
+        "<int:id>/restore/",
+        BorrowerRestoreView.as_view(),
+        name="borrower-restore"
+    ),
+    path(
+        "<int:id>/permanent/",
+        BorrowerPermanentDeleteView.as_view(),
+        name="borrower-permanent-delete"
+    ),
+
+    # ============================================================
+    # Bulk Operations
+    # ============================================================
+    path(
+        "bulkCreate/",
+        BorrowerBulkCreateView.as_view(),
+        name="borrower-bulk-create"
+    ),
+    path(
+        "bulkUpdate/",
+        BorrowerBulkUpdateView.as_view(),
+        name="borrower-bulk-update"
+    ),
+    path(
+        "import/",
+        BorrowerImportView.as_view(),
+        name="borrower-import"
+    ),
+    path(
+        "export/",
+        BorrowerExportView.as_view(),
+        name="borrower-export"
+    ),
+    path(
+        "statistics/",
+        BorrowerStatisticsView.as_view(),
+        name="borrower-statistics"
+    ),
+
+    # ============================================================
+    # Credit Check Log CRUD (existing)
     # ============================================================
     path(
         "credit-checks/",
@@ -35,10 +88,6 @@ urlpatterns = [
         CreditCheckLogCRUDView.as_view(),
         name="credit-check-detail"
     ),
-
-    # ============================================================
-    # Credit Check Statistics
-    # ============================================================
     path(
         "credit-checks/stats/",
         CreditCheckStatsView.as_view(),

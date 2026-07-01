@@ -468,3 +468,439 @@ class NotificationLogRetryView(APIView):
                 message="Failed to retry notification.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+            
+
+
+from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
+from rest_framework import serializers
+from django.core.exceptions import ValidationError
+
+# ===================================================================
+# NOTIFICATION LOG BY RECIPIENT VIEW
+# ===================================================================
+
+class NotificationLogByRecipientView(APIView):
+    """
+    Get notification logs by recipient email.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notification Logs"],
+        parameters=[
+            OpenApiParameter(name="recipient_email", type=str, description="Recipient email", required=True),
+            OpenApiParameter(name="page", type=int, description="Page number", required=False),
+            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
+        ],
+        responses={
+            200: NotificationLogListResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get paginated notification logs for a specific recipient."
+    )
+    def get(self, request):
+        """Get notification logs by recipient."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to view notification logs."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        recipient_email = request.query_params.get('recipient_email')
+        if not recipient_email:
+            return _error(
+                data={"detail": "recipient_email parameter is required."},
+                message="Missing required parameter.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            page = int(request.query_params.get('page', 1))
+            limit = int(request.query_params.get('page_size', 20))
+
+            result = NotificationLogService.get_by_recipient(
+                recipient_email=recipient_email,
+                page=page,
+                limit=limit
+            )
+
+            paginator = self.pagination_class()
+            response = paginator.get_paginated_response(
+                data=result['data'],
+                message="Notification logs retrieved successfully.",
+                pagination=result['pagination']
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="read",
+                model_name="NotificationLog",
+                object_id="by_recipient",
+                changes={"recipient_email": recipient_email},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Notification logs by recipient error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION LOG SEARCH VIEW
+# ===================================================================
+
+class NotificationLogSearchView(APIView):
+    """
+    Search notification logs by keyword.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notification Logs"],
+        parameters=[
+            OpenApiParameter(name="keyword", type=str, description="Search keyword", required=True),
+            OpenApiParameter(name="page", type=int, description="Page number", required=False),
+            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
+        ],
+        responses={
+            200: NotificationLogListResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Search notification logs by keyword in email, subject, or payload."
+    )
+    def get(self, request):
+        """Search notification logs."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to search notification logs."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        keyword = request.query_params.get('keyword')
+        if not keyword:
+            return _error(
+                data={"detail": "keyword parameter is required."},
+                message="Missing required parameter.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            page = int(request.query_params.get('page', 1))
+            limit = int(request.query_params.get('page_size', 20))
+
+            result = NotificationLogService.search(
+                keyword=keyword,
+                page=page,
+                limit=limit
+            )
+
+            paginator = self.pagination_class()
+            response = paginator.get_paginated_response(
+                data=result['data'],
+                message="Search completed successfully.",
+                pagination=result['pagination']
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="search",
+                model_name="NotificationLog",
+                object_id="search",
+                changes={"keyword": keyword},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Notification log search error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION LOG RESEND VIEW
+# ===================================================================
+
+class NotificationLogResendView(APIView):
+    """
+    Resend a notification (manual resend).
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notification Logs"],
+        request=inline_serializer(
+            name="ResendRequest",
+            fields={
+                "confirm": serializers.BooleanField(),
+            }
+        ),
+        responses={
+            200: NotificationLogRetryResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Resend a notification (manual resend). Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request, id):
+        """Resend a notification."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to resend notifications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        log_entry = NotificationLogService.get_by_id(id)
+        if not log_entry:
+            return _error(
+                data={"detail": "Notification log not found."},
+                message="Notification log not found.",
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        confirm = request.data.get('confirm', False)
+        if not confirm:
+            return _error(
+                data={"detail": "Please confirm to resend this notification."},
+                message="Confirmation required.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            updated = NotificationLogService.resend(
+                log_id=id,
+                user=user,
+                request=request
+            )
+
+            read_serializer = NotificationLogReadSerializer(updated, context={"request": request})
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="notification_resend",
+                model_name="NotificationLog",
+                object_id=str(id),
+                changes={"resend_count": updated.resend_count},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=read_serializer.data,
+                message="Notification queued for resend.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Notification resend failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to resend notification.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION LOG RETRY ALL VIEW
+# ===================================================================
+
+class NotificationLogRetryAllView(APIView):
+    """
+    Retry all failed notifications.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notification Logs"],
+        request=inline_serializer(
+            name="RetryAllRequest",
+            fields={
+                "filters": serializers.DictField(required=False, help_text="Optional filters (recipient_email, created_before)"),
+                "confirm": serializers.BooleanField(),
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name="RetryAllResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Retry all failed notifications. Admin only."
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Retry all failed notifications."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user):
+            return _error(
+                data={"detail": "You do not have permission to retry all failed notifications."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        confirm = request.data.get('confirm', False)
+        if not confirm:
+            return _error(
+                data={"detail": "Please confirm to retry all failed notifications."},
+                message="Confirmation required.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        filters = request.data.get('filters', {})
+
+        try:
+            result = NotificationLogService.retry_all_failed(
+                filters=filters,
+                user=user,
+                request=request
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="notification_retry_all",
+                model_name="NotificationLog",
+                object_id="all_failed",
+                changes=result,
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=result,
+                message=f"Retry all completed: {result['processed']} processed, {result['errors']} errors.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Retry all failed failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to retry all failed notifications.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# NOTIFICATION LOG STATISTICS VIEW
+# ===================================================================
+
+class NotificationLogStatsView(APIView):
+    """
+    Get notification log statistics.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Notification Logs"],
+        parameters=[
+            OpenApiParameter(name="start_date", type=str, description="Start date (YYYY-MM-DD)", required=False),
+            OpenApiParameter(name="end_date", type=str, description="End date (YYYY-MM-DD)", required=False),
+        ],
+        responses={
+            200: inline_serializer(
+                name="NotificationStatsResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                }
+            ),
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get notification log statistics including counts by status."
+    )
+    def get(self, request):
+        """Get notification log statistics."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to view notification statistics."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            stats = NotificationLogService.get_statistics()
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="stats_read",
+                model_name="NotificationLog",
+                object_id="stats",
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=stats,
+                message="Notification statistics retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Notification stats error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to retrieve notification statistics.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

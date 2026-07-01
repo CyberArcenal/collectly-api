@@ -5,6 +5,7 @@ from rest_framework import status, serializers
 from rest_framework.permissions import IsAuthenticated
 
 from audit.utils.log import log_audit_event
+from borrowers.models.borrower import Borrower
 from groups.models.debtor_group import DebtorGroup
 from groups.models.debtor_group_member import DebtorGroupMember
 from groups.serializers.debtor_group import (
@@ -818,5 +819,367 @@ class GroupStatsView(APIView):
             return _error(
                 data={"detail": str(exc)},
                 message="Failed to retrieve group statistics.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            
+        
+from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
+from rest_framework import serializers
+from django.core.exceptions import ValidationError
+
+# ===================================================================
+# GROUPS FOR DEBTOR VIEW
+# ===================================================================
+
+class GroupsForDebtorView(APIView):
+    """
+    Get groups for a specific debtor.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Groups"],
+        parameters=[
+            OpenApiParameter(name="page", type=int, description="Page number", required=False),
+            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
+        ],
+        responses={
+            200: GroupListResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get all groups a debtor belongs to."
+    )
+    def get(self, request, debtor_id):
+        """Get groups for a specific debtor."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to view groups."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            # Check if debtor exists
+            debtor = Borrower.objects.filter(id=debtor_id, deleted_at__isnull=True).first()
+            if not debtor:
+                return _error(
+                    data={"detail": "Debtor not found."},
+                    message="Debtor not found.",
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            page = int(request.query_params.get('page', 1))
+            limit = int(request.query_params.get('page_size', 20))
+
+            result = GroupService.get_groups_for_borrower(
+                borrower_id=debtor_id,
+                page=page,
+                limit=limit
+            )
+
+            paginator = self.pagination_class()
+            response = paginator.get_paginated_response(
+                data=result['data'],
+                message="Groups for debtor retrieved successfully.",
+                pagination=result['pagination']
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="read",
+                model_name="DebtorGroup",
+                object_id="by_debtor",
+                changes={"debtor_id": debtor_id},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Groups for debtor retrieval error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# BULK ASSIGN VIEW
+# ===================================================================
+
+class GroupBulkAssignView(APIView):
+    """
+    Bulk assign debtors to a group.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Groups"],
+        request=inline_serializer(
+            name="BulkAssignRequest",
+            fields={
+                "debtorIds": serializers.ListField(
+                    child=serializers.IntegerField(),
+                    help_text="List of debtor IDs to assign"
+                ),
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name="BulkAssignResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Bulk assign multiple debtors to a group. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request, group_id):
+        """Bulk assign debtors to a group."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to assign members to groups."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        debtor_ids = request.data.get("debtorIds")
+        if not debtor_ids or not isinstance(debtor_ids, list):
+            return _error(
+                data={"detail": "debtorIds must be a non-empty list."},
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = GroupService.bulk_assign(
+                group_id=group_id,
+                debtor_ids=debtor_ids,
+                user=user,
+                request=request
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="bulk_assign",
+                model_name="DebtorGroupMember",
+                object_id="bulk",
+                changes={
+                    "group_id": group_id,
+                    "assigned_count": result['assigned_count'],
+                    "errors_count": len(result.get('errors', []))
+                },
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "assignedCount": result['assigned_count'],
+                    "errors": result.get('errors', [])
+                },
+                message=f"Bulk assign completed: {result['assigned_count']} assigned.",
+                status=status.HTTP_200_OK,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Bulk assign failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to bulk assign debtors.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# CLEAR MEMBERS VIEW
+# ===================================================================
+
+class GroupClearMembersView(APIView):
+    """
+    Clear all members from a group.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Groups"],
+        responses={
+            204: inline_serializer(
+                name="ClearMembersResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                }
+            ),
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Remove all members from a group. Admin/Staff only."
+    )
+    @transaction.atomic
+    def delete(self, request, group_id):
+        """Clear all members from a group."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to clear group members."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            result = GroupService.clear_members(
+                group_id=group_id,
+                user=user,
+                request=request
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="clear_members",
+                model_name="DebtorGroup",
+                object_id=str(group_id),
+                changes={"members_removed": result['members_removed']},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=None,
+                message=f"Cleared {result['members_removed']} members from group.",
+                status=status.HTTP_204_NO_CONTENT,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Clear members failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to clear group members.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# REMOVE MEMBER ALTERNATIVE PATH VIEW
+# ===================================================================
+
+class GroupRemoveMemberView(APIView):
+    """
+    Remove a debtor from a group (alternative RESTful path).
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Group Members"],
+        responses={
+            204: inline_serializer(
+                name="GroupMemberDeleteResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                }
+            ),
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Remove a debtor from a group. Admin/Staff only."
+    )
+    @transaction.atomic
+    def delete(self, request, group_id, debtor_id):
+        """Remove a member from a group using path parameters."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to remove members from groups."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            member = GroupService.remove_member(
+                group_id=group_id,
+                debtor_id=debtor_id,
+                user=user,
+                request=request
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="remove_member",
+                model_name="DebtorGroupMember",
+                object_id=str(member.id),
+                changes={"group_id": group_id, "debtor_id": debtor_id},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=None,
+                message="Member removed successfully.",
+                status=status.HTTP_204_NO_CONTENT,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Remove member failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to remove member.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

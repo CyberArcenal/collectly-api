@@ -3,7 +3,7 @@ from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework import status, serializers
 from rest_framework.permissions import IsAuthenticated
-
+from django.utils import timezone
 from audit.utils.log import log_audit_event
 from payments.models.penalty_transaction import PenaltyTransaction
 from payments.serializers.penalty_transaction import (
@@ -635,5 +635,677 @@ class PenaltyTransactionAutoRunView(APIView):
             return _error(
                 data={"detail": str(exc)},
                 message="Failed to run auto-penalty.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            
+        
+from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
+from rest_framework import serializers
+from django.core.exceptions import ValidationError
+
+# ===================================================================
+# PENALTY RESTORE VIEW
+# ===================================================================
+
+class PenaltyRestoreView(APIView):
+    """
+    Restore a soft-deleted penalty. Admin only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Penalties"],
+        responses={
+            200: PenaltyTransactionDetailResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Restore a soft-deleted penalty. Admin only."
+    )
+    @transaction.atomic
+    def post(self, request, id):
+        """Restore a soft-deleted penalty."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user):
+            return _error(
+                data={"detail": "You do not have permission to restore penalties."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            penalty = PenaltyTransactionService.restore(
+                penalty_id=id,
+                user=user,
+                request=request
+            )
+
+            serializer = PenaltyTransactionReadSerializer(penalty, context={"request": request})
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="restore",
+                model_name="PenaltyTransaction",
+                object_id=str(id),
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=serializer.data,
+                message="Penalty restored successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Penalty restore failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to restore penalty.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PENALTY PERMANENT DELETE VIEW
+# ===================================================================
+
+class PenaltyPermanentDeleteView(APIView):
+    """
+    Permanently delete a penalty (hard delete). Admin only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Penalties"],
+        responses={
+            204: PenaltyTransactionDeleteResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Permanently delete a penalty (hard delete). Admin only."
+    )
+    @transaction.atomic
+    def delete(self, request, id):
+        """Permanently delete a penalty."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user):
+            return _error(
+                data={"detail": "You do not have permission to permanently delete penalties."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            PenaltyTransactionService.permanent_delete(
+                penalty_id=id,
+                user=user,
+                request=request
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="permanent_delete",
+                model_name="PenaltyTransaction",
+                object_id=str(id),
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=None,
+                message="Penalty permanently deleted successfully.",
+                status=status.HTTP_204_NO_CONTENT,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Penalty permanent delete failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to permanently delete penalty.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PENALTY BULK CREATE VIEW
+# ===================================================================
+
+class PenaltyBulkCreateView(APIView):
+    """
+    Bulk create multiple penalties. Admin/Staff only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Penalties"],
+        request=inline_serializer(
+            name="BulkCreateRequest",
+            fields={
+                "penaltiesArray": serializers.ListField(
+                    child=PenaltyTransactionCreateSerializer()
+                ),
+            }
+        ),
+        responses={
+            201: inline_serializer(
+                name="BulkCreateResponse",
+                fields={
+                    "created": PenaltyTransactionReadSerializer(many=True),
+                    "errors": serializers.ListField(
+                        child=serializers.DictField()
+                    )
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Bulk create multiple penalties. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Bulk create multiple penalties."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to create penalties."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        penalties_data = request.data.get("penaltiesArray")
+        if not isinstance(penalties_data, list):
+            return _error(
+                data={"detail": "penaltiesArray must be a list."},
+                message="Invalid request format.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = PenaltyTransactionService.bulk_create(
+                penalties_data, 
+                user=user, 
+                request=request
+            )
+            
+            created_serialized = PenaltyTransactionReadSerializer(
+                result['created'], 
+                many=True, 
+                context={"request": request}
+            ).data
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="bulk_create",
+                model_name="PenaltyTransaction",
+                object_id="bulk",
+                changes={"count": len(result['created']), "errors": len(result['errors'])},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "created": created_serialized,
+                    "errors": result['errors']
+                },
+                message="Bulk create completed successfully.",
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Bulk create failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to bulk create penalties.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PENALTY BULK UPDATE VIEW
+# ===================================================================
+
+class PenaltyBulkUpdateView(APIView):
+    """
+    Bulk update multiple penalties. Admin/Staff only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Penalties"],
+        request=inline_serializer(
+            name="BulkUpdateRequest",
+            fields={
+                "updatesArray": serializers.ListField(
+                    child=serializers.DictField()
+                ),
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name="BulkUpdateResponse",
+                fields={
+                    "updated": PenaltyTransactionReadSerializer(many=True),
+                    "errors": serializers.ListField(
+                        child=serializers.DictField()
+                    )
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Bulk update multiple penalties. Admin/Staff only."
+    )
+    @transaction.atomic
+    def put(self, request):
+        """Bulk update multiple penalties."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to update penalties."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        updates = request.data.get("updatesArray")
+        if not isinstance(updates, list):
+            return _error(
+                data={"detail": "updatesArray must be a list."},
+                message="Invalid request format.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = PenaltyTransactionService.bulk_update(
+                updates, 
+                user=user, 
+                request=request
+            )
+            
+            updated_serialized = PenaltyTransactionReadSerializer(
+                result['updated'], 
+                many=True, 
+                context={"request": request}
+            ).data
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="bulk_update",
+                model_name="PenaltyTransaction",
+                object_id="bulk",
+                changes={"count": len(result['updated']), "errors": len(result['errors'])},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "updated": updated_serialized,
+                    "errors": result['errors']
+                },
+                message="Bulk update completed successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Bulk update failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to bulk update penalties.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PENALTY IMPORT VIEW
+# ===================================================================
+
+class PenaltyImportView(APIView):
+    """
+    Import penalties from CSV content. Admin/Staff only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Penalties"],
+        request=inline_serializer(
+            name="ImportRequest",
+            fields={
+                "fileContent": serializers.CharField(),
+                "fileName": serializers.CharField(required=False),
+            }
+        ),
+        responses={
+            201: inline_serializer(
+                name="ImportResponse",
+                fields={
+                    "imported": PenaltyTransactionReadSerializer(many=True),
+                    "errors": serializers.ListField(
+                        child=serializers.DictField()
+                    )
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Import penalties from CSV content. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Import penalties from CSV."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to import penalties."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        file_content = request.data.get("fileContent")
+        if not file_content:
+            return _error(
+                data={"detail": "fileContent is required."},
+                message="Invalid request.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            import csv
+            from io import StringIO
+            reader = csv.DictReader(StringIO(file_content))
+            penalties_data = list(reader)
+        except Exception as e:
+            return _error(
+                data={"detail": f"Invalid CSV: {str(e)}"},
+                message="CSV parsing error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Use bulk_create with parsed data
+            bulk_result = PenaltyTransactionService.bulk_create(
+                penalties_data, 
+                user=user, 
+                request=request
+            )
+            
+            imported_serialized = PenaltyTransactionReadSerializer(
+                bulk_result['created'], 
+                many=True, 
+                context={"request": request}
+            ).data
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="import_csv",
+                model_name="PenaltyTransaction",
+                object_id="import",
+                changes={"count": len(bulk_result['created']), "errors": len(bulk_result['errors'])},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "imported": imported_serialized,
+                    "errors": bulk_result['errors']
+                },
+                message="CSV import completed successfully.",
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("CSV import failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to import penalties.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PENALTY EXPORT VIEW
+# ===================================================================
+
+class PenaltyExportView(APIView):
+    """
+    Export penalties to CSV or JSON.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Penalties"],
+        request=inline_serializer(
+            name="ExportRequest",
+            fields={
+                "format": serializers.ChoiceField(choices=["csv", "json"], default="json"),
+                "filters": serializers.DictField(required=False),
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name="ExportResponse",
+                fields={
+                    "format": serializers.CharField(),
+                    "data": serializers.CharField(help_text="CSV string or JSON array"),
+                    "filename": serializers.CharField()
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Export penalties to CSV or JSON."
+    )
+    def post(self, request):
+        """Export penalties."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to export penalties."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        fmt = request.data.get("format", "json")
+        filters = request.data.get("filters", {})
+
+        try:
+            exported_data = PenaltyTransactionService.export_penalties(filters)
+            
+            if fmt == "csv":
+                import csv
+                from io import StringIO
+                output = StringIO()
+                if exported_data:
+                    fieldnames = exported_data[0].keys()
+                    writer = csv.DictWriter(output, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(exported_data)
+                data_str = output.getvalue()
+                filename = f"penalties_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            else:  # json
+                import json
+                data_str = json.dumps(exported_data, default=str)
+                filename = f"penalties_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="export",
+                model_name="PenaltyTransaction",
+                object_id="export",
+                changes={"format": fmt, "count": len(exported_data)},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "format": fmt,
+                    "data": data_str,
+                    "filename": filename
+                },
+                message="Export completed successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Export failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to export penalties.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PENALTY TOTAL BY DEBT VIEW
+# ===================================================================
+
+class PenaltyTotalByDebtView(APIView):
+    """
+    Get total penalty amount for a specific debt.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Penalties"],
+        parameters=[
+            OpenApiParameter(
+                name="debt_id",
+                type=int,
+                description="ID of the debt",
+                required=True,
+            ),
+            OpenApiParameter(
+                name="include_deleted",
+                type=bool,
+                description="Include soft-deleted penalties",
+                required=False,
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="TotalPenaltyForDebtResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get total penalty amount and count for a specific debt."
+    )
+    def get(self, request):
+        """Get total penalty for a debt."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to view penalties."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        debt_id = request.query_params.get('debt_id')
+        if not debt_id:
+            return _error(
+                data={"detail": "debt_id is required."},
+                message="Missing required parameter.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            include_deleted = request.query_params.get('include_deleted', 'false').lower() == 'true'
+            
+            result = PenaltyTransactionService.get_total_penalty_for_debt(
+                debt_id=int(debt_id),
+                include_deleted=include_deleted
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="read",
+                model_name="PenaltyTransaction",
+                object_id="total_by_debt",
+                changes={"debt_id": debt_id},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=result,
+                message="Total penalty retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Total penalty retrieval error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to retrieve total penalty.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

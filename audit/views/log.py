@@ -6,8 +6,6 @@ from django.utils.dateparse import parse_datetime
 from rest_framework.views import APIView
 from rest_framework import status, serializers
 from rest_framework.permissions import IsAuthenticated
-
-from analytics.serializers.LicenseUsage.read import LicenseUsageListSerializer
 from audit.models.log import AuditLog
 from audit.serializers.AuditLog import (
     AuditLogReadSerializer,
@@ -15,6 +13,8 @@ from audit.serializers.AuditLog import (
     AuditLogWriteSerializer,
 )
 from audit.services.log import AuditLogService
+from audit.utils.log import log_audit_event
+from notifications.views.notification import ErrorResponseSerializer
 from users.permissions.base import IsAccountActive, is_admin, is_staff
 from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
 from utils.security import get_client_ip
@@ -34,8 +34,10 @@ logger = logging.getLogger(__name__)
 # Response serializers for documentation (matching CustomPagination)
 # ----------------------------------------------------------------------
 
+
 class AuditLogListResponseSerializer(serializers.Serializer):
     """Full response for GET /audit-logs/ (paginated list)"""
+
     status = serializers.BooleanField(default=True)
     message = serializers.CharField()
     pagination = BasePaginatedSerializer()
@@ -44,11 +46,13 @@ class AuditLogListResponseSerializer(serializers.Serializer):
 
 class AuditLogDetailResponseDataSerializer(serializers.Serializer):
     """Response data for GET /audit-logs/<id>/ (single)"""
+
     data = AuditLogReadSerializer()
 
 
 class AuditLogDetailResponseSerializer(serializers.Serializer):
     """Full response for GET /audit-logs/<id>/ (single)"""
+
     status = serializers.BooleanField(default=True)
     message = serializers.CharField()
     data = AuditLogReadSerializer()
@@ -56,11 +60,13 @@ class AuditLogDetailResponseSerializer(serializers.Serializer):
 
 class AuditLogCreateResponseDataSerializer(serializers.Serializer):
     """Response data for POST /audit-logs/ (201 Created)"""
+
     data = AuditLogReadSerializer()
 
 
 class AuditLogCreateResponseSerializer(serializers.Serializer):
     """Full response for POST /audit-logs/ (201 Created)"""
+
     status = serializers.BooleanField(default=True)
     message = serializers.CharField()
     data = AuditLogReadSerializer()
@@ -68,12 +74,14 @@ class AuditLogCreateResponseSerializer(serializers.Serializer):
 
 class AuditLogErrorResponseSerializer(serializers.Serializer):
     """Generic error response"""
+
     status = serializers.BooleanField(default=False)
     detail = serializers.CharField()
 
 
 class AuditLogValidationErrorSerializer(serializers.Serializer):
     """Validation error response (400)"""
+
     status = serializers.BooleanField(default=False)
     detail = serializers.CharField()
     data = serializers.DictField(required=False, allow_null=True)
@@ -81,6 +89,7 @@ class AuditLogValidationErrorSerializer(serializers.Serializer):
 
 class AuditLogStatsDataSerializer(serializers.Serializer):
     """Response data for audit log statistics."""
+
     total_logs = serializers.IntegerField()
     suspicious_count = serializers.IntegerField()
     days = serializers.IntegerField()
@@ -91,6 +100,7 @@ class AuditLogStatsDataSerializer(serializers.Serializer):
 
 class AuditLogStatsResponseSerializer(serializers.Serializer):
     """Full response for audit log statistics."""
+
     status = serializers.BooleanField()
     message = serializers.CharField()
     data = AuditLogStatsDataSerializer()
@@ -100,6 +110,7 @@ class AuditLogStatsResponseSerializer(serializers.Serializer):
 # View
 # ----------------------------------------------------------------------
 
+
 class AuditLogCRUD(APIView):
     """
     CRUD operations for audit logs.
@@ -107,6 +118,7 @@ class AuditLogCRUD(APIView):
     - Admin/Staff users can view and delete logs.
     - Regular users can only view their own logs.
     """
+
     pagination_class = CustomPagination
     permission_classes = [
         IsAuthenticated,
@@ -199,29 +211,27 @@ class AuditLogCRUD(APIView):
                 value={
                     "status": True,
                     "message": "Success",
-                   
-                        "pagination": {
-                            "next": "http://example.com/api/v1/audit-logs/?page=2&page_size=10",
-                            "previous": None,
-                            "count": 25,
-                            "current_page": 1,
-                            "total_pages": 3,
-                            "page_size": 10,
-                        },
-                        "data": [
-                            {
-                                "id": 1,
-                                "event_id": "c3f9a2d0-1234-5678-9abc-def012345678",
-                                "user_display": "johndoe",
-                                "action_type": "login",
-                                "action_type_display": "Login",
-                                "model_name": "User",
-                                "object_id": "1",
-                                "is_suspicious": False,
-                                "timestamp": "2025-01-01T00:00:00Z",
-                            }
-                        ]
-                    
+                    "pagination": {
+                        "next": "http://example.com/api/v1/audit-logs/?page=2&page_size=10",
+                        "previous": None,
+                        "count": 25,
+                        "current_page": 1,
+                        "total_pages": 3,
+                        "page_size": 10,
+                    },
+                    "data": [
+                        {
+                            "id": 1,
+                            "event_id": "c3f9a2d0-1234-5678-9abc-def012345678",
+                            "user_display": "johndoe",
+                            "action_type": "login",
+                            "action_type_display": "Login",
+                            "model_name": "User",
+                            "object_id": "1",
+                            "is_suspicious": False,
+                            "timestamp": "2025-01-01T00:00:00Z",
+                        }
+                    ],
                 },
                 response_only=True,
                 status_codes=["200"],
@@ -265,9 +275,9 @@ class AuditLogCRUD(APIView):
 
             # List logs with filters
             if is_admin(user) or is_staff(user):
-                qs = AuditLog.objects.all().order_by('-timestamp')
+                qs = AuditLog.objects.all().order_by("-timestamp")
             else:
-                qs = AuditLog.objects.filter(user=user).order_by('-timestamp')
+                qs = AuditLog.objects.filter(user=user).order_by("-timestamp")
 
             # Apply filters
             action = request.query_params.get("action_type")
@@ -300,10 +310,10 @@ class AuditLogCRUD(APIView):
                     qs = qs.filter(timestamp__lte=dt)
             if search:
                 qs = qs.filter(
-                    Q(action_type__icontains=search) |
-                    Q(model_name__icontains=search) |
-                    Q(object_id__icontains=search) |
-                    Q(user_agent__icontains=search)
+                    Q(action_type__icontains=search)
+                    | Q(model_name__icontains=search)
+                    | Q(object_id__icontains=search)
+                    | Q(user_agent__icontains=search)
                 )
 
             paginator = self.pagination_class()
@@ -312,8 +322,7 @@ class AuditLogCRUD(APIView):
                 page, many=True, context={"request": request}
             )
             response = paginator.get_paginated_response(
-                data=serializer.data,
-                message="Audit logs retrieved successfully."
+                data=serializer.data, message="Audit logs retrieved successfully."
             )
 
             return response
@@ -382,7 +391,7 @@ class AuditLogCRUD(APIView):
                         "suspicious_reason": None,
                         "timestamp": "2025-01-01T00:00:00Z",
                         "summary": "[login] User (1) by johndoe",
-                    }
+                    },
                 },
                 response_only=True,
                 status_codes=["201"],
@@ -411,8 +420,7 @@ class AuditLogCRUD(APIView):
             request.data["user_agent"] = user_agent
 
         serializer = AuditLogWriteSerializer(
-            data=request.data,
-            context={"request": request}
+            data=request.data, context={"request": request}
         )
 
         if not serializer.is_valid():
@@ -459,7 +467,7 @@ class AuditLogCRUD(APIView):
                 fields={
                     "status": serializers.BooleanField(default=False),
                     "detail": serializers.CharField(),
-                }
+                },
             ),
         },
         description="Audit logs are immutable. PUT is not allowed.",
@@ -486,7 +494,7 @@ class AuditLogCRUD(APIView):
                 fields={
                     "status": serializers.BooleanField(default=False),
                     "detail": serializers.CharField(),
-                }
+                },
             ),
         },
         description="Audit logs are immutable. PATCH is not allowed.",
@@ -513,7 +521,7 @@ class AuditLogCRUD(APIView):
                 fields={
                     "status": serializers.BooleanField(),
                     "message": serializers.CharField(),
-                }
+                },
             ),
             401: AuditLogErrorResponseSerializer,
             403: AuditLogErrorResponseSerializer,
@@ -589,10 +597,12 @@ class AuditLogCRUD(APIView):
 # Audit Log Statistics View
 # ----------------------------------------------------------------------
 
+
 class AuditLogStatsView(APIView):
     """
     Get audit log statistics.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -640,7 +650,7 @@ class AuditLogStatsView(APIView):
                             {"user__username": "admin", "count": 200},
                             {"user__username": "johndoe", "count": 150},
                         ],
-                    }
+                    },
                 },
                 response_only=True,
                 status_codes=["200"],
@@ -664,5 +674,926 @@ class AuditLogStatsView(APIView):
             return _error(
                 data={"detail": str(exc)},
                 message="Failed to retrieve audit log statistics.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
+from rest_framework import serializers
+from django.core.exceptions import ValidationError
+
+# ===================================================================
+# AUDIT LOG BY ENTITY VIEW
+# ===================================================================
+
+
+class AuditLogByEntityView(APIView):
+    """
+    Get audit logs filtered by entity.
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        parameters=[
+            OpenApiParameter(
+                name="entity", type=str, description="Entity name", required=True
+            ),
+            OpenApiParameter(
+                name="entityId",
+                type=int,
+                description="Optional entity ID",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
+        ],
+        responses={
+            200: AuditLogListResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get audit logs filtered by entity.",
+    )
+    def get(self, request):
+        """Get audit logs by entity."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to view audit logs."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        entity = request.query_params.get("entity")
+        if not entity:
+            return _error(
+                data={"detail": "entity parameter is required."},
+                message="Missing required parameter.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            entity_id = request.query_params.get("entityId")
+            page = int(request.query_params.get("page", 1))
+            limit = int(request.query_params.get("page_size", 50))
+
+            result = AuditLogService.get_logs_by_entity(
+                entity=entity, entity_id=entity_id, page=page, limit=limit
+            )
+
+            paginator = self.pagination_class()
+            response = paginator.get_paginated_response(
+                data=result["data"],
+                message="Audit logs by entity retrieved successfully.",
+                pagination=result["pagination"],
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Audit logs by entity error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG BY USER VIEW
+# ===================================================================
+
+
+class AuditLogByUserView(APIView):
+    """
+    Get audit logs filtered by user.
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        parameters=[
+            OpenApiParameter(
+                name="user", type=str, description="Username", required=True
+            ),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
+        ],
+        responses={
+            200: AuditLogListResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get audit logs filtered by user.",
+    )
+    def get(self, request):
+        """Get audit logs by user."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to view audit logs."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        username = request.query_params.get("user")
+        if not username:
+            return _error(
+                data={"detail": "user parameter is required."},
+                message="Missing required parameter.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            page = int(request.query_params.get("page", 1))
+            limit = int(request.query_params.get("page_size", 50))
+
+            result = AuditLogService.get_logs_by_user(
+                username=username, page=page, limit=limit
+            )
+
+            paginator = self.pagination_class()
+            response = paginator.get_paginated_response(
+                data=result["data"],
+                message="Audit logs by user retrieved successfully.",
+                pagination=result["pagination"],
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Audit logs by user error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG BY ACTION VIEW
+# ===================================================================
+
+
+class AuditLogByActionView(APIView):
+    """
+    Get audit logs filtered by action.
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        parameters=[
+            OpenApiParameter(
+                name="action", type=str, description="Action type", required=True
+            ),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
+        ],
+        responses={
+            200: AuditLogListResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get audit logs filtered by action.",
+    )
+    def get(self, request):
+        """Get audit logs by action."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to view audit logs."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        action = request.query_params.get("action")
+        if not action:
+            return _error(
+                data={"detail": "action parameter is required."},
+                message="Missing required parameter.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            page = int(request.query_params.get("page", 1))
+            limit = int(request.query_params.get("page_size", 50))
+
+            result = AuditLogService.get_logs_by_action(
+                action=action, page=page, limit=limit
+            )
+
+            paginator = self.pagination_class()
+            response = paginator.get_paginated_response(
+                data=result["data"],
+                message="Audit logs by action retrieved successfully.",
+                pagination=result["pagination"],
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Audit logs by action error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG BY DATE RANGE VIEW
+# ===================================================================
+
+
+class AuditLogByDateRangeView(APIView):
+    """
+    Get audit logs within a date range.
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        parameters=[
+            OpenApiParameter(
+                name="startDate",
+                type=str,
+                description="Start date (ISO)",
+                required=True,
+            ),
+            OpenApiParameter(
+                name="endDate", type=str, description="End date (ISO)", required=True
+            ),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
+        ],
+        responses={
+            200: AuditLogListResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get audit logs within a date range.",
+    )
+    def get(self, request):
+        """Get audit logs by date range."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to view audit logs."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        start_date = request.query_params.get("startDate")
+        end_date = request.query_params.get("endDate")
+
+        if not start_date or not end_date:
+            return _error(
+                data={"detail": "startDate and endDate parameters are required."},
+                message="Missing required parameters.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            page = int(request.query_params.get("page", 1))
+            limit = int(request.query_params.get("page_size", 50))
+
+            result = AuditLogService.get_logs_by_date_range(
+                start_date=start_date, end_date=end_date, page=page, limit=limit
+            )
+
+            paginator = self.pagination_class()
+            response = paginator.get_paginated_response(
+                data=result["data"],
+                message="Audit logs by date range retrieved successfully.",
+                pagination=result["pagination"],
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Audit logs by date range error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG SEARCH VIEW
+# ===================================================================
+
+
+class AuditLogSearchView(APIView):
+    """
+    Search audit logs by keyword.
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        parameters=[
+            OpenApiParameter(
+                name="searchTerm", type=str, description="Search keyword", required=True
+            ),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
+        ],
+        responses={
+            200: AuditLogListResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Search audit logs by keyword.",
+    )
+    def get(self, request):
+        """Search audit logs."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to search audit logs."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        search_term = request.query_params.get("searchTerm")
+        if not search_term:
+            return _error(
+                data={"detail": "searchTerm parameter is required."},
+                message="Missing required parameter.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            page = int(request.query_params.get("page", 1))
+            limit = int(request.query_params.get("page_size", 50))
+
+            result = AuditLogService.search_logs(
+                search_term=search_term, page=page, limit=limit
+            )
+
+            paginator = self.pagination_class()
+            response = paginator.get_paginated_response(
+                data=result["data"],
+                message="Search completed successfully.",
+                pagination=result["pagination"],
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Audit log search error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG SUMMARY VIEW
+# ===================================================================
+
+
+class AuditLogSummaryView(APIView):
+    """
+    Get grouped summary of audit logs.
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        parameters=[
+            OpenApiParameter(
+                name="startDate",
+                type=str,
+                description="Start date (ISO)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="endDate", type=str, description="End date (ISO)", required=False
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="AuditLogSummaryResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                },
+            ),
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get grouped summary of audit logs by action, entity, and user.",
+    )
+    def get(self, request):
+        """Get audit log summary."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to view audit summary."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            start_date = request.query_params.get("startDate")
+            end_date = request.query_params.get("endDate")
+
+            summary = AuditLogService.get_summary(
+                start_date=start_date, end_date=end_date
+            )
+
+            return _success(
+                data=summary,
+                message="Audit summary retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Audit summary error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to retrieve audit summary.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG COUNTS VIEW
+# ===================================================================
+
+
+class AuditLogCountsView(APIView):
+    """
+    Get aggregated counts of audit logs.
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        parameters=[
+            OpenApiParameter(
+                name="startDate",
+                type=str,
+                description="Start date (ISO)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="endDate", type=str, description="End date (ISO)", required=False
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="AuditLogCountsResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                },
+            ),
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get aggregated counts grouped by action, entity, and user.",
+    )
+    def get(self, request):
+        """Get audit log counts."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to view audit counts."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            start_date = request.query_params.get("startDate")
+            end_date = request.query_params.get("endDate")
+
+            counts = AuditLogService.get_counts(
+                start_date=start_date, end_date=end_date
+            )
+
+            return _success(
+                data=counts,
+                message="Audit counts retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Audit counts error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to retrieve audit counts.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG TOP ACTIVITIES VIEW
+# ===================================================================
+
+
+class AuditLogTopActivitiesView(APIView):
+    """
+    Get top activities (most frequent actions, entities, users).
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        parameters=[
+            OpenApiParameter(
+                name="limit",
+                type=int,
+                description="Number of top items",
+                required=False,
+                default=10,
+            ),
+            OpenApiParameter(
+                name="startDate",
+                type=str,
+                description="Start date (ISO)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="endDate", type=str, description="End date (ISO)", required=False
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="AuditLogTopActivitiesResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                },
+            ),
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get top activities (most frequent actions, entities, users).",
+    )
+    def get(self, request):
+        """Get top activities."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to view top activities."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            limit = int(request.query_params.get("limit", 10))
+            start_date = request.query_params.get("startDate")
+            end_date = request.query_params.get("endDate")
+
+            result = AuditLogService.get_top_activities(
+                limit=limit, start_date=start_date, end_date=end_date
+            )
+
+            return _success(
+                data=result,
+                message="Top activities retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Top activities error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to retrieve top activities.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG RECENT ACTIVITY VIEW
+# ===================================================================
+
+
+class AuditLogRecentActivityView(APIView):
+    """
+    Get recent audit log activity.
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        parameters=[
+            OpenApiParameter(
+                name="limit",
+                type=int,
+                description="Number of entries",
+                required=False,
+                default=10,
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="AuditLogRecentActivityResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                },
+            ),
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get recent audit log activity (latest entries).",
+    )
+    def get(self, request):
+        """Get recent activity."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to view recent activity."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            limit = int(request.query_params.get("limit", 10))
+
+            result = AuditLogService.get_recent_activity(limit=limit)
+
+            return _success(
+                data=result,
+                message="Recent activity retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Recent activity error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to retrieve recent activity.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG EXPORT VIEW
+# ===================================================================
+
+
+class AuditLogExportView(APIView):
+    """
+    Export audit logs to CSV.
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        request=inline_serializer(
+            name="ExportRequest",
+            fields={
+                "searchTerm": serializers.CharField(required=False),
+                "entity": serializers.CharField(required=False),
+                "user": serializers.CharField(required=False),
+                "action": serializers.CharField(required=False),
+                "startDate": serializers.CharField(required=False),
+                "endDate": serializers.CharField(required=False),
+                "limit": serializers.IntegerField(required=False, default=5000),
+            },
+        ),
+        responses={
+            200: inline_serializer(
+                name="ExportResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                },
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Export audit logs to CSV.",
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Export audit logs to CSV."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={"detail": "You do not have permission to export audit logs."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            filters = {
+                "search_term": request.data.get("searchTerm"),
+                "entity": request.data.get("entity"),
+                "user": request.data.get("user"),
+                "action": request.data.get("action"),
+                "start_date": request.data.get("startDate"),
+                "end_date": request.data.get("endDate"),
+            }
+            # Remove None values
+            filters = {k: v for k, v in filters.items() if v is not None}
+
+            limit = request.data.get("limit", 5000)
+
+            result = AuditLogService.export_logs_to_csv(filters=filters, limit=limit)
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="audit_export",
+                model_name="AuditLog",
+                object_id="export",
+                changes={"filters": filters, "limit": limit},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=result,
+                message="Audit logs exported successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Audit export error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to export audit logs.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# AUDIT LOG GENERATE REPORT VIEW
+# ===================================================================
+
+
+class AuditLogGenerateReportView(APIView):
+    """
+    Generate an audit report (JSON or HTML).
+    """
+
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Audit Logs"],
+        request=inline_serializer(
+            name="GenerateReportRequest",
+            fields={
+                "startDate": serializers.CharField(required=False),
+                "endDate": serializers.CharField(required=False),
+                "format": serializers.ChoiceField(
+                    choices=["json", "html"], default="json"
+                ),
+            },
+        ),
+        responses={
+            200: inline_serializer(
+                name="GenerateReportResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                },
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Generate a comprehensive audit report (JSON or HTML).",
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Generate audit report."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user) and not is_staff(user):
+            return _error(
+                data={
+                    "detail": "You do not have permission to generate audit reports."
+                },
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            start_date = request.data.get("startDate")
+            end_date = request.data.get("endDate")
+            format_type = request.data.get("format", "json")
+
+            result = AuditLogService.generate_report(
+                start_date=start_date, end_date=end_date, format=format_type
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="audit_export",
+                model_name="AuditLog",
+                object_id="report",
+                changes={"format": format_type, "count": result["entryCount"]},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=result,
+                message="Audit report generated successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Audit report error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to generate audit report.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

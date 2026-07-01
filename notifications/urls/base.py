@@ -1,3 +1,4 @@
+# notifications/urls/base.py
 from django.urls import path
 
 from notifications.views.notification import (
@@ -6,10 +7,22 @@ from notifications.views.notification import (
     NotificationMarkAllReadView,
     NotificationUnreadCountView,
     NotificationStatisticsView,
+    NotificationRestoreView,
+    NotificationPermanentDeleteView,
+    NotificationMarkManyReadView,
+    NotificationBulkCreateView,
+    NotificationBulkUpdateView,
+    NotificationImportView,
+    NotificationExportView,
 )
 from notifications.views.notification_log import (
     NotificationLogCRUDView,
     NotificationLogRetryView,
+    NotificationLogByRecipientView,
+    NotificationLogSearchView,
+    NotificationLogResendView,
+    NotificationLogRetryAllView,
+    NotificationLogStatsView,
 )
 
 
@@ -29,12 +42,55 @@ urlpatterns = [
     ),
 
     # ============================================================
+    # Restore and Permanent Delete
+    # ============================================================
+    path(
+        "notifications/<int:id>/restore/",
+        NotificationRestoreView.as_view(),
+        name="notification-restore"
+    ),
+    path(
+        "notifications/<int:id>/permanent/",
+        NotificationPermanentDeleteView.as_view(),
+        name="notification-permanent-delete"
+    ),
+
+    # ============================================================
+    # Bulk Operations
+    # ============================================================
+    path(
+        "notifications/bulkCreate/",
+        NotificationBulkCreateView.as_view(),
+        name="notification-bulk-create"
+    ),
+    path(
+        "notifications/bulkUpdate/",
+        NotificationBulkUpdateView.as_view(),
+        name="notification-bulk-update"
+    ),
+    path(
+        "notifications/import/",
+        NotificationImportView.as_view(),
+        name="notification-import"
+    ),
+    path(
+        "notifications/export/",
+        NotificationExportView.as_view(),
+        name="notification-export"
+    ),
+
+    # ============================================================
     # Notification Actions
     # ============================================================
     path(
         "notifications/<int:id>/mark-read/",
         NotificationMarkReadView.as_view(),
         name="notification-mark-read"
+    ),
+    path(
+        "notifications/mark-many-read/",
+        NotificationMarkManyReadView.as_view(),
+        name="notification-mark-many-read"
     ),
     path(
         "notifications/mark-all-read/",
@@ -71,11 +127,44 @@ urlpatterns = [
     ),
 
     # ============================================================
+    # Notification Log by Recipient
+    # ============================================================
+    path(
+        "notification-logs/by-recipient/",
+        NotificationLogByRecipientView.as_view(),
+        name="notification-log-by-recipient"
+    ),
+
+    # ============================================================
+    # Notification Log Search
+    # ============================================================
+    path(
+        "notification-logs/search/",
+        NotificationLogSearchView.as_view(),
+        name="notification-log-search"
+    ),
+
+    # ============================================================
     # Notification Log Actions
     # ============================================================
     path(
         "notification-logs/<int:id>/retry/",
         NotificationLogRetryView.as_view(),
         name="notification-log-retry"
+    ),
+    path(
+        "notification-logs/<int:id>/resend/",
+        NotificationLogResendView.as_view(),
+        name="notification-log-resend"
+    ),
+    path(
+        "notification-logs/retry-all/",
+        NotificationLogRetryAllView.as_view(),
+        name="notification-log-retry-all"
+    ),
+    path(
+        "notification-logs/stats/",
+        NotificationLogStatsView.as_view(),
+        name="notification-log-stats"
     ),
 ]

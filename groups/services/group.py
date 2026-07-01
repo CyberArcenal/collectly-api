@@ -285,3 +285,134 @@ class GroupService:
             'total_members': total_members,
             'total_debt': total_debt,
         }
+
+    # ============================================================
+    # BULK ASSIGN
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def bulk_assign(group_id, debtor_ids, user=None, request=None):
+        """
+        Bulk assign multiple debtors to a group.
+        
+        Args:
+            group_id: ID of the group
+            debtor_ids: List of debtor IDs to assign
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {
+                'assigned_count': int,
+                'errors': list of errors
+            }
+        """
+        group = GroupService.get_group_by_id(group_id)
+        if not group:
+            raise ValidationError({'group_id': 'Group not found.'})
+        
+        assigned_count = 0
+        errors = []
+        
+        for debtor_id in debtor_ids:
+            try:
+                debtor = Borrower.objects.filter(id=debtor_id, deleted_at__isnull=True).first()
+                if not debtor:
+                    errors.append({
+                        'debtor_id': debtor_id,
+                        'error': f'Borrower with id {debtor_id} not found.'
+                    })
+                    continue
+                
+                # Check if already a member
+                existing = DebtorGroupMember.objects.filter(
+                    group=group,
+                    debtor=debtor
+                ).first()
+                
+                if existing:
+                    if existing.deleted_at:
+                        # Restore soft-deleted membership
+                        existing.deleted_at = None
+                        existing.save()
+                        assigned_count += 1
+                    else:
+                        errors.append({
+                            'debtor_id': debtor_id,
+                            'error': f'Borrower is already a member of {group.name}.'
+                        })
+                else:
+                    # Create new membership
+                    DebtorGroupMember.objects.create(
+                        group=group,
+                        debtor=debtor
+                    )
+                    assigned_count += 1
+                    
+            except Exception as e:
+                errors.append({
+                    'debtor_id': debtor_id,
+                    'error': str(e)
+                })
+        
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='group_bulk_assign',
+                model_name='DebtorGroup',
+                object_id=str(group.id),
+                changes={
+                    'assigned_count': assigned_count,
+                    'total_requested': len(debtor_ids),
+                    'errors_count': len(errors)
+                }
+            )
+        
+        logger.info(f"Bulk assign completed: {assigned_count} assigned, {len(errors)} errors for group {group.name}")
+        return {
+            'assigned_count': assigned_count,
+            'errors': errors
+        }
+
+
+    # ============================================================
+    # CLEAR MEMBERS
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def clear_members(group_id, user=None, request=None):
+        """
+        Remove all members from a group (soft delete all memberships).
+        
+        Args:
+            group_id: ID of the group
+            user: User performing the action
+            request: HTTP request object
+        """
+        group = GroupService.get_group_by_id(group_id)
+        if not group:
+            raise ValidationError({'group_id': 'Group not found.'})
+        
+        # Get count before deletion
+        member_count = group.members.filter(deleted_at__isnull=True).count()
+        
+        # Soft delete all active members
+        group.members.filter(deleted_at__isnull=True).update(deleted_at=timezone.now())
+        
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='group_clear_members',
+                model_name='DebtorGroup',
+                object_id=str(group.id),
+                changes={'members_removed': member_count}
+            )
+        
+        logger.info(f"Cleared {member_count} members from group {group.name}")
+        return {'members_removed': member_count}

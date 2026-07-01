@@ -1,3 +1,4 @@
+# urls/base.py
 from django.urls import path
 
 from debts.views.debt import (
@@ -5,6 +6,18 @@ from debts.views.debt import (
     DebtStatisticsView,
     DebtAgingSummaryView,
     DebtCollectionScheduleView,
+    DebtRestoreView,
+    DebtPermanentDeleteView,
+    DebtBulkCreateView,
+    DebtBulkUpdateView,
+    DebtCorrectTotalAmountView,
+    DebtRecalculateRemainingView,
+    DebtApplyForgivenessView,
+    DebtDebtsInBucketView,
+    DebtMarkPeriodPaidView,
+    DebtFixPrecisionView,
+    DebtImportView,
+    DebtExportView,
 )
 from debts.views.forgiveness import ForgivenessLogCRUDView
 from debts.views.interest_rate_change import InterestRateChangeLogCRUDView
@@ -15,41 +28,105 @@ urlpatterns = [
     # Debt CRUD
     # ============================================================
     path(
-        "debts/",
+        "",
         DebtCRUDView.as_view(),
         name="debt-list-create"
     ),
     path(
-        "debts/<int:id>/",
+        "<int:id>/",
         DebtCRUDView.as_view(),
         name="debt-detail"
     ),
 
     # ============================================================
-    # Debt Statistics
+    # Restore and Permanent Delete
     # ============================================================
     path(
-        "debts/stats/",
+        "<int:id>/restore/",
+        DebtRestoreView.as_view(),
+        name="debt-restore"
+    ),
+    path(
+        "<int:id>/permanent/",
+        DebtPermanentDeleteView.as_view(),
+        name="debt-permanent-delete"
+    ),
+
+    # ============================================================
+    # Bulk Operations
+    # ============================================================
+    path(
+        "bulkCreate/",
+        DebtBulkCreateView.as_view(),
+        name="debt-bulk-create"
+    ),
+    path(
+        "bulkUpdate/",
+        DebtBulkUpdateView.as_view(),
+        name="debt-bulk-update"
+    ),
+    path(
+        "import/",
+        DebtImportView.as_view(),
+        name="debt-import"
+    ),
+    path(
+        "export/",
+        DebtExportView.as_view(),
+        name="debt-export"
+    ),
+
+    # ============================================================
+    # Debt Operations
+    # ============================================================
+    path(
+        "<int:id>/correct-total/",
+        DebtCorrectTotalAmountView.as_view(),
+        name="debt-correct-total"
+    ),
+    path(
+        "<int:id>/recalculate/",
+        DebtRecalculateRemainingView.as_view(),
+        name="debt-recalculate"
+    ),
+    path(
+        "<int:id>/forgive/",
+        DebtApplyForgivenessView.as_view(),
+        name="debt-forgive"
+    ),
+    path(
+        "mark-period-paid/",
+        DebtMarkPeriodPaidView.as_view(),
+        name="debt-mark-period-paid"
+    ),
+    path(
+        "fix-precision/",
+        DebtFixPrecisionView.as_view(),
+        name="debt-fix-precision"
+    ),
+
+    # ============================================================
+    # Debt Statistics & Reports
+    # ============================================================
+    path(
+        "stats/",
         DebtStatisticsView.as_view(),
         name="debt-stats"
     ),
-
-    # ============================================================
-    # Debt Aging Summary
-    # ============================================================
     path(
-        "debts/aging-summary/",
+        "aging-summary/",
         DebtAgingSummaryView.as_view(),
         name="debt-aging-summary"
     ),
-
-    # ============================================================
-    # Debt Collection Schedule
-    # ============================================================
     path(
-        "debts/collection-schedule/",
+        "collection-schedule/",
         DebtCollectionScheduleView.as_view(),
         name="debt-collection-schedule"
+    ),
+    path(
+        "bucket/",
+        DebtDebtsInBucketView.as_view(),
+        name="debt-bucket"
     ),
 
     # ============================================================

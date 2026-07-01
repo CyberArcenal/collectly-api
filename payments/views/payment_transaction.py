@@ -25,7 +25,7 @@ from drf_spectacular.utils import (
     OpenApiExample,
     inline_serializer,
 )
-
+from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
@@ -743,5 +743,586 @@ class PaymentCollectionReportView(APIView):
             return _error(
                 data={"detail": str(exc)},
                 message="Failed to retrieve collection report.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            
+
+from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
+from rest_framework import serializers
+from django.core.exceptions import ValidationError
+
+# ===================================================================
+# PAYMENT RESTORE VIEW
+# ===================================================================
+
+class PaymentRestoreView(APIView):
+    """
+    Restore a soft-deleted payment. Admin only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Payments"],
+        responses={
+            200: PaymentTransactionDetailResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Restore a soft-deleted payment. Admin only."
+    )
+    @transaction.atomic
+    def post(self, request, id):
+        """Restore a soft-deleted payment."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user):
+            return _error(
+                data={"detail": "You do not have permission to restore payments."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            payment = PaymentTransactionService.restore(
+                payment_id=id,
+                user=user,
+                request=request
+            )
+
+            serializer = PaymentTransactionReadSerializer(payment, context={"request": request})
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="restore",
+                model_name="PaymentTransaction",
+                object_id=str(id),
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=serializer.data,
+                message="Payment restored successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Payment restore failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to restore payment.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PAYMENT PERMANENT DELETE VIEW
+# ===================================================================
+
+class PaymentPermanentDeleteView(APIView):
+    """
+    Permanently delete a payment (hard delete). Admin only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Payments"],
+        responses={
+            204: PaymentTransactionDeleteResponseSerializer,
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            404: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Permanently delete a payment (hard delete). Admin only."
+    )
+    @transaction.atomic
+    def delete(self, request, id):
+        """Permanently delete a payment."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not is_admin(user):
+            return _error(
+                data={"detail": "You do not have permission to permanently delete payments."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            PaymentTransactionService.permanent_delete(
+                payment_id=id,
+                user=user,
+                request=request
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="permanent_delete",
+                model_name="PaymentTransaction",
+                object_id=str(id),
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data=None,
+                message="Payment permanently deleted successfully.",
+                status=status.HTTP_204_NO_CONTENT,
+            )
+
+        except ValidationError as e:
+            return _error(
+                data=e.message_dict,
+                message="Validation error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Payment permanent delete failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to permanently delete payment.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PAYMENT BULK CREATE VIEW
+# ===================================================================
+
+class PaymentBulkCreateView(APIView):
+    """
+    Bulk create multiple payments. Admin/Staff only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Payments"],
+        request=inline_serializer(
+            name="BulkCreateRequest",
+            fields={
+                "paymentsArray": serializers.ListField(
+                    child=PaymentTransactionCreateSerializer()
+                ),
+            }
+        ),
+        responses={
+            201: inline_serializer(
+                name="BulkCreateResponse",
+                fields={
+                    "created": PaymentTransactionReadSerializer(many=True),
+                    "errors": serializers.ListField(
+                        child=serializers.DictField()
+                    )
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Bulk create multiple payments. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Bulk create multiple payments."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to create payments."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        payments_data = request.data.get("paymentsArray")
+        if not isinstance(payments_data, list):
+            return _error(
+                data={"detail": "paymentsArray must be a list."},
+                message="Invalid request format.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = PaymentTransactionService.bulk_create(
+                payments_data, 
+                user=user, 
+                request=request
+            )
+            
+            created_serialized = PaymentTransactionReadSerializer(
+                result['created'], 
+                many=True, 
+                context={"request": request}
+            ).data
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="bulk_create",
+                model_name="PaymentTransaction",
+                object_id="bulk",
+                changes={"count": len(result['created']), "errors": len(result['errors'])},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "created": created_serialized,
+                    "errors": result['errors']
+                },
+                message="Bulk create completed successfully.",
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Bulk create failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to bulk create payments.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PAYMENT BULK UPDATE VIEW
+# ===================================================================
+
+class PaymentBulkUpdateView(APIView):
+    """
+    Bulk update multiple payments. Admin/Staff only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Payments"],
+        request=inline_serializer(
+            name="BulkUpdateRequest",
+            fields={
+                "updatesArray": serializers.ListField(
+                    child=serializers.DictField()
+                ),
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name="BulkUpdateResponse",
+                fields={
+                    "updated": PaymentTransactionReadSerializer(many=True),
+                    "errors": serializers.ListField(
+                        child=serializers.DictField()
+                    )
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Bulk update multiple payments. Admin/Staff only."
+    )
+    @transaction.atomic
+    def put(self, request):
+        """Bulk update multiple payments."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to update payments."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        updates = request.data.get("updatesArray")
+        if not isinstance(updates, list):
+            return _error(
+                data={"detail": "updatesArray must be a list."},
+                message="Invalid request format.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = PaymentTransactionService.bulk_update(
+                updates, 
+                user=user, 
+                request=request
+            )
+            
+            updated_serialized = PaymentTransactionReadSerializer(
+                result['updated'], 
+                many=True, 
+                context={"request": request}
+            ).data
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="bulk_update",
+                model_name="PaymentTransaction",
+                object_id="bulk",
+                changes={"count": len(result['updated']), "errors": len(result['errors'])},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "updated": updated_serialized,
+                    "errors": result['errors']
+                },
+                message="Bulk update completed successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("Bulk update failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to bulk update payments.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PAYMENT IMPORT VIEW
+# ===================================================================
+
+class PaymentImportView(APIView):
+    """
+    Import payments from CSV content. Admin/Staff only.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Payments"],
+        request=inline_serializer(
+            name="ImportRequest",
+            fields={
+                "fileContent": serializers.CharField(),
+                "fileName": serializers.CharField(required=False),
+            }
+        ),
+        responses={
+            201: inline_serializer(
+                name="ImportResponse",
+                fields={
+                    "imported": PaymentTransactionReadSerializer(many=True),
+                    "errors": serializers.ListField(
+                        child=serializers.DictField()
+                    )
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Import payments from CSV content. Admin/Staff only."
+    )
+    @transaction.atomic
+    def post(self, request):
+        """Import payments from CSV."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_edit(user):
+            return _error(
+                data={"detail": "You do not have permission to import payments."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        file_content = request.data.get("fileContent")
+        if not file_content:
+            return _error(
+                data={"detail": "fileContent is required."},
+                message="Invalid request.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            import csv
+            from io import StringIO
+            reader = csv.DictReader(StringIO(file_content))
+            payments_data = list(reader)
+        except Exception as e:
+            return _error(
+                data={"detail": f"Invalid CSV: {str(e)}"},
+                message="CSV parsing error.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = PaymentTransactionService.import_from_csv(
+                file_path=None,
+                user=user,
+                request=request
+            )
+            
+            # Since import_from_csv expects a file path, we need to handle differently
+            # Let's use bulk_create with the parsed data
+            bulk_result = PaymentTransactionService.bulk_create(
+                payments_data, 
+                user=user, 
+                request=request
+            )
+            
+            imported_serialized = PaymentTransactionReadSerializer(
+                bulk_result['created'], 
+                many=True, 
+                context={"request": request}
+            ).data
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="import_csv",
+                model_name="PaymentTransaction",
+                object_id="import",
+                changes={"count": len(bulk_result['created']), "errors": len(bulk_result['errors'])},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "imported": imported_serialized,
+                    "errors": bulk_result['errors']
+                },
+                message="CSV import completed successfully.",
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as exc:
+            transaction.set_rollback(True)
+            logger.exception("CSV import failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to import payments.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ===================================================================
+# PAYMENT EXPORT VIEW
+# ===================================================================
+
+class PaymentExportView(APIView):
+    """
+    Export payments to CSV or JSON.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Payments"],
+        request=inline_serializer(
+            name="ExportRequest",
+            fields={
+                "format": serializers.ChoiceField(choices=["csv", "json"], default="json"),
+                "filters": serializers.DictField(required=False),
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name="ExportResponse",
+                fields={
+                    "format": serializers.CharField(),
+                    "data": serializers.CharField(help_text="CSV string or JSON array"),
+                    "filename": serializers.CharField()
+                }
+            ),
+            400: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Export payments to CSV or JSON."
+    )
+    def post(self, request):
+        """Export payments."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to export payments."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        fmt = request.data.get("format", "json")
+        filters = request.data.get("filters", {})
+
+        try:
+            exported_data = PaymentTransactionService.export_payments(filters)
+            
+            if fmt == "csv":
+                import csv
+                from io import StringIO
+                output = StringIO()
+                if exported_data:
+                    fieldnames = exported_data[0].keys()
+                    writer = csv.DictWriter(output, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(exported_data)
+                data_str = output.getvalue()
+                filename = f"payments_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            else:  # json
+                import json
+                data_str = json.dumps(exported_data, default=str)
+                filename = f"payments_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="export",
+                model_name="PaymentTransaction",
+                object_id="export",
+                changes={"format": fmt, "count": len(exported_data)},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return _success(
+                data={
+                    "format": fmt,
+                    "data": data_str,
+                    "filename": filename
+                },
+                message="Export completed successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception("Export failed")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to export payments.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

@@ -33,6 +33,7 @@ PROJECT_APPS = [
     "notifications",
     "payment_methods",
     "system_settings",
+    "analytics",
 ]
 
 

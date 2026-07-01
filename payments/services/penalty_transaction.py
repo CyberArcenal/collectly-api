@@ -658,3 +658,263 @@ class PenaltyTransactionService:
             'total_penalties': total_penalties,
             'preview': preview,
         }
+
+    # ============================================================
+    # PERMANENT DELETE
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def permanent_delete(penalty_id: int, user=None, request=None) -> None:
+        """
+        Permanently delete a penalty (hard delete).
+        
+        Args:
+            penalty_id: ID of the penalty to permanently delete
+            user: User performing the action
+            request: HTTP request object
+        """
+        penalty = PenaltyTransaction.objects.filter(id=penalty_id).first()
+        if not penalty:
+            raise ValidationError({'id': 'Penalty not found.'})
+        
+        # If not soft-deleted, reverse amount first
+        if not penalty.deleted_at:
+            # Reverse penalty amount from debt
+            debt = penalty.debt
+            debt.remaining_amount -= penalty.amount
+            if debt.remaining_amount < 0:
+                debt.remaining_amount = Decimal('0')
+            debt.save(update_fields=['remaining_amount', 'updated_at'])
+        
+        # Audit log before deletion
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='penalty_permanent_delete',
+                model_name='PenaltyTransaction',
+                object_id=str(penalty.id),
+                changes={'permanent': True}
+            )
+        
+        penalty.delete()
+        logger.info(f"Penalty permanently deleted: {penalty_id}")
+
+
+    # ============================================================
+    # BULK UPDATE
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def bulk_update(updates: List[Dict[str, Any]], user=None, request=None) -> Dict[str, Any]:
+        """
+        Bulk update multiple penalties.
+        
+        Args:
+            updates: List of dicts with 'id' and 'updates' keys
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {'updated': list of updated penalties, 'errors': list of errors}
+        """
+        results = {'updated': [], 'errors': []}
+        
+        for item in updates:
+            try:
+                penalty_id = item.get('id')
+                data = item.get('updates', {})
+                
+                if not penalty_id:
+                    raise ValidationError({'id': 'Penalty ID is required.'})
+                
+                updated = PenaltyTransactionService.update(
+                    penalty_id=penalty_id,
+                    data=data,
+                    user=user,
+                    request=request
+                )
+                results['updated'].append(updated)
+            except Exception as e:
+                results['errors'].append({
+                    'id': item.get('id'),
+                    'updates': item.get('updates', {}),
+                    'error': str(e)
+                })
+        
+        return results
+
+
+    # ============================================================
+    # EXPORT
+    # ============================================================
+
+    @staticmethod
+    def export_penalties(filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Export penalties data for reporting.
+        
+        Args:
+            filters: Optional filters
+        
+        Returns:
+            list: List of penalty dictionaries with selected fields
+        """
+        qs = PenaltyTransaction.objects.filter(deleted_at__isnull=True).select_related(
+            'debt', 'debt__borrower'
+        )
+        
+        if filters:
+            if filters.get('debt_id'):
+                qs = qs.filter(debt_id=filters['debt_id'])
+            if filters.get('borrower_id'):
+                qs = qs.filter(debt__borrower_id=filters['borrower_id'])
+            if filters.get('penalty_date_from'):
+                qs = qs.filter(penalty_date__gte=filters['penalty_date_from'])
+            if filters.get('penalty_date_to'):
+                qs = qs.filter(penalty_date__lte=filters['penalty_date_to'])
+            if filters.get('is_auto') is not None:
+                qs = qs.filter(is_auto=filters['is_auto'])
+        
+        export_data = []
+        for penalty in qs:
+            export_data.append({
+                'id': penalty.id,
+                'debt_id': penalty.debt_id,
+                'debt_name': penalty.debt.name if penalty.debt else None,
+                'borrower_name': penalty.debt.borrower.name if penalty.debt and penalty.debt.borrower else None,
+                'borrower_contact': penalty.debt.borrower.contact if penalty.debt and penalty.debt.borrower else None,
+                'amount': float(penalty.amount),
+                'penalty_date': penalty.penalty_date.isoformat(),
+                'reason': penalty.reason,
+                'is_auto': penalty.is_auto,
+                'created_at': penalty.created_at.isoformat(),
+            })
+        
+        return export_data
+
+
+    # ============================================================
+    # IMPORT FROM CSV
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def import_from_csv(file_path: str, user=None, request=None) -> Dict[str, Any]:
+        """
+        Import penalties from CSV file.
+        
+        Args:
+            file_path: Path to CSV file
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {'imported': list of imported penalties, 'errors': list of errors}
+        """
+        import csv
+        from io import StringIO
+        from borrowers.models.borrower import Borrower
+        
+        results = {'imported': [], 'errors': []}
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            reader = csv.DictReader(StringIO(content))
+            row_number = 1
+            
+            for row in reader:
+                row_number += 1
+                try:
+                    # Find debt
+                    debt_name = row.get('debt_name')
+                    borrower_name = row.get('borrower_name')
+                    
+                    if debt_name:
+                        debt = Debt.objects.filter(
+                            name__icontains=debt_name,
+                            deleted_at__isnull=True
+                        ).first()
+                    elif borrower_name:
+                        borrower = Borrower.objects.filter(
+                            name__icontains=borrower_name,
+                            deleted_at__isnull=True
+                        ).first()
+                        if borrower:
+                            debt = Debt.objects.filter(
+                                borrower=borrower,
+                                deleted_at__isnull=True
+                            ).first()
+                        else:
+                            debt = None
+                    else:
+                        debt = None
+                    
+                    if not debt:
+                        raise ValidationError({
+                            'debt': f'Debt not found. debt_name: {debt_name}, borrower_name: {borrower_name}'
+                        })
+                    
+                    # Prepare penalty data
+                    penalty_data = {
+                        'debt_id': debt.id,
+                        'amount': Decimal(row.get('amount', 0)),
+                        'penalty_date': row.get('penalty_date') or timezone.now().date(),
+                        'reason': row.get('reason'),
+                        'is_auto': row.get('is_auto', 'false').lower() == 'true',
+                    }
+                    
+                    penalty = PenaltyTransactionService.create(penalty_data, user, request)
+                    results['imported'].append(penalty)
+                    
+                except Exception as e:
+                    results['errors'].append({
+                        'row': row_number,
+                        'data': row,
+                        'error': str(e)
+                    })
+            
+            return results
+        
+        except Exception as e:
+            raise ValidationError({'file': f'Failed to read CSV: {str(e)}'})
+
+
+    # ============================================================
+    # TOTAL PENALTY FOR DEBT
+    # ============================================================
+
+    @staticmethod
+    def get_total_penalty_for_debt(debt_id: int, include_deleted: bool = False) -> Dict[str, Any]:
+        """
+        Get total penalty amount and count for a specific debt.
+        
+        Args:
+            debt_id: ID of the debt
+            include_deleted: Whether to include soft-deleted penalties
+        
+        Returns:
+            dict: {
+                'debt_id': int,
+                'total_penalty': Decimal,
+                'penalty_count': int
+            }
+        """
+        qs = PenaltyTransaction.objects.filter(debt_id=debt_id)
+        if not include_deleted:
+            qs = qs.filter(deleted_at__isnull=True)
+        
+        stats = qs.aggregate(
+            total_penalty=Sum('amount'),
+            penalty_count=Count('id')
+        )
+        
+        return {
+            'debt_id': debt_id,
+            'total_penalty': stats.get('total_penalty') or Decimal('0'),
+            'penalty_count': stats.get('penalty_count') or 0,
+        }

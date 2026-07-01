@@ -1,3 +1,4 @@
+# loan_applications/urls/base.py
 from django.urls import path
 
 from loan_applications.views.loan_application import (
@@ -5,6 +6,8 @@ from loan_applications.views.loan_application import (
     LoanApplicationApproveView,
     LoanApplicationRejectView,
     LoanApplicationStatisticsView,
+    LoanApplicationRestoreView,
+    LoanApplicationPermanentDeleteView,
 )
 
 
@@ -21,6 +24,20 @@ urlpatterns = [
         "loan-applications/<int:id>/",
         LoanApplicationCRUDView.as_view(),
         name="loan-application-detail"
+    ),
+
+    # ============================================================
+    # Restore and Permanent Delete
+    # ============================================================
+    path(
+        "loan-applications/<int:id>/restore/",
+        LoanApplicationRestoreView.as_view(),
+        name="loan-application-restore"
+    ),
+    path(
+        "loan-applications/<int:id>/permanent/",
+        LoanApplicationPermanentDeleteView.as_view(),
+        name="loan-application-permanent-delete"
     ),
 
     # ============================================================

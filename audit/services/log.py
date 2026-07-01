@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 from audit.models.log import AuditLog
 from audit.models.policy import AuditPolicy
+from utils.pagination import paginate_queryset
 
 logger = logging.getLogger(__name__)
 
@@ -295,3 +296,583 @@ class AuditLogService:
         logger.info(f"Deleted {deleted_count} audit logs older than {days} days")
 
         return deleted_count
+    
+    # ============================================================
+    # PAGINATED LIST WITH FILTERS
+    # ============================================================
+
+    @staticmethod
+    def get_paginated_logs(
+        filters=None,
+        page=1,
+        limit=50,
+        sort_by='timestamp',
+        sort_order='desc'
+    ):
+        """
+        Get paginated list of audit logs with filters.
+        
+        Args:
+            filters: Dictionary of filter criteria
+            page: Page number for pagination
+            limit: Number of items per page
+            sort_by: Field to sort by
+            sort_order: 'asc' or 'desc'
+        
+        Returns:
+            dict: {
+                'data': list of AuditLog objects,
+                'pagination': pagination metadata
+            }
+        """
+        from django.db.models import Q
+        qs = AuditLog.objects.all().select_related('user')
+        
+        if filters:
+            if filters.get('search_term'):
+                search = filters['search_term']
+                qs = qs.filter(
+                    Q(action_type__icontains=search) |
+                    Q(model_name__icontains=search) |
+                    Q(object_id__icontains=search) |
+                    Q(user_agent__icontains=search) |
+                    Q(ip_address__icontains=search)
+                )
+            
+            if filters.get('entity'):
+                qs = qs.filter(model_name=filters['entity'])
+            
+            if filters.get('user'):
+                qs = qs.filter(user__username__icontains=filters['user'])
+            
+            if filters.get('action'):
+                qs = qs.filter(action_type=filters['action'])
+            
+            if filters.get('start_date'):
+                qs = qs.filter(timestamp__gte=filters['start_date'])
+            
+            if filters.get('end_date'):
+                qs = qs.filter(timestamp__lte=filters['end_date'])
+            
+            if filters.get('entity_id'):
+                qs = qs.filter(object_id=str(filters['entity_id']))
+        
+        # Apply sorting
+        if sort_order.lower() == 'asc':
+            sort_by = sort_by
+        else:
+            sort_by = f'-{sort_by}'
+        qs = qs.order_by(sort_by)
+        
+        return paginate_queryset(qs, page, limit)
+
+
+    # ============================================================
+    # GET BY ENTITY
+    # ============================================================
+
+    @staticmethod
+    def get_logs_by_entity(entity, entity_id=None, page=1, limit=50):
+        """
+        Get paginated audit logs for a specific entity.
+        
+        Args:
+            entity: Entity name (e.g., 'Borrower', 'Debt')
+            entity_id: Optional specific entity ID
+            page: Page number for pagination
+            limit: Number of items per page
+        
+        Returns:
+            dict: Paginated list of audit logs
+        """
+        qs = AuditLog.objects.filter(model_name=entity).select_related('user')
+        
+        if entity_id is not None:
+            qs = qs.filter(object_id=str(entity_id))
+        
+        qs = qs.order_by('-timestamp')
+        return paginate_queryset(qs, page, limit)
+
+
+    # ============================================================
+    # GET BY USER
+    # ============================================================
+
+    @staticmethod
+    def get_logs_by_user(username, page=1, limit=50):
+        """
+        Get paginated audit logs for a specific user.
+        
+        Args:
+            username: Username of the user
+            page: Page number for pagination
+            limit: Number of items per page
+        
+        Returns:
+            dict: Paginated list of audit logs
+        """
+        qs = AuditLog.objects.filter(
+            user__username__icontains=username
+        ).select_related('user').order_by('-timestamp')
+        
+        return paginate_queryset(qs, page, limit)
+
+
+    # ============================================================
+    # GET BY ACTION
+    # ============================================================
+
+    @staticmethod
+    def get_logs_by_action(action, page=1, limit=50):
+        """
+        Get paginated audit logs for a specific action type.
+        
+        Args:
+            action: Action type (e.g., 'create', 'update', 'delete')
+            page: Page number for pagination
+            limit: Number of items per page
+        
+        Returns:
+            dict: Paginated list of audit logs
+        """
+        qs = AuditLog.objects.filter(
+            action_type=action
+        ).select_related('user').order_by('-timestamp')
+        
+        return paginate_queryset(qs, page, limit)
+
+
+    # ============================================================
+    # GET BY DATE RANGE
+    # ============================================================
+
+    @staticmethod
+    def get_logs_by_date_range(start_date, end_date, page=1, limit=50):
+        """
+        Get paginated audit logs within a date range.
+        
+        Args:
+            start_date: Start date (ISO datetime)
+            end_date: End date (ISO datetime)
+            page: Page number for pagination
+            limit: Number of items per page
+        
+        Returns:
+            dict: Paginated list of audit logs
+        """
+        qs = AuditLog.objects.filter(
+            timestamp__gte=start_date,
+            timestamp__lte=end_date
+        ).select_related('user').order_by('-timestamp')
+        
+        return paginate_queryset(qs, page, limit)
+
+
+    # ============================================================
+    # SEARCH
+    # ============================================================
+
+    @staticmethod
+    def search_logs(search_term, page=1, limit=50):
+        """
+        Search audit logs by keyword.
+        
+        Args:
+            search_term: Search keyword
+            page: Page number for pagination
+            limit: Number of items per page
+        
+        Returns:
+            dict: Paginated list of audit logs
+        """
+        from django.db.models import Q
+        
+        qs = AuditLog.objects.filter(
+            Q(action_type__icontains=search_term) |
+            Q(model_name__icontains=search_term) |
+            Q(object_id__icontains=search_term) |
+            Q(user_agent__icontains=search_term) |
+            Q(ip_address__icontains=search_term) |
+            Q(user__username__icontains=search_term)
+        ).select_related('user').order_by('-timestamp')
+        
+        return paginate_queryset(qs, page, limit)
+
+
+    # ============================================================
+    # SUMMARY (GROUPED COUNTS)
+    # ============================================================
+
+    @staticmethod
+    def get_summary(start_date=None, end_date=None):
+        """
+        Get grouped summary of audit logs by action, entity, and user.
+        
+        Args:
+            start_date: Optional start date
+            end_date: Optional end date
+        
+        Returns:
+            dict: {
+                'by_action': [{'action': 'create', 'count': 10}, ...],
+                'by_entity': [{'entity': 'Borrower', 'count': 5}, ...],
+                'by_user': [{'user': 'admin', 'count': 8}, ...]
+            }
+        """
+        from django.db.models import Count
+        
+        qs = AuditLog.objects.all()
+        
+        if start_date:
+            qs = qs.filter(timestamp__gte=start_date)
+        if end_date:
+            qs = qs.filter(timestamp__lte=end_date)
+        
+        by_action = qs.values('action_type').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        by_entity = qs.values('model_name').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        by_user = qs.exclude(user__isnull=True).values(
+            'user__username'
+        ).annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        return {
+            'by_action': [
+                {'action': item['action_type'], 'count': item['count']}
+                for item in by_action
+            ],
+            'by_entity': [
+                {'entity': item['model_name'], 'count': item['count']}
+                for item in by_entity
+            ],
+            'by_user': [
+                {'user': item['user__username'], 'count': item['count']}
+                for item in by_user
+            ],
+        }
+
+
+    # ============================================================
+    # COUNTS (AGGREGATED)
+    # ============================================================
+
+    @staticmethod
+    def get_counts(start_date=None, end_date=None):
+        """
+        Get aggregated counts grouped by action, entity, and user.
+        Same as summary but with different key names for client compatibility.
+        
+        Args:
+            start_date: Optional start date
+            end_date: Optional end date
+        
+        Returns:
+            dict: {
+                'byAction': [{'action': 'create', 'count': 10}, ...],
+                'byEntity': [{'entity': 'Borrower', 'count': 5}, ...],
+                'byUser': [{'user': 'admin', 'count': 8}, ...]
+            }
+        """
+        summary = AuditLogService.get_summary(start_date, end_date)
+        
+        return {
+            'byAction': summary['by_action'],
+            'byEntity': summary['by_entity'],
+            'byUser': summary['by_user'],
+        }
+
+
+    # ============================================================
+    # TOP ACTIVITIES
+    # ============================================================
+
+    @staticmethod
+    def get_top_activities(limit=10, start_date=None, end_date=None):
+        """
+        Get top activities (most frequent actions, entities, users).
+        
+        Args:
+            limit: Number of top items to return (max 20)
+            start_date: Optional start date
+            end_date: Optional end date
+        
+        Returns:
+            dict: {
+                'topActions': [{'action': 'create', 'count': 10}, ...],
+                'topEntities': [{'entity': 'Borrower', 'count': 5}, ...],
+                'topUsers': [{'user': 'admin', 'count': 8}, ...]
+            }
+        """
+        from django.db.models import Count
+        
+        limit = min(limit, 20)
+        
+        qs = AuditLog.objects.all()
+        
+        if start_date:
+            qs = qs.filter(timestamp__gte=start_date)
+        if end_date:
+            qs = qs.filter(timestamp__lte=end_date)
+        
+        top_actions = qs.values('action_type').annotate(
+            count=Count('id')
+        ).order_by('-count')[:limit]
+        
+        top_entities = qs.values('model_name').annotate(
+            count=Count('id')
+        ).order_by('-count')[:limit]
+        
+        top_users = qs.exclude(user__isnull=True).values(
+            'user__username'
+        ).annotate(
+            count=Count('id')
+        ).order_by('-count')[:limit]
+        
+        return {
+            'topActions': [
+                {'action': item['action_type'], 'count': item['count']}
+                for item in top_actions
+            ],
+            'topEntities': [
+                {'entity': item['model_name'], 'count': item['count']}
+                for item in top_entities
+            ],
+            'topUsers': [
+                {'user': item['user__username'], 'count': item['count']}
+                for item in top_users
+            ],
+        }
+
+
+    # ============================================================
+    # RECENT ACTIVITY
+    # ============================================================
+
+    @staticmethod
+    def get_recent_activity(limit=10):
+        """
+        Get recent activity (latest N audit logs).
+        
+        Args:
+            limit: Number of entries (max 50)
+        
+        Returns:
+            dict: {'items': list of AuditLog objects, 'limit': int}
+        """
+        limit = min(limit, 50)
+        items = AuditLog.objects.all().select_related('user').order_by('-timestamp')[:limit]
+        
+        return {
+            'items': list(items),
+            'limit': limit,
+        }
+
+
+    # ============================================================
+    # EXPORT LOGS (CSV)
+    # ============================================================
+
+    @staticmethod
+    def export_logs_to_csv(filters=None, limit=5000):
+        """
+        Export audit logs to CSV.
+        
+        Args:
+            filters: Optional filters (same as get_paginated_logs)
+            limit: Max rows to export (max 10000)
+        
+        Returns:
+            dict: {
+                'filePath': str,
+                'filename': str
+            }
+        """
+        import csv
+        import os
+        import tempfile
+        
+        limit = min(limit, 10000)
+        
+        qs = AuditLog.objects.all().select_related('user').order_by('-timestamp')[:limit]
+        
+        if filters:
+            from django.db.models import Q
+            if filters.get('search_term'):
+                search = filters['search_term']
+                qs = qs.filter(
+                    Q(action_type__icontains=search) |
+                    Q(model_name__icontains=search) |
+                    Q(object_id__icontains=search)
+                )
+            if filters.get('entity'):
+                qs = qs.filter(model_name=filters['entity'])
+            if filters.get('user'):
+                qs = qs.filter(user__username__icontains=filters['user'])
+            if filters.get('action'):
+                qs = qs.filter(action_type=filters['action'])
+            if filters.get('start_date'):
+                qs = qs.filter(timestamp__gte=filters['start_date'])
+            if filters.get('end_date'):
+                qs = qs.filter(timestamp__lte=filters['end_date'])
+        
+        # Generate CSV
+        temp_dir = tempfile.gettempdir()
+        filename = f"audit_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        file_path = os.path.join(temp_dir, filename)
+        
+        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow([
+                'ID', 'Event ID', 'Action', 'Entity', 'Object ID',
+                'User', 'Changes', 'IP Address', 'User Agent',
+                'Is Suspicious', 'Suspicious Reason', 'Timestamp'
+            ])
+            
+            for log in qs:
+                writer.writerow([
+                    log.id,
+                    log.event_id,
+                    log.action_type,
+                    log.model_name,
+                    log.object_id,
+                    log.user.username if log.user else None,
+                    log.changes,
+                    log.ip_address,
+                    log.user_agent,
+                    log.is_suspicious,
+                    log.suspicious_reason,
+                    log.timestamp.isoformat()
+                ])
+        
+        return {
+            'filePath': file_path,
+            'filename': filename,
+        }
+
+
+    # ============================================================
+    # GENERATE REPORT
+    # ============================================================
+
+    @staticmethod
+    def generate_report(start_date=None, end_date=None, format='json'):
+        """
+        Generate a comprehensive audit report.
+        
+        Args:
+            start_date: Optional start date
+            end_date: Optional end date
+            format: 'json' or 'html'
+        
+        Returns:
+            dict: {
+                'filePath': str,
+                'format': str,
+                'entryCount': int
+            }
+        """
+        import json
+        import os
+        import tempfile
+        
+        qs = AuditLog.objects.all().select_related('user')
+        
+        if start_date:
+            qs = qs.filter(timestamp__gte=start_date)
+        if end_date:
+            qs = qs.filter(timestamp__lte=end_date)
+        
+        logs = qs.order_by('-timestamp')
+        total = logs.count()
+        
+        # Generate summary
+        from django.db.models import Count
+        by_action = logs.values('action_type').annotate(count=Count('id'))
+        by_entity = logs.values('model_name').annotate(count=Count('id'))
+        by_user = logs.exclude(user__isnull=True).values('user__username').annotate(count=Count('id'))
+        
+        report_data = {
+            'generatedAt': timezone.now().isoformat(),
+            'dateRange': {
+                'start': start_date.isoformat() if start_date else None,
+                'end': end_date.isoformat() if end_date else None,
+            } if start_date or end_date else None,
+            'total': total,
+            'summary': {
+                'byAction': list(by_action),
+                'byEntity': list(by_entity),
+                'byUser': list(by_user),
+            },
+            'logs': list(logs[:500].values(
+                'id', 'event_id', 'action_type', 'model_name',
+                'object_id', 'user__username', 'changes',
+                'ip_address', 'is_suspicious', 'timestamp'
+            )),
+        }
+        
+        temp_dir = tempfile.gettempdir()
+        
+        if format == 'html':
+            # Generate HTML report
+            filename = f"audit_report_{timezone.now().strftime('%Y%m%d_%H%M%S')}.html"
+            file_path = os.path.join(temp_dir, filename)
+            
+            html_content = f"""<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Audit Report</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; }}
+            table {{ border-collapse: collapse; width: 100%; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background-color: #f2f2f2; }}
+            .summary {{ margin-bottom: 20px; }}
+            .summary-item {{ display: inline-block; margin-right: 30px; }}
+        </style>
+    </head>
+    <body>
+        <h1>Audit Log Report</h1>
+        <p>Generated: {timezone.now().isoformat()}</p>
+        <div class="summary">
+            <div class="summary-item"><strong>Total Logs:</strong> {total}</div>
+        </div>
+        <h2>Summary</h2>
+        <h3>By Action</h3>
+        <ul>{"".join(f"<li>{item['action_type']}: {item['count']}</li>" for item in by_action)}</ul>
+        <h3>By Entity</h3>
+        <ul>{"".join(f"<li>{item['model_name']}: {item['count']}</li>" for item in by_entity)}</ul>
+        <h3>By User</h3>
+        <ul>{"".join(f"<li>{item['user__username']}: {item['count']}</li>" for item in by_user)}</ul>
+        <h2>Logs (latest 500)</h2>
+        <table>
+            <tr>
+                <th>ID</th><th>Event ID</th><th>Action</th>
+                <th>Entity</th><th>Object ID</th><th>User</th><th>Timestamp</th>
+            </tr>
+            {"".join(f"<tr><td>{log['id']}</td><td>{log['event_id']}</td><td>{log['action_type']}</td><td>{log['model_name']}</td><td>{log['object_id']}</td><td>{log['user__username']}</td><td>{log['timestamp']}</td></tr>" for log in report_data['logs'])}
+        </table>
+    </body>
+    </html>"""
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+        else:
+            # JSON report
+            filename = f"audit_report_{timezone.now().strftime('%Y%m%d_%H%M%S')}.json"
+            file_path = os.path.join(temp_dir, filename)
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(report_data, f, indent=2, default=str)
+        
+        return {
+            'filePath': file_path,
+            'format': format,
+            'entryCount': total,
+        }

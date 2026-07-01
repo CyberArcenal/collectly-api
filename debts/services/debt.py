@@ -682,3 +682,526 @@ class DebtService:
             'total_due': total_due,
             'total_debtors': len(debtors),
         }
+        
+    # ============================================================
+    # BULK OPERATIONS
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def bulk_create(debts_data, user=None, request=None):
+        """
+        Bulk create multiple debts.
+        
+        Args:
+            debts_data: List of debt data dictionaries
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {'created': list of created debts, 'errors': list of errors}
+        """
+        results = {'created': [], 'errors': []}
+        
+        for data in debts_data:
+            try:
+                # Validate borrower exists
+                borrower_id = data.get('borrower_id')
+                if not borrower_id:
+                    raise ValidationError({'borrower_id': 'Borrower ID is required.'})
+                
+                borrower = Borrower.objects.filter(id=borrower_id, deleted_at__isnull=True).first()
+                if not borrower:
+                    raise ValidationError({'borrower_id': f'Borrower with id {borrower_id} not found.'})
+                
+                debt = DebtService.create(data, user, request)
+                results['created'].append(debt)
+            except Exception as e:
+                results['errors'].append({
+                    'debt': data,
+                    'error': str(e)
+                })
+        
+        return results
+
+
+    @staticmethod
+    @transaction.atomic
+    def bulk_update(updates, user=None, request=None):
+        """
+        Bulk update multiple debts.
+        
+        Args:
+            updates: List of dicts with 'id' and 'updates' keys
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {'updated': list of updated debts, 'errors': list of errors}
+        """
+        results = {'updated': [], 'errors': []}
+        
+        for item in updates:
+            try:
+                debt_id = item.get('id')
+                data = item.get('updates', {})
+                
+                if not debt_id:
+                    raise ValidationError({'id': 'Debt ID is required.'})
+                
+                updated = DebtService.update(debt_id, data, user, request)
+                results['updated'].append(updated)
+            except Exception as e:
+                results['errors'].append({
+                    'id': item.get('id'),
+                    'updates': item.get('updates', {}),
+                    'error': str(e)
+                })
+        
+        return results
+
+
+    @staticmethod
+    @transaction.atomic
+    def correct_total_amount(debt_id, new_total_amount, user=None, request=None):
+        """
+        Correct total amount (data entry correction only - no forgiveness flow).
+        
+        Args:
+            debt_id: ID of the debt
+            new_total_amount: New total amount
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            Debt: The updated debt instance
+        """
+        debt = DebtService.get_by_id(debt_id)
+        if not debt:
+            raise ValidationError({'id': 'Debt not found.'})
+        
+        if debt.deleted_at:
+            raise ValidationError({'id': 'Cannot update a deleted debt.'})
+        
+        # Ensure new total is not less than paid amount
+        new_total = Decimal(str(new_total_amount))
+        if new_total < debt.paid_amount:
+            raise ValidationError({
+                'new_total_amount': f'New total amount (₱{new_total:,.2f}) cannot be less than paid amount (₱{debt.paid_amount:,.2f}).'
+            })
+        
+        old_total = debt.total_amount
+        debt.total_amount = new_total
+        debt.save()
+        
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='debt_correct_total',
+                model_name='Debt',
+                object_id=str(debt.id),
+                changes={
+                    'before': {'total_amount': old_total},
+                    'after': {'total_amount': debt.total_amount}
+                }
+            )
+        
+        logger.info(f"Debt total corrected: {debt.id} - {debt.name} (₱{old_total} → ₱{new_total})")
+        return debt
+
+
+    @staticmethod
+    @transaction.atomic
+    def recalculate_remaining(debt_id, user=None, request=None):
+        """
+        Recalculate remaining amount based on paid amount.
+        
+        Args:
+            debt_id: ID of the debt
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            Debt: The updated debt instance
+        """
+        debt = DebtService.get_by_id(debt_id)
+        if not debt:
+            raise ValidationError({'id': 'Debt not found.'})
+        
+        old_remaining = debt.remaining_amount
+        debt.save()  # Triggers auto-calculation of remaining_amount
+        
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='debt_recalculate_remaining',
+                model_name='Debt',
+                object_id=str(debt.id),
+                changes={
+                    'before': {'remaining_amount': old_remaining},
+                    'after': {'remaining_amount': debt.remaining_amount}
+                }
+            )
+        
+        logger.info(f"Debt remaining recalculated: {debt.id} - {debt.name} (₱{old_remaining} → ₱{debt.remaining_amount})")
+        return debt
+
+
+    @staticmethod
+    @transaction.atomic
+    def apply_forgiveness(debt_id, amount_forgiven, user=None, request=None, reason=None):
+        """
+        Apply forgiveness to a debt. Creates a ForgivenessLog entry.
+        
+        Args:
+            debt_id: ID of the debt
+            amount_forgiven: Amount to forgive
+            user: User performing the action
+            request: HTTP request object
+            reason: Reason for forgiveness
+        
+        Returns:
+            Debt: The updated debt instance
+        """
+        from debts.services.forgiveness import ForgivenessService
+        
+        debt = DebtService.get_by_id(debt_id)
+        if not debt:
+            raise ValidationError({'id': 'Debt not found.'})
+        
+        if debt.deleted_at:
+            raise ValidationError({'id': 'Cannot forgive a deleted debt.'})
+        
+        if debt.remaining_amount <= Decimal('0.01'):
+            raise ValidationError({'detail': 'Debt is already fully paid.'})
+        
+        amount = Decimal(str(amount_forgiven))
+        if amount <= 0:
+            raise ValidationError({'amount_forgiven': 'Forgiveness amount must be greater than 0.'})
+        
+        if amount > debt.remaining_amount:
+            raise ValidationError({
+                'amount_forgiven': f'Forgiveness amount (₱{amount:,.2f}) cannot exceed remaining amount (₱{debt.remaining_amount:,.2f}).'
+            })
+        
+        # Use ForgivenessService to apply forgiveness
+        ForgivenessService.apply_forgiveness(
+            debt_id=debt_id,
+            borrower_id=debt.borrower_id,
+            amount=amount,
+            created_by=user.username if user else 'system',
+            reason=reason,
+            user=user,
+            request=request
+        )
+        
+        # Refresh debt instance
+        debt.refresh_from_db()
+        
+        return debt
+
+
+    @staticmethod
+    @transaction.atomic
+    def mark_period_paid(borrower_id, period_type, payment_date, method_id, user=None, request=None):
+        """
+        Mark all debts for a borrower in a period as paid.
+        
+        Args:
+            borrower_id: ID of the borrower
+            period_type: 'weekly', 'monthly', 'semi-annual', 'yearly'
+            payment_date: Date of payment (YYYY-MM-DD)
+            method_id: ID of the payment method
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {'payments': list of created payments, 'count': number of payments}
+        """
+        from payments.models.payment_transaction import PaymentTransaction
+        from payments.services.payment_transaction import PaymentTransactionService
+        
+        borrower = Borrower.objects.filter(id=borrower_id, deleted_at__isnull=True).first()
+        if not borrower:
+            raise ValidationError({'borrower_id': 'Borrower not found.'})
+        
+        # Get active debts for borrower
+        debts = Debt.objects.filter(
+            borrower_id=borrower_id,
+            deleted_at__isnull=True,
+            status__in=[Debt.Status.ACTIVE, Debt.Status.OVERDUE],
+            remaining_amount__gt=Decimal('0.01')
+        )
+        
+        if not debts:
+            raise ValidationError({'detail': 'No active debts found for this borrower.'})
+        
+        # Calculate period amounts using collection schedule
+        schedule = DebtService.get_collection_schedule(period_type, payment_date)
+        debtor_schedule = next(
+            (d for d in schedule.get('debtors', []) if d['borrower_id'] == borrower_id),
+            None
+        )
+        
+        if not debtor_schedule:
+            raise ValidationError({'detail': f'No scheduled payments found for borrower in {period_type} period.'})
+        
+        payments = []
+        for debt_item in debtor_schedule.get('debts', []):
+            if debt_item['is_paid']:
+                continue
+            
+            debt_id = debt_item['debt_id']
+            amount = debt_item['period_amount']
+            
+            if amount <= 0:
+                continue
+            
+            # Create payment
+            payment_data = {
+                'debt_id': debt_id,
+                'method_id': method_id,
+                'amount': amount,
+                'payment_date': payment_date,
+                'reference': f'PERIOD_PAY_{period_type}_{payment_date}',
+                'notes': f'Automated {period_type} payment for borrower {borrower.name}'
+            }
+            
+            payment = PaymentTransactionService.create(
+                data=payment_data,
+                user=user,
+                request=request
+            )
+            payments.append(payment)
+        
+        return {
+            'payments': payments,
+            'count': len(payments)
+        }
+
+
+    @staticmethod
+    @transaction.atomic
+    def fix_precision(debt_id=None):
+        """
+        Fix floating point precision for debts.
+        
+        Args:
+            debt_id: Optional specific debt ID. If None, fixes all debts.
+        
+        Returns:
+            dict: {'fixed': number of debts fixed}
+        """
+        qs = Debt.objects.filter(deleted_at__isnull=True)
+        if debt_id:
+            qs = qs.filter(id=debt_id)
+        
+        fixed_count = 0
+        for debt in qs:
+            original_remaining = debt.remaining_amount
+            debt.save()  # Triggers auto-calculation
+            if debt.remaining_amount != original_remaining:
+                fixed_count += 1
+        
+        return {'fixed': fixed_count}
+
+
+    # ============================================================
+    # DEBTS IN BUCKET
+    # ============================================================
+
+    @staticmethod
+    def get_debts_in_bucket(bucket_range, as_of_date, page=1, limit=10):
+        """
+        Get debts in a specific aging bucket with pagination.
+        
+        Args:
+            bucket_range: e.g., '0-30 days', '31-60 days', '61-90 days', '90+ days'
+            as_of_date: Date to calculate aging (YYYY-MM-DD)
+            page: Page number
+            limit: Items per page
+        
+        Returns:
+            dict: {'data': list of debts, 'pagination': pagination metadata}
+        """
+        import datetime
+        
+        if isinstance(as_of_date, str):
+            as_of_date = datetime.date.fromisoformat(as_of_date)
+        
+        # Parse bucket range
+        if bucket_range == '90+ days':
+            min_days = 90
+            max_days = None
+        else:
+            parts = bucket_range.split('-')
+            min_days = int(parts[0])
+            max_days = int(parts[1].split()[0])
+        
+        # Get all active/overdue debts
+        debts = Debt.objects.filter(
+            deleted_at__isnull=True,
+            status__in=[Debt.Status.ACTIVE, Debt.Status.OVERDUE],
+            remaining_amount__gt=Decimal('0.01')
+        ).select_related('borrower')
+        
+        # Filter by days past due
+        filtered = []
+        for debt in debts:
+            if debt.due_date:
+                days_past_due = (as_of_date - debt.due_date).days
+                if days_past_due < 0:
+                    days_past_due = 0
+                
+                if max_days:
+                    if min_days <= days_past_due <= max_days:
+                        filtered.append(debt)
+                else:
+                    if days_past_due >= min_days:
+                        filtered.append(debt)
+        
+        # Paginate
+        total = len(filtered)
+        start = (page - 1) * limit
+        end = start + limit
+        paginated = filtered[start:end]
+        
+        return {
+            'data': paginated,
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total': total,
+                'pages': (total + limit - 1) // limit if total > 0 else 0
+            }
+        }
+
+
+    # ============================================================
+    # EXPORT
+    # ============================================================
+
+    @staticmethod
+    def export_debts(filters=None):
+        """
+        Export debts data for reporting.
+        
+        Args:
+            filters: Optional filters
+        
+        Returns:
+            list: List of debt dictionaries with selected fields
+        """
+        qs = Debt.objects.filter(deleted_at__isnull=True).select_related('borrower')
+        
+        if filters:
+            if filters.get('status'):
+                qs = qs.filter(status=filters['status'])
+            if filters.get('borrower_id'):
+                qs = qs.filter(borrower_id=filters['borrower_id'])
+        
+        export_data = []
+        for debt in qs:
+            export_data.append({
+                'id': debt.id,
+                'borrower_name': debt.borrower.name,
+                'borrower_contact': debt.borrower.contact,
+                'borrower_email': debt.borrower.email,
+                'name': debt.name,
+                'total_amount': float(debt.total_amount),
+                'paid_amount': float(debt.paid_amount),
+                'remaining_amount': float(debt.remaining_amount),
+                'due_date': debt.due_date.isoformat(),
+                'status': debt.status,
+                'interest_rate': float(debt.interest_rate) if debt.interest_rate else None,
+                'penalty_rate': float(debt.penalty_rate) if debt.penalty_rate else None,
+                'created_at': debt.created_at.isoformat(),
+            })
+        
+        return export_data
+
+
+    # ============================================================
+    # IMPORT FROM CSV
+    # ============================================================
+
+    @staticmethod
+    @transaction.atomic
+    def import_from_csv(file_path, user=None, request=None):
+        """
+        Import debts from CSV file.
+        
+        Args:
+            file_path: Path to CSV file
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            dict: {'imported': list of imported debts, 'errors': list of errors}
+        """
+        import csv
+        from io import StringIO
+        
+        results = {'imported': [], 'errors': []}
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            reader = csv.DictReader(StringIO(content))
+            row_number = 1
+            
+            for row in reader:
+                row_number += 1
+                try:
+                    # Validate required fields
+                    borrower_name = row.get('borrower_name') or row.get('borrower')
+                    if not borrower_name:
+                        raise ValidationError({'borrower_name': 'Borrower name is required.'})
+                    
+                    # Find or create borrower
+                    borrower = Borrower.objects.filter(
+                        name__iexact=borrower_name,
+                        deleted_at__isnull=True
+                    ).first()
+                    
+                    if not borrower:
+                        # Create borrower if not exists
+                        borrower_data = {
+                            'name': borrower_name,
+                            'contact': row.get('borrower_contact'),
+                            'email': row.get('borrower_email'),
+                            'address': row.get('borrower_address'),
+                        }
+                        borrower = BorrowerService.create(borrower_data, user, request)
+                    
+                    # Prepare debt data
+                    debt_data = {
+                        'borrower_id': borrower.id,
+                        'name': row.get('name', f'Loan for {borrower_name}'),
+                        'total_amount': Decimal(row.get('total_amount', 0)),
+                        'paid_amount': Decimal(row.get('paid_amount', 0)),
+                        'due_date': row.get('due_date'),
+                        'status': row.get('status', Debt.Status.ACTIVE),
+                        'interest_rate': row.get('interest_rate') if row.get('interest_rate') else None,
+                        'penalty_rate': row.get('penalty_rate') if row.get('penalty_rate') else None,
+                    }
+                    
+                    debt = DebtService.create(debt_data, user, request)
+                    results['imported'].append(debt)
+                    
+                except Exception as e:
+                    results['errors'].append({
+                        'row': row_number,
+                        'data': row,
+                        'error': str(e)
+                    })
+            
+            return results
+        
+        except Exception as e:
+            raise ValidationError({'file': f'Failed to read CSV: {str(e)}'})
