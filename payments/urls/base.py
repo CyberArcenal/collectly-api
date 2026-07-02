@@ -1,4 +1,4 @@
-# payments/urls/base.py
+# urls/base.py
 from django.urls import path
 
 from payments.views.payment_transaction import (
@@ -32,12 +32,12 @@ urlpatterns = [
     # Payment Transaction CRUD
     # ============================================================
     path(
-        "payments/",
+        "",
         PaymentTransactionCRUDView.as_view(),
         name="payment-list-create"
     ),
     path(
-        "payments/<int:id>/",
+        "<int:id>/",
         PaymentTransactionCRUDView.as_view(),
         name="payment-detail"
     ),
@@ -46,12 +46,12 @@ urlpatterns = [
     # Payment Restore & Permanent Delete
     # ============================================================
     path(
-        "payments/<int:id>/restore/",
+        "<int:id>/restore/",
         PaymentRestoreView.as_view(),
         name="payment-restore"
     ),
     path(
-        "payments/<int:id>/permanent/",
+        "<int:id>/permanent/",
         PaymentPermanentDeleteView.as_view(),
         name="payment-permanent-delete"
     ),
@@ -60,22 +60,22 @@ urlpatterns = [
     # Payment Bulk Operations
     # ============================================================
     path(
-        "payments/bulkCreate/",
+        "bulkCreate/",
         PaymentBulkCreateView.as_view(),
         name="payment-bulk-create"
     ),
     path(
-        "payments/bulkUpdate/",
+        "bulkUpdate/",
         PaymentBulkUpdateView.as_view(),
         name="payment-bulk-update"
     ),
     path(
-        "payments/import/",
+        "import/",
         PaymentImportView.as_view(),
         name="payment-import"
     ),
     path(
-        "payments/export/",
+        "export/",
         PaymentExportView.as_view(),
         name="payment-export"
     ),
@@ -84,7 +84,7 @@ urlpatterns = [
     # Payment Transaction Actions
     # ============================================================
     path(
-        "payments/<int:id>/void/",
+        "<int:id>/void/",
         PaymentTransactionVoidView.as_view(),
         name="payment-void"
     ),
@@ -93,12 +93,12 @@ urlpatterns = [
     # Payment Transaction Reports
     # ============================================================
     path(
-        "payments/stats/",
+        "stats/",
         PaymentTransactionStatisticsView.as_view(),
         name="payment-stats"
     ),
     path(
-        "payments/collection-report/",
+        "collection-report/",
         PaymentCollectionReportView.as_view(),
         name="payment-collection-report"
     ),

@@ -19,12 +19,12 @@ urlpatterns = [
     # Loan Agreement CRUD
     # ============================================================
     path(
-        "loan-agreements/",
+        "",
         LoanAgreementCRUDView.as_view(),
         name="loan-agreement-list-create"
     ),
     path(
-        "loan-agreements/<int:id>/",
+        "<int:id>/",
         LoanAgreementCRUDView.as_view(),
         name="loan-agreement-detail"
     ),
@@ -33,12 +33,12 @@ urlpatterns = [
     # Restore and Permanent Delete
     # ============================================================
     path(
-        "loan-agreements/<int:id>/restore/",
+        "<int:id>/restore/",
         LoanAgreementRestoreView.as_view(),
         name="loan-agreement-restore"
     ),
     path(
-        "loan-agreements/<int:id>/permanent/",
+        "<int:id>/permanent/",
         LoanAgreementPermanentDeleteView.as_view(),
         name="loan-agreement-permanent-delete"
     ),
@@ -47,22 +47,22 @@ urlpatterns = [
     # Bulk Operations
     # ============================================================
     path(
-        "loan-agreements/bulkCreate/",
+        "bulkCreate/",
         LoanAgreementBulkCreateView.as_view(),
         name="loan-agreement-bulk-create"
     ),
     path(
-        "loan-agreements/bulkUpdate/",
+        "bulkUpdate/",
         LoanAgreementBulkUpdateView.as_view(),
         name="loan-agreement-bulk-update"
     ),
     path(
-        "loan-agreements/import/",
+        "import/",
         LoanAgreementImportView.as_view(),
         name="loan-agreement-import"
     ),
     path(
-        "loan-agreements/export/",
+        "export/",
         LoanAgreementExportView.as_view(),
         name="loan-agreement-export"
     ),
@@ -71,7 +71,7 @@ urlpatterns = [
     # Statistics
     # ============================================================
     path(
-        "loan-agreements/statistics/",
+        "statistics/",
         LoanAgreementStatisticsView.as_view(),
         name="loan-agreement-statistics"
     ),
@@ -80,7 +80,7 @@ urlpatterns = [
     # Loan Agreement Sign
     # ============================================================
     path(
-        "loan-agreements/<int:id>/sign/",
+        "<int:id>/sign/",
         LoanAgreementSignView.as_view(),
         name="loan-agreement-sign"
     ),

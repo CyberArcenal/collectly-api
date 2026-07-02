@@ -13,12 +13,12 @@ urlpatterns = [
     # System Setting CRUD
     # ============================================================
     path(
-        "settings/",
+        "",
         SystemSettingCRUDView.as_view(),
         name="setting-list-create"
     ),
     path(
-        "settings/<int:id>/",
+        "<int:id>/",
         SystemSettingCRUDView.as_view(),
         name="setting-detail"
     ),
@@ -27,7 +27,7 @@ urlpatterns = [
     # System Setting Bulk Update
     # ============================================================
     path(
-        "settings/bulk-update/",
+        "bulk-update/",
         SystemSettingCRUDView.as_view(),
         name="setting-bulk-update"
     ),
@@ -36,7 +36,7 @@ urlpatterns = [
     # System Setting Grouped
     # ============================================================
     path(
-        "settings/grouped/",
+        "grouped/",
         SystemSettingGroupedView.as_view(),
         name="setting-grouped"
     ),
@@ -45,7 +45,7 @@ urlpatterns = [
     # System Setting Public
     # ============================================================
     path(
-        "settings/public/",
+        "public/",
         SystemSettingPublicView.as_view(),
         name="setting-public"
     ),

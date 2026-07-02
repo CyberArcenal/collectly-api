@@ -11,7 +11,7 @@ from django.urls import include, path
 from django.conf.urls.static import static
 from django.shortcuts import redirect
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from core.views.base import HealthCheckView
+from core.views.base import HandshakeView, HealthCheckView
 from users.views.login.login import LoginView
 from users.views.login.logout import LogoutView
 from users.views.login.verify import TokenVerifyView
@@ -32,6 +32,7 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="logout"),
     path("verify/", TokenVerifyView.as_view(), name="token_verify"),
     path("refresh/", RefreshTokenView.as_view(), name="token_refresh"),
+    path("handshake/", HandshakeView.as_view(), name="handshake"),
 ]
 
 # Dynamically include each app's urls/base.py under its own prefix

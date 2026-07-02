@@ -13,12 +13,12 @@ urlpatterns = [
     # Payment Method CRUD
     # ============================================================
     path(
-        "payment-methods/",
+        "",
         PaymentMethodCRUDView.as_view(),
         name="payment-method-list-create"
     ),
     path(
-        "payment-methods/<int:id>/",
+        "<int:id>/",
         PaymentMethodCRUDView.as_view(),
         name="payment-method-detail"
     ),
@@ -27,7 +27,7 @@ urlpatterns = [
     # Payment Method Actions
     # ============================================================
     path(
-        "payment-methods/<int:id>/set-default/",
+        "<int:id>/set-default/",
         PaymentMethodSetDefaultView.as_view(),
         name="payment-method-set-default"
     ),
@@ -36,12 +36,12 @@ urlpatterns = [
     # Payment Method Statistics
     # ============================================================
     path(
-        "payment-methods/<int:id>/stats/",
+        "<int:id>/stats/",
         PaymentMethodStatsView.as_view(),
         name="payment-method-stats"
     ),
     path(
-        "payment-methods/stats/all/",
+        "stats/all/",
         PaymentMethodAllStatsView.as_view(),
         name="payment-method-all-stats"
     ),

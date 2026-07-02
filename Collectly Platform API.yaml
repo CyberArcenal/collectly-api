@@ -16585,6 +16585,85 @@ paths:
                     detail: Token has been revoked
                   summary: Revoked token
           description: ''
+  /handshake/:
+    post:
+      operationId: handshake_create
+      description: Handshake endpoint for initial client-server communication. Validates
+        client version compatibility, checks database schema, and returns server capabilities
+        and sync settings.
+      tags:
+      - System
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandshakeRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HandshakeRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HandshakeRequestRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandshakeResponse'
+              examples:
+                SuccessfulHandshake:
+                  value:
+                    status: ok
+                    server_version: 1.0.0
+                    min_client_version: 1.0.0
+                    expected_schema_version: '1'
+                    sync_enabled: true
+                    ping_ms: 42
+                    features:
+                    - sync
+                    - audit_logs
+                    - analytics
+                    message: Handshake successful
+                  summary: Successful handshake
+                OutdatedClient:
+                  value:
+                    status: outdated
+                    server_version: 1.0.0
+                    min_client_version: 1.0.0
+                    expected_schema_version: '1'
+                    sync_enabled: true
+                    ping_ms: 45
+                    features:
+                    - sync
+                    - audit_logs
+                    - analytics
+                    required_version: 1.0.0
+                    message: Client version is outdated. Please update.
+                  summary: Outdated client
+                SchemaMismatch:
+                  value:
+                    status: error
+                    server_version: 1.0.0
+                    min_client_version: 1.0.0
+                    expected_schema_version: '1'
+                    sync_enabled: true
+                    ping_ms: 43
+                    features:
+                    - sync
+                    - audit_logs
+                    - analytics
+                    message: Database schema version mismatch. Please run migrations.
+                  summary: Schema mismatch
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandshakeErrorResponse'
+          description: ''
   /health/:
     get:
       operationId: health_retrieve
@@ -19445,6 +19524,101 @@ components:
       required:
       - data
       - message
+    HandshakeErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+      required:
+      - message
+      - status
+    HandshakeRequestRequest:
+      type: object
+      description: Request serializer for handshake endpoint.
+      properties:
+        client_version:
+          type: string
+          minLength: 1
+          description: Client application version
+        db_schema_version:
+          type: string
+          minLength: 1
+          description: Client database schema version
+        platform:
+          type: string
+          minLength: 1
+          description: Platform (electron, web, mobile)
+        license_key:
+          type: string
+          description: License key
+        timestamp:
+          type: string
+          format: date-time
+          description: Request timestamp
+      required:
+      - client_version
+      - db_schema_version
+      - platform
+      - timestamp
+    HandshakeResponse:
+      type: object
+      description: Response serializer for handshake endpoint.
+      properties:
+        status:
+          allOf:
+          - $ref: '#/components/schemas/HandshakeResponseStatusEnum'
+          description: |-
+            Handshake status
+
+            * `ok` - ok
+            * `outdated` - outdated
+            * `error` - error
+        server_version:
+          type: string
+          description: Server version
+        min_client_version:
+          type: string
+          description: Minimum client version required
+        expected_schema_version:
+          type: string
+          description: Expected database schema version
+        sync_enabled:
+          type: boolean
+          description: Whether sync is enabled
+        ping_ms:
+          type: integer
+          description: Response time in milliseconds
+        features:
+          type: array
+          items:
+            type: string
+          description: List of supported features
+        required_version:
+          type: string
+          description: Required version if client is outdated
+        message:
+          type: string
+          description: Additional message
+      required:
+      - expected_schema_version
+      - features
+      - min_client_version
+      - ping_ms
+      - server_version
+      - status
+      - sync_enabled
+    HandshakeResponseStatusEnum:
+      enum:
+      - ok
+      - outdated
+      - error
+      type: string
+      description: |-
+        * `ok` - ok
+        * `outdated` - outdated
+        * `error` - error
     HealthCheckResponse:
       type: object
       description: Response serializer for health check endpoint.

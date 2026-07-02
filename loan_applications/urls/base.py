@@ -16,12 +16,12 @@ urlpatterns = [
     # Loan Application CRUD
     # ============================================================
     path(
-        "loan-applications/",
+        "",
         LoanApplicationCRUDView.as_view(),
         name="loan-application-list-create"
     ),
     path(
-        "loan-applications/<int:id>/",
+        "<int:id>/",
         LoanApplicationCRUDView.as_view(),
         name="loan-application-detail"
     ),
@@ -30,12 +30,12 @@ urlpatterns = [
     # Restore and Permanent Delete
     # ============================================================
     path(
-        "loan-applications/<int:id>/restore/",
+        "<int:id>/restore/",
         LoanApplicationRestoreView.as_view(),
         name="loan-application-restore"
     ),
     path(
-        "loan-applications/<int:id>/permanent/",
+        "<int:id>/permanent/",
         LoanApplicationPermanentDeleteView.as_view(),
         name="loan-application-permanent-delete"
     ),
@@ -44,12 +44,12 @@ urlpatterns = [
     # Loan Application Actions
     # ============================================================
     path(
-        "loan-applications/<int:id>/approve/",
+        "<int:id>/approve/",
         LoanApplicationApproveView.as_view(),
         name="loan-application-approve"
     ),
     path(
-        "loan-applications/<int:id>/reject/",
+        "<int:id>/reject/",
         LoanApplicationRejectView.as_view(),
         name="loan-application-reject"
     ),
@@ -58,7 +58,7 @@ urlpatterns = [
     # Loan Application Statistics
     # ============================================================
     path(
-        "loan-applications/stats/",
+        "stats/",
         LoanApplicationStatisticsView.as_view(),
         name="loan-application-stats"
     ),

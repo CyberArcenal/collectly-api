@@ -1,4 +1,4 @@
-# notifications/urls/base.py
+# urls/base.py
 from django.urls import path
 
 from notifications.views.notification import (
@@ -31,12 +31,12 @@ urlpatterns = [
     # Notification CRUD
     # ============================================================
     path(
-        "notifications/",
+        "",
         NotificationCRUDView.as_view(),
         name="notification-list-create"
     ),
     path(
-        "notifications/<int:id>/",
+        "<int:id>/",
         NotificationCRUDView.as_view(),
         name="notification-detail"
     ),
@@ -45,12 +45,12 @@ urlpatterns = [
     # Restore and Permanent Delete
     # ============================================================
     path(
-        "notifications/<int:id>/restore/",
+        "<int:id>/restore/",
         NotificationRestoreView.as_view(),
         name="notification-restore"
     ),
     path(
-        "notifications/<int:id>/permanent/",
+        "<int:id>/permanent/",
         NotificationPermanentDeleteView.as_view(),
         name="notification-permanent-delete"
     ),
@@ -59,22 +59,22 @@ urlpatterns = [
     # Bulk Operations
     # ============================================================
     path(
-        "notifications/bulkCreate/",
+        "bulkCreate/",
         NotificationBulkCreateView.as_view(),
         name="notification-bulk-create"
     ),
     path(
-        "notifications/bulkUpdate/",
+        "bulkUpdate/",
         NotificationBulkUpdateView.as_view(),
         name="notification-bulk-update"
     ),
     path(
-        "notifications/import/",
+        "import/",
         NotificationImportView.as_view(),
         name="notification-import"
     ),
     path(
-        "notifications/export/",
+        "export/",
         NotificationExportView.as_view(),
         name="notification-export"
     ),
@@ -83,22 +83,22 @@ urlpatterns = [
     # Notification Actions
     # ============================================================
     path(
-        "notifications/<int:id>/mark-read/",
+        "<int:id>/mark-read/",
         NotificationMarkReadView.as_view(),
         name="notification-mark-read"
     ),
     path(
-        "notifications/mark-many-read/",
+        "mark-many-read/",
         NotificationMarkManyReadView.as_view(),
         name="notification-mark-many-read"
     ),
     path(
-        "notifications/mark-all-read/",
+        "mark-all-read/",
         NotificationMarkAllReadView.as_view(),
         name="notification-mark-all-read"
     ),
     path(
-        "notifications/unread-count/",
+        "unread-count/",
         NotificationUnreadCountView.as_view(),
         name="notification-unread-count"
     ),
@@ -107,7 +107,7 @@ urlpatterns = [
     # Notification Statistics
     # ============================================================
     path(
-        "notifications/stats/",
+        "stats/",
         NotificationStatisticsView.as_view(),
         name="notification-stats"
     ),
