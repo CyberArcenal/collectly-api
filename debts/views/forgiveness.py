@@ -133,9 +133,16 @@ class ForgivenessLogCRUDView(APIView):
                     limit=limit
                 )
 
+                # ✅ Serialize before paginating
+                serialized_data = ForgivenessLogListSerializer(
+                    result['data'],
+                    many=True,
+                    context={'request': request}
+                ).data
+
                 paginator = self.pagination_class()
                 response = paginator.get_paginated_response(
-                    data=result['data'],
+                    data=serialized_data,
                     message="Forgiveness logs retrieved successfully.",
                     pagination=result['pagination']
                 )

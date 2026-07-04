@@ -447,3 +447,119 @@ class NotificationLogService:
         
         logger.info(f"Notification log status updated: {log_id} → {status}")
         return log_entry
+    
+    @staticmethod
+    @transaction.atomic
+    def delete(log_id, user=None, request=None):
+        """
+        Soft delete a notification log.
+
+        Args:
+            log_id: ID of the notification log to delete
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+
+        Returns:
+            NotificationLog: The soft-deleted log instance
+
+        Raises:
+            ValidationError: If log not found or already deleted
+        """
+        log_entry = NotificationLogService.get_by_id(log_id)
+        if not log_entry:
+            raise ValidationError({'id': 'Notification log not found.'})
+
+        if log_entry.deleted_at:
+            raise ValidationError({'id': 'Notification log is already deleted.'})
+
+        log_entry.soft_delete()
+
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='notification_log_delete',
+                model_name='NotificationLog',
+                object_id=str(log_entry.id),
+                changes={'deleted_at': log_entry.deleted_at}
+            )
+
+        logger.info(f"Notification log soft-deleted: {log_id}")
+        return log_entry
+    
+    @staticmethod
+    @transaction.atomic
+    def restore(log_id, user=None, request=None):
+        """
+        Restore a soft-deleted notification log.
+
+        Args:
+            log_id: ID of the notification log to restore
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+
+        Returns:
+            NotificationLog: The restored log instance
+
+        Raises:
+            ValidationError: If log not found or not deleted
+        """
+        from notifications.models.notification_log import NotificationLog
+
+        log_entry = NotificationLog.objects.filter(id=log_id).first()
+        if not log_entry:
+            raise ValidationError({'id': 'Notification log not found.'})
+
+        if not log_entry.deleted_at:
+            raise ValidationError({'id': 'Notification log is not deleted.'})
+
+        log_entry.restore()
+
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='notification_log_restore',
+                model_name='NotificationLog',
+                object_id=str(log_entry.id),
+                changes={'restored_at': timezone.now()}
+            )
+
+        logger.info(f"Notification log restored: {log_id}")
+        return log_entry
+    
+    @staticmethod
+    @transaction.atomic
+    def permanent_delete(log_id, user=None, request=None):
+        """
+        Permanently delete a notification log (hard delete).
+
+        Args:
+            log_id: ID of the notification log to permanently delete
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+
+        Raises:
+            ValidationError: If log not found
+        """
+        from notifications.models.notification_log import NotificationLog
+
+        log_entry = NotificationLog.objects.filter(id=log_id).first()
+        if not log_entry:
+            raise ValidationError({'id': 'Notification log not found.'})
+
+        # Audit log before deletion
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='notification_log_permanent_delete',
+                model_name='NotificationLog',
+                object_id=str(log_entry.id),
+                changes={'permanent': True}
+            )
+
+        log_entry.delete()
+        logger.info(f"Notification log permanently deleted: {log_id}")

@@ -17,7 +17,12 @@ class BorrowerReadSerializer(serializers.ModelSerializer):
     total_debt = serializers.SerializerMethodField()
     active_debt_count = serializers.SerializerMethodField()
     user_data = UserMinimalSerializer(source='user', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+
     class Meta:
         model = Borrower
         fields = [
@@ -37,15 +42,19 @@ class BorrowerReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ Added camelCase aliases
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_full_contact(self, obj):
         return obj.full_contact
-    
+
     def get_total_debt(self, obj):
         return obj.total_debt
-    
+
     def get_active_debt_count(self, obj):
         return obj.active_debt_count
 
@@ -56,7 +65,12 @@ class BorrowerListSerializer(serializers.ModelSerializer):
     """
     
     full_contact = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+
     class Meta:
         model = Borrower
         fields = [
@@ -69,9 +83,13 @@ class BorrowerListSerializer(serializers.ModelSerializer):
             'credit_rating',
             'created_at',
             'updated_at',
+            # ✅ Added camelCase aliases
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_full_contact(self, obj):
         return obj.full_contact
 

@@ -17,7 +17,23 @@ class ForgivenessLogReadSerializer(serializers.ModelSerializer):
     is_approved = serializers.SerializerMethodField()
     is_pending = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    amountForgiven = serializers.DecimalField(source='amount_forgiven', max_digits=12, decimal_places=2, read_only=True)
+    previousTotalAmount = serializers.DecimalField(source='previous_total_amount', max_digits=12, decimal_places=2, read_only=True)
+    newTotalAmount = serializers.DecimalField(source='new_total_amount', max_digits=12, decimal_places=2, read_only=True)
+    createdBy = serializers.CharField(source='created_by', read_only=True)
+    approvedBy = serializers.CharField(source='approved_by', read_only=True)
+    approvedAt = serializers.DateTimeField(source='approved_at', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+    isApproved = serializers.SerializerMethodField()
+    isPending = serializers.SerializerMethodField()
+    debtName = serializers.CharField(source='debt.name', read_only=True)
+    debtorName = serializers.CharField(source='borrower.name', read_only=True)
+
     class Meta:
         model = ForgivenessLog
         fields = [
@@ -42,16 +58,40 @@ class ForgivenessLogReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'amountForgiven',
+            'previousTotalAmount',
+            'newTotalAmount',
+            'createdBy',
+            'approvedBy',
+            'approvedAt',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
+            'amountDisplay',
+            'isApproved',
+            'isPending',
+            'debtName',
+            'debtorName',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_amount_display(self, obj):
         return obj.amount_display
-    
+
     def get_is_approved(self, obj):
         return obj.is_approved
-    
+
     def get_is_pending(self, obj):
+        return obj.is_pending
+
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+    def get_isApproved(self, obj):
+        return obj.is_approved
+
+    def get_isPending(self, obj):
         return obj.is_pending
 
 
@@ -64,7 +104,15 @@ class ForgivenessLogListSerializer(serializers.ModelSerializer):
     debtor_name = serializers.CharField(source='borrower.name', read_only=True)
     amount_display = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    amountForgiven = serializers.DecimalField(source='amount_forgiven', max_digits=12, decimal_places=2, read_only=True)
+    createdBy = serializers.CharField(source='created_by', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+    debtName = serializers.CharField(source='debt.name', read_only=True)
+    debtorName = serializers.CharField(source='borrower.name', read_only=True)
+
     class Meta:
         model = ForgivenessLog
         fields = [
@@ -80,10 +128,20 @@ class ForgivenessLogListSerializer(serializers.ModelSerializer):
             'status_display',
             'created_by',
             'created_at',
+            # ✅ CamelCase aliases
+            'amountForgiven',
+            'createdBy',
+            'createdAt',
+            'amountDisplay',
+            'debtName',
+            'debtorName',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_amount_display(self, obj):
+        return obj.amount_display
+
+    def get_amountDisplay(self, obj):
         return obj.amount_display
 
 

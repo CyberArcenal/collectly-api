@@ -346,3 +346,273 @@ class SystemSettingService:
             'python_version': platform.python_version(),
             'platform': platform.platform(),
         }
+    
+    @staticmethod
+    @transaction.atomic
+    def bulk_update(settings_data, user=None, request=None):
+        """
+        Bulk create or update multiple settings.
+        
+        Args:
+            settings_data: List of dicts with keys:
+                - key: str (required)
+                - value: any (required)
+                - setting_type: str (optional)
+                - description: str (optional)
+                - is_public: bool (optional)
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+        
+        Returns:
+            dict: {
+                'updated': list of updated settings,
+                'errors': list of errors
+            }
+        """
+        results = {'updated': [], 'errors': []}
+        
+        for item in settings_data:
+            try:
+                key = item.get('key')
+                if not key:
+                    raise ValidationError({'key': 'Key is required.'})
+                
+                value = item.get('value')
+                if value is None:
+                    raise ValidationError({'value': 'Value is required.'})
+                
+                setting_type = item.get('setting_type', SettingType.GENERAL)
+                description = item.get('description')
+                is_public = item.get('is_public', False)
+                
+                # Use set_value to create or update
+                setting = SystemSettingService.set_value(
+                    key=key,
+                    value=value,
+                    setting_type=setting_type,
+                    description=description,
+                    is_public=is_public,
+                    user=user,
+                    request=request
+                )
+                
+                results['updated'].append({
+                    'id': setting.id,
+                    'key': setting.key,
+                    'action': 'created' if setting.created_at == setting.updated_at else 'updated'
+                })
+                
+            except Exception as e:
+                results['errors'].append({
+                    'key': item.get('key'),
+                    'error': str(e)
+                })
+        
+        # Audit log for bulk operation
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='config_bulk_update',
+                model_name='SystemSetting',
+                object_id='bulk',
+                changes={
+                    'total': len(settings_data),
+                    'updated': len(results['updated']),
+                    'errors': len(results['errors'])
+                }
+            )
+        
+        logger.info(f"Bulk update completed: {len(results['updated'])} updated, {len(results['errors'])} errors")
+        return results
+    
+    @staticmethod
+    @transaction.atomic
+    def bulk_delete(ids, user=None, request=None):
+        """
+        Bulk soft delete multiple settings by ID.
+        
+        Args:
+            ids: List of setting IDs to delete
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+        
+        Returns:
+            dict: {
+                'deleted': list of deleted IDs,
+                'errors': list of errors
+            }
+        """
+        results = {'deleted': [], 'errors': []}
+        
+        for setting_id in ids:
+            try:
+                setting = SystemSettingService.delete(setting_id, user, request)
+                results['deleted'].append(setting_id)
+            except Exception as e:
+                results['errors'].append({
+                    'id': setting_id,
+                    'error': str(e)
+                })
+        
+        # Audit log for bulk operation
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='config_bulk_delete',
+                model_name='SystemSetting',
+                object_id='bulk',
+                changes={
+                    'total': len(ids),
+                    'deleted': len(results['deleted']),
+                    'errors': len(results['errors'])
+                }
+            )
+        
+        logger.info(f"Bulk delete completed: {len(results['deleted'])} deleted, {len(results['errors'])} errors")
+        return results
+    
+    @staticmethod
+    @transaction.atomic
+    def update_grouped_config(config_data, user=None, request=None):
+        """
+        Update multiple settings grouped by category.
+        
+        Args:
+            config_data: Dict where keys are setting_type and values are dicts of key-value pairs
+                Example: {
+                    'general': {'company_name': 'My Company', 'currency': 'PHP'},
+                    'collections': {'default_interest_rate': 12.5}
+                }
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+        
+        Returns:
+            dict: {
+                'updated': list of updated settings,
+                'errors': list of errors
+            }
+        """
+        results = {'updated': [], 'errors': []}
+        
+        for setting_type, settings in config_data.items():
+            # Validate setting_type
+            valid_types = [choice[0] for choice in SettingType.choices]
+            if setting_type not in valid_types:
+                results['errors'].append({
+                    'category': setting_type,
+                    'error': f'Invalid setting_type. Must be one of: {", ".join(valid_types)}'
+                })
+                continue
+            
+            for key, value in settings.items():
+                try:
+                    setting = SystemSettingService.set_value(
+                        key=key,
+                        value=value,
+                        setting_type=setting_type,
+                        user=user,
+                        request=request
+                    )
+                    results['updated'].append({
+                        'category': setting_type,
+                        'key': key,
+                        'id': setting.id,
+                    })
+                except Exception as e:
+                    results['errors'].append({
+                        'category': setting_type,
+                        'key': key,
+                        'error': str(e)
+                    })
+        
+        # Audit log for bulk operation
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='config_update_grouped',
+                model_name='SystemSetting',
+                object_id='grouped',
+                changes={
+                    'categories': list(config_data.keys()),
+                    'updated': len(results['updated']),
+                    'errors': len(results['errors'])
+                }
+            )
+        
+        logger.info(f"Grouped config update completed: {len(results['updated'])} updated, {len(results['errors'])} errors")
+        return results
+    
+    
+    @staticmethod
+    @transaction.atomic
+    def restore(setting_id, user=None, request=None):
+        """
+        Restore a soft-deleted setting.
+        
+        Args:
+            setting_id: ID of the setting to restore
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+        
+        Returns:
+            SystemSetting: The restored setting instance
+        
+        Raises:
+            ValidationError: If setting not found or not deleted
+        """
+        setting = SystemSetting.objects.filter(id=setting_id).first()
+        if not setting:
+            raise ValidationError({'id': 'Setting not found.'})
+        
+        if not setting.deleted_at:
+            raise ValidationError({'id': 'Setting is not deleted.'})
+        
+        setting.restore()
+        
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='config_restore',
+                model_name='SystemSetting',
+                object_id=str(setting.id),
+                changes={'restored_at': timezone.now()}
+            )
+        
+        logger.info(f"System setting restored: {setting.key}")
+        return setting
+    
+    @staticmethod
+    @transaction.atomic
+    def restore_by_key(key, setting_type=None, user=None, request=None):
+        """
+        Restore a soft-deleted setting by key.
+        
+        Args:
+            key: Setting key
+            setting_type: Optional setting type
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+        
+        Returns:
+            SystemSetting: The restored setting instance
+        
+        Raises:
+            ValidationError: If setting not found or not deleted
+        """
+        setting = SystemSetting.objects.filter(
+            key=key,
+            deleted_at__isnull=False
+        )
+        if setting_type:
+            setting = setting.filter(setting_type=setting_type)
+        
+        setting = setting.first()
+        if not setting:
+            raise ValidationError({'key': 'Setting not found or not deleted.'})
+        
+        return SystemSettingService.restore(setting.id, user, request)

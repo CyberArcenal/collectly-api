@@ -184,8 +184,14 @@ class PaymentMethodCRUDView(APIView):
                 result['data'] = [m for m in result['data'] if not m.deleted_at]
 
             paginator = self.pagination_class()
+            serialized_data = PaymentMethodListSerializer(
+                result['data'],
+                many=True,
+                context={'request': request}
+            ).data
+
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=serialized_data,
                 message="Payment methods retrieved successfully.",
                 pagination=result['pagination']
             )

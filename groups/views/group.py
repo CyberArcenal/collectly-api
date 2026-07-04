@@ -159,8 +159,14 @@ class GroupCRUDView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialized_data = DebtorGroupListSerializer(
+                result['data'],
+                many=True,
+                context={'request': request}
+            ).data
+
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=serialized_data,
                 message="Groups retrieved successfully.",
                 pagination=result['pagination']
             )
@@ -552,8 +558,14 @@ class GroupMemberCRUDView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialized_data = DebtorGroupMemberListSerializer(
+                result['data'],
+                many=True,
+                context={'request': request}
+            ).data
+
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=serialized_data,
                 message="Group members retrieved successfully.",
                 pagination=result['pagination']
             )
@@ -886,8 +898,14 @@ class GroupsForDebtorView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialized_data = DebtorGroupListSerializer(
+                result['data'],
+                many=True,
+                context={'request': request}
+            ).data
+
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=serialized_data,
                 message="Groups for debtor retrieved successfully.",
                 pagination=result['pagination']
             )

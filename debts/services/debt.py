@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from audit.utils.log import log_audit_event
+from borrowers.services.borrower import BorrowerService
 from debts.models.debt import Debt
 from borrowers.models.borrower import Borrower
 from payments.models.payment_transaction import PaymentTransaction
@@ -1205,3 +1206,146 @@ class DebtService:
         
         except Exception as e:
             raise ValidationError({'file': f'Failed to read CSV: {str(e)}'})
+        
+    @staticmethod
+    def mark_overdue_debts():
+        """
+        Automatically mark debts as overdue when due date passes.
+        Should be run daily via scheduler.
+        
+        Returns:
+            dict: {'count': number of debts marked overdue}
+        """
+        from django.utils import timezone
+        
+        today = timezone.now().date()
+        
+        # Find active debts that are past due
+        overdue_debts = Debt.objects.filter(
+            deleted_at__isnull=True,
+            status=Debt.Status.ACTIVE,
+            due_date__lt=today,
+            remaining_amount__gt=Decimal('0.01')
+        )
+        
+        count = overdue_debts.count()
+        
+        # Update status
+        overdue_debts.update(
+            status=Debt.Status.OVERDUE,
+            updated_at=timezone.now()
+        )
+        
+        logger.info(f"Marked {count} debts as overdue")
+        
+        # Optionally log each change for audit
+        for debt in overdue_debts:
+            log_audit_event(
+                request=None,
+                user=None,
+                action_type='debt_mark_overdue',
+                model_name='Debt',
+                object_id=str(debt.id),
+                changes={'status': Debt.Status.OVERDUE}
+            )
+        
+        return {'count': count}
+    
+    @staticmethod
+    def has_active_debts(borrower_id):
+        """
+        Check if a borrower has active debts.
+        
+        Args:
+            borrower_id: ID of the borrower
+        
+        Returns:
+            bool: True if borrower has active debts
+        """
+        return Debt.objects.filter(
+            borrower_id=borrower_id,
+            deleted_at__isnull=True,
+            status__in=[Debt.Status.ACTIVE, Debt.Status.OVERDUE],
+            remaining_amount__gt=Decimal('0.01')
+        ).exists()
+        
+    @staticmethod
+    def get_total_remaining_for_borrower(borrower_id):
+        """
+        Get total remaining amount for a borrower.
+        
+        Args:
+            borrower_id: ID of the borrower
+        
+        Returns:
+            Decimal: Total remaining amount
+        """
+        result = Debt.objects.filter(
+            borrower_id=borrower_id,
+            deleted_at__isnull=True,
+            status__in=[Debt.Status.ACTIVE, Debt.Status.OVERDUE]
+        ).aggregate(total=Sum('remaining_amount'))
+        
+        return result['total'] or Decimal('0')
+    
+    @staticmethod
+    def get_debts_by_borrower(borrower_id, include_deleted=False, page=1, limit=20):
+        """
+        Get paginated list of debts for a specific borrower.
+        
+        Args:
+            borrower_id: ID of the borrower
+            include_deleted: Whether to include soft-deleted debts
+            page: Page number
+            limit: Items per page
+        
+        Returns:
+            dict: Paginated list of debts
+        """
+        return DebtService.get_list(
+            filters={
+                'borrower_id': borrower_id,
+                'include_deleted': include_deleted
+            },
+            page=page,
+            limit=limit,
+            sort_by='due_date',
+            sort_order='asc'
+        )
+        
+    @staticmethod
+    def exists_for_borrower(borrower_id, debt_name):
+        """
+        Check if a debt with given name exists for a borrower.
+        
+        Args:
+            borrower_id: ID of the borrower
+            debt_name: Name of the debt to check
+        
+        Returns:
+            bool: True if debt exists
+        """
+        return Debt.objects.filter(
+            borrower_id=borrower_id,
+            name=debt_name,
+            deleted_at__isnull=True
+        ).exists()
+    
+    @staticmethod
+    def _get_period_info(period_type):
+        """
+        Get period information based on period type.
+        
+        Args:
+            period_type: 'weekly', 'monthly', 'semi-annual', 'yearly'
+        
+        Returns:
+            dict: {'days': int, 'label': str}
+        """
+        period_map = {
+            'weekly': {'days': 7, 'label': 'Weekly'},
+            'monthly': {'days': 30, 'label': 'Monthly'},
+            'semi-annual': {'days': 182, 'label': 'Semi-Annual'},
+            'yearly': {'days': 365, 'label': 'Yearly'},
+        }
+        return period_map.get(period_type, {'days': 30, 'label': 'Monthly'})

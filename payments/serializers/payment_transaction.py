@@ -23,7 +23,20 @@ class PaymentTransactionReadSerializer(serializers.ModelSerializer):
     amount_display = serializers.SerializerMethodField()
     is_void = serializers.SerializerMethodField()
     payment_method_name = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtId = serializers.IntegerField(source='debt.id', read_only=True)
+    methodId = serializers.IntegerField(source='method.id', read_only=True, allow_null=True)
+    paymentDate = serializers.DateField(source='payment_date', read_only=True)
+    recordedAt = serializers.DateTimeField(source='recorded_at', read_only=True)
+    recordedBy = serializers.IntegerField(source='recorded_by.id', read_only=True, allow_null=True)
+    amountDisplay = serializers.SerializerMethodField()
+    isVoid = serializers.SerializerMethodField()
+    paymentMethodName = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+
     class Meta:
         model = PaymentTransaction
         fields = [
@@ -46,16 +59,37 @@ class PaymentTransactionReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'debtId',
+            'methodId',
+            'paymentDate',
+            'recordedAt',
+            'recordedBy',
+            'amountDisplay',
+            'isVoid',
+            'paymentMethodName',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_amount_display(self, obj):
         return obj.amount_display
-    
+
     def get_is_void(self, obj):
         return obj.is_void
-    
+
     def get_payment_method_name(self, obj):
+        return obj.payment_method_name
+
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+    def get_isVoid(self, obj):
+        return obj.is_void
+
+    def get_paymentMethodName(self, obj):
         return obj.payment_method_name
 
 
@@ -69,7 +103,19 @@ class PaymentTransactionListSerializer(serializers.ModelSerializer):
     method_name = serializers.CharField(source='method.name', read_only=True, allow_null=True)
     amount_display = serializers.SerializerMethodField()
     is_void = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtId = serializers.IntegerField(source='debt.id', read_only=True)
+    debtName = serializers.CharField(source='debt.name', read_only=True)
+    borrowerName = serializers.CharField(source='debt.borrower.name', read_only=True)
+    methodId = serializers.IntegerField(source='method.id', read_only=True, allow_null=True)
+    methodName = serializers.CharField(source='method.name', read_only=True, allow_null=True)
+    paymentDate = serializers.DateField(source='payment_date', read_only=True)
+    recordedAt = serializers.DateTimeField(source='recorded_at', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+    isVoid = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
     class Meta:
         model = PaymentTransaction
         fields = [
@@ -86,13 +132,30 @@ class PaymentTransactionListSerializer(serializers.ModelSerializer):
             'recorded_at',
             'is_void',
             'created_at',
+            # ✅ CamelCase aliases
+            'debtId',
+            'debtName',
+            'borrowerName',
+            'methodId',
+            'methodName',
+            'paymentDate',
+            'recordedAt',
+            'amountDisplay',
+            'isVoid',
+            'createdAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_amount_display(self, obj):
         return obj.amount_display
-    
+
     def get_is_void(self, obj):
+        return obj.is_void
+
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+    def get_isVoid(self, obj):
         return obj.is_void
 
 

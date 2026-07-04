@@ -52,8 +52,15 @@ def system_setting_post_save(sender, instance, created, **kwargs):
     try:
         logger.info(f"[SystemSettingSignal] after_save: id={instance.id}, key={instance.key}, setting_type={instance.setting_type}, created={created}")
         
-        # Clear cache
-        cache.delete_pattern("setting_*")
+        # Clear cache (LocMemCache doesn't implement delete_pattern)
+        try:
+            cache.delete_pattern("setting_*")
+        except AttributeError:
+            # Fallback: clear whole cache when pattern delete is unavailable
+            try:
+                cache.clear()
+            except Exception:
+                logger.exception("[SystemSettingSignal] Failed to clear cache fallback")
         
         service = SystemSettingStateTransitionService()
         
@@ -105,8 +112,14 @@ def system_setting_post_delete(sender, instance, **kwargs):
     try:
         logger.info(f"[SystemSettingSignal] after_delete: id={instance.id}")
         
-        # Clear cache
-        cache.delete_pattern("setting_*")
+        # Clear cache (LocMemCache doesn't implement delete_pattern)
+        try:
+            cache.delete_pattern("setting_*")
+        except AttributeError:
+            try:
+                cache.clear()
+            except Exception:
+                logger.exception("[SystemSettingSignal] Failed to clear cache fallback")
     except Exception as e:
         logger.error(f"[SystemSettingSignal] after_delete error: {e}")
         raise

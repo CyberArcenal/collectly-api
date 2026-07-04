@@ -177,8 +177,9 @@ class DebtCRUDView(APIView):
             )
 
             paginator = self.pagination_class()
+            data = DebtListSerializer(result['data'], many=True, context={'request': request}).data
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=data,
                 message="Debts retrieved successfully.",
                 pagination=result['pagination']
             )
@@ -1356,6 +1357,7 @@ class DebtDebtsInBucketView(APIView):
     Get debts in a specific aging bucket with pagination.
     """
     permission_classes = [IsAuthenticated, IsAccountActive]
+    pagination_class = CustomPagination
 
     @extend_schema(
         tags=["Debts"],
@@ -1415,8 +1417,9 @@ class DebtDebtsInBucketView(APIView):
             )
 
             paginator = self.pagination_class()
+            data = DebtListSerializer(result['data'], many=True, context={'request': request}).data
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=data,
                 message="Debts in bucket retrieved successfully.",
                 pagination=result['pagination']
             )

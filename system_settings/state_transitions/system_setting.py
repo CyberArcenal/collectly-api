@@ -148,8 +148,15 @@ class SystemSettingStateTransitionService:
         cache.delete(SystemSettingStateTransitionService._get_cache_key(key))
 
         # Delete all settings cache patterns
-        cache.delete_pattern("setting_*")
-
+        try:
+            cache.delete_pattern("setting_*")
+        except AttributeError:
+            # Fallback: clear whole cache when pattern delete is unavailable
+            try:
+                cache.clear()
+            except Exception:
+                logger.exception("[SettingsCache] Failed to clear cache fallback")
+                
         logger.debug(f"[SettingsCache] Invalidated cache for: {key}")
 
     # ============================================================

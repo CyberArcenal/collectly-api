@@ -45,17 +45,20 @@ def paginate_queryset(queryset, page=1, limit=20):
     data = list(page_obj.object_list)
 
     pagination = {
-        'page': page_obj.number,
-        'limit': limit,
-        'total': paginator.count,
-        'pages': paginator.num_pages,
-        'next': page_obj.next_page_number() if page_obj.has_next() else None,
-        'previous': page_obj.previous_page_number() if page_obj.has_previous() else None,
-        'has_next': page_obj.has_next(),
-        'has_previous': page_obj.has_previous(),
+        "page": page_obj.number,
+        "limit": limit,
+        "page_size": limit,
+        "total": paginator.count,
+        "pages": paginator.num_pages,
+        "next": page_obj.next_page_number() if page_obj.has_next() else None,
+        "previous": (
+            page_obj.previous_page_number() if page_obj.has_previous() else None
+        ),
+        "has_next": page_obj.has_next(),
+        "has_previous": page_obj.has_previous(),
     }
 
     return {
-        'data': data,
-        'pagination': pagination,
+        "data": data,
+        "pagination": pagination,
     }

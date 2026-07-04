@@ -11,7 +11,14 @@ class PaymentMethodStatsSerializer(serializers.ModelSerializer):
     """
     
     average_transaction = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    transactionCount = serializers.IntegerField(source='transaction_count', read_only=True)
+    totalAmount = serializers.DecimalField(source='total_amount', max_digits=15, decimal_places=2, read_only=True)
+    averageTransaction = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+
     class Meta:
         model = PaymentMethodStat
         fields = [
@@ -21,10 +28,19 @@ class PaymentMethodStatsSerializer(serializers.ModelSerializer):
             'average_transaction',
             'created_at',
             'updated_at',
+            # ✅ CamelCase aliases
+            'transactionCount',
+            'totalAmount',
+            'averageTransaction',
+            'createdAt',
+            'updatedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_average_transaction(self, obj):
+        return obj.average_transaction
+
+    def get_averageTransaction(self, obj):
         return obj.average_transaction
 
 
@@ -36,7 +52,14 @@ class PaymentMethodReadSerializer(serializers.ModelSerializer):
     
     stats = PaymentMethodStatsSerializer(read_only=True)
     is_default_display = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    isDefault = serializers.BooleanField(source='is_default', read_only=True)
+    isDefaultDisplay = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+
     class Meta:
         model = PaymentMethod
         fields = [
@@ -51,10 +74,19 @@ class PaymentMethodReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'isDefault',
+            'isDefaultDisplay',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_is_default_display(self, obj):
+        return "Yes" if obj.is_default else "No"
+
+    def get_isDefaultDisplay(self, obj):
         return "Yes" if obj.is_default else "No"
 
 
@@ -65,7 +97,14 @@ class PaymentMethodListSerializer(serializers.ModelSerializer):
     
     is_default_display = serializers.SerializerMethodField()
     transaction_count = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    isDefault = serializers.BooleanField(source='is_default', read_only=True)
+    isDefaultDisplay = serializers.SerializerMethodField()
+    transactionCount = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+
     class Meta:
         model = PaymentMethod
         fields = [
@@ -77,13 +116,27 @@ class PaymentMethodListSerializer(serializers.ModelSerializer):
             'is_default_display',
             'transaction_count',
             'created_at',
+            # ✅ CamelCase aliases
+            'isDefault',
+            'isDefaultDisplay',
+            'transactionCount',
+            'createdAt',
+            'updatedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_is_default_display(self, obj):
         return "Yes" if obj.is_default else "No"
-    
+
     def get_transaction_count(self, obj):
+        if hasattr(obj, 'stats'):
+            return obj.stats.transaction_count
+        return 0
+
+    def get_isDefaultDisplay(self, obj):
+        return "Yes" if obj.is_default else "No"
+
+    def get_transactionCount(self, obj):
         if hasattr(obj, 'stats'):
             return obj.stats.transaction_count
         return 0

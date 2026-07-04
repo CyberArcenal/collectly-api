@@ -12,7 +12,15 @@ class DebtorGroupReadSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
     total_debt = serializers.SerializerMethodField()
     active_members_count = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    memberCount = serializers.SerializerMethodField()
+    totalDebt = serializers.SerializerMethodField()
+    activeMembersCount = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+
     class Meta:
         model = DebtorGroup
         fields = [
@@ -27,16 +35,33 @@ class DebtorGroupReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'memberCount',
+            'totalDebt',
+            'activeMembersCount',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_member_count(self, obj):
         return obj.member_count
-    
+
     def get_total_debt(self, obj):
         return obj.total_debt
-    
+
     def get_active_members_count(self, obj):
+        return obj.active_members.count()
+
+    # CamelCase method fields
+    def get_memberCount(self, obj):
+        return obj.member_count
+
+    def get_totalDebt(self, obj):
+        return obj.total_debt
+
+    def get_activeMembersCount(self, obj):
         return obj.active_members.count()
 
 
@@ -46,7 +71,12 @@ class DebtorGroupListSerializer(serializers.ModelSerializer):
     """
     
     member_count = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    memberCount = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+
     class Meta:
         model = DebtorGroup
         fields = [
@@ -56,10 +86,17 @@ class DebtorGroupListSerializer(serializers.ModelSerializer):
             'color',
             'member_count',
             'created_at',
+            # ✅ CamelCase aliases
+            'memberCount',
+            'createdAt',
+            'updatedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_member_count(self, obj):
+        return obj.member_count
+
+    def get_memberCount(self, obj):
         return obj.member_count
 
 

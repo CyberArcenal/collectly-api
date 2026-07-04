@@ -661,3 +661,44 @@ class NotificationService:
         
         except Exception as e:
             raise ValidationError({'file': f'Failed to read CSV: {str(e)}'})
+        
+    @staticmethod
+    @transaction.atomic
+    def mark_as_unread(notification_id, user=None, request=None):
+        """
+        Mark a notification as unread.
+
+        Args:
+            notification_id: ID of the notification to mark as unread
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+
+        Returns:
+            Notification: The updated notification instance
+
+        Raises:
+            ValidationError: If notification not found
+        """
+        notification = NotificationService.get_by_id(notification_id)
+        if not notification:
+            raise ValidationError({'id': 'Notification not found.'})
+
+        if not notification.is_read:
+            return notification
+
+        notification.is_read = False
+        notification.save()
+
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='notification_mark_unread',
+                model_name='Notification',
+                object_id=str(notification.id),
+                changes={'is_read': False}
+            )
+
+        logger.info(f"Notification marked as unread: {notification.id}")
+        return notification

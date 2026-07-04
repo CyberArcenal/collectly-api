@@ -18,7 +18,28 @@ class LoanApplicationReadSerializer(serializers.ModelSerializer):
     is_rejected = serializers.SerializerMethodField()
     amount_display = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
+    debtorName = serializers.CharField(source='debtor_name', read_only=True)
+    debtorContact = serializers.CharField(source='debtor_contact', read_only=True)
+    debtorEmail = serializers.CharField(source='debtor_email', read_only=True)
+    debtorAddress = serializers.CharField(source='debtor_address', read_only=True)
+    requestedAmount = serializers.DecimalField(source='requested_amount', max_digits=12, decimal_places=2, read_only=True)
+    proposedDueDate = serializers.DateField(source='proposed_due_date', read_only=True)
+    interestRate = serializers.DecimalField(source='interest_rate', max_digits=5, decimal_places=2, read_only=True)
+    approvedAt = serializers.DateTimeField(source='approved_at', read_only=True)
+    rejectedAt = serializers.DateTimeField(source='rejected_at', read_only=True)
+    approvedBy = serializers.CharField(source='approved_by', read_only=True)
+    rejectionReason = serializers.CharField(source='rejection_reason', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+    isPending = serializers.SerializerMethodField()
+    isApproved = serializers.SerializerMethodField()
+    isRejected = serializers.SerializerMethodField()
+
     class Meta:
         model = LoanApplication
         fields = [
@@ -47,19 +68,52 @@ class LoanApplicationReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'debtorId',
+            'debtorName',
+            'debtorContact',
+            'debtorEmail',
+            'debtorAddress',
+            'requestedAmount',
+            'proposedDueDate',
+            'interestRate',
+            'approvedAt',
+            'rejectedAt',
+            'approvedBy',
+            'rejectionReason',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
+            'amountDisplay',
+            'isPending',
+            'isApproved',
+            'isRejected',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_is_pending(self, obj):
         return obj.is_pending
-    
+
     def get_is_approved(self, obj):
         return obj.is_approved
-    
+
     def get_is_rejected(self, obj):
         return obj.is_rejected
-    
+
     def get_amount_display(self, obj):
+        return obj.amount_display
+
+    # CamelCase method fields
+    def get_isPending(self, obj):
+        return obj.is_pending
+
+    def get_isApproved(self, obj):
+        return obj.is_approved
+
+    def get_isRejected(self, obj):
+        return obj.is_rejected
+
+    def get_amountDisplay(self, obj):
         return obj.amount_display
 
 
@@ -70,7 +124,16 @@ class LoanApplicationListSerializer(serializers.ModelSerializer):
     
     amount_display = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
+    debtorName = serializers.CharField(source='debtor_name', read_only=True)
+    debtorEmail = serializers.CharField(source='debtor_email', read_only=True)
+    requestedAmount = serializers.DecimalField(source='requested_amount', max_digits=12, decimal_places=2, read_only=True)
+    proposedDueDate = serializers.DateField(source='proposed_due_date', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+
     class Meta:
         model = LoanApplication
         fields = [
@@ -85,10 +148,21 @@ class LoanApplicationListSerializer(serializers.ModelSerializer):
             'status',
             'status_display',
             'created_at',
+            # ✅ CamelCase aliases
+            'debtorId',
+            'debtorName',
+            'debtorEmail',
+            'requestedAmount',
+            'proposedDueDate',
+            'createdAt',
+            'amountDisplay',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_amount_display(self, obj):
+        return obj.amount_display
+
+    def get_amountDisplay(self, obj):
         return obj.amount_display
 
 

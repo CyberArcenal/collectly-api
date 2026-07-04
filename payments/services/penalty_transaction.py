@@ -918,3 +918,71 @@ class PenaltyTransactionService:
             'total_penalty': stats.get('total_penalty') or Decimal('0'),
             'penalty_count': stats.get('penalty_count') or 0,
         }
+    
+    @staticmethod
+    @transaction.atomic
+    def update(penalty_id: int, data: Dict[str, Any], user=None, request=None) -> PenaltyTransaction:
+        """
+        Update an existing penalty transaction.
+
+        Args:
+            penalty_id: ID of the penalty to update
+            data: Dictionary containing updated fields
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+
+        Returns:
+            PenaltyTransaction: The updated penalty instance
+
+        Raises:
+            ValidationError: If validation fails or penalty not found
+        """
+        penalty = PenaltyTransactionService.get_by_id(penalty_id)
+        if not penalty:
+            raise ValidationError({'id': 'Penalty not found.'})
+
+        if penalty.deleted_at:
+            raise ValidationError({'id': 'Cannot update a voided penalty.'})
+
+        old_amount = penalty.amount
+        debt = penalty.debt
+
+        # Update fields
+        if 'amount' in data:
+            new_amount = Decimal(str(data['amount']))
+            if new_amount <= 0:
+                raise ValidationError({'amount': 'Penalty amount must be positive.'})
+            
+            # Adjust debt balance
+            debt.remaining_amount -= old_amount
+            debt.remaining_amount += new_amount
+            if debt.remaining_amount < 0:
+                debt.remaining_amount = Decimal('0')
+            debt.save(update_fields=['remaining_amount', 'updated_at'])
+            
+            penalty.amount = new_amount
+
+        if 'penalty_date' in data:
+            penalty.penalty_date = data['penalty_date']
+
+        if 'reason' in data:
+            penalty.reason = data['reason']
+
+        if 'is_auto' in data:
+            penalty.is_auto = data['is_auto']
+
+        penalty.save()
+
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='penalty_update',
+                model_name='PenaltyTransaction',
+                object_id=str(penalty.id),
+                changes={'data': data}
+            )
+
+        logger.info(f"Penalty updated: {penalty.id}")
+        return penalty

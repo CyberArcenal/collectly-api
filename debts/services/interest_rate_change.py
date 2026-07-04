@@ -136,3 +136,77 @@ class InterestRateChangeService:
             user=user,
             request=request
         )
+        
+    @staticmethod
+    @transaction.atomic
+    def update_system_rate(new_rate, changed_by='system', reason=None, user=None, request=None):
+        """
+        Update system-wide default interest rate and create log.
+        
+        Args:
+            new_rate: New interest rate value
+            changed_by: User making the change
+            reason: Reason for the change
+            user: User for audit
+            request: Request object for audit
+        """
+        from system_settings.services.setting import SystemSettingService
+        
+        # Get current rate
+        old_rate = SystemSettingService.get_value('default_interest_rate', 'collections', 10)
+        
+        # Update system setting
+        SystemSettingService.set_value(
+            'default_interest_rate',
+            new_rate,
+            setting_type='collections',
+            description='Default interest rate'
+        )
+        
+        # Create log entry
+        return InterestRateChangeService.create_log(
+            setting_key='default_interest_rate',
+            old_value=old_rate,
+            new_value=new_rate,
+            changed_by=changed_by,
+            reason=reason,
+            loan_id=None,
+            user=user,
+            request=request
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def update_loan_rate(loan_id, new_rate, changed_by='system', reason=None, user=None, request=None):
+        """
+        Update interest rate for a specific loan and create log.
+        
+        Args:
+            loan_id: ID of the loan
+            new_rate: New interest rate value
+            changed_by: User making the change
+            reason: Reason for the change
+            user: User for audit
+            request: Request object for audit
+        """
+        loan = Debt.objects.filter(id=loan_id).first()
+        if not loan:
+            raise ValidationError({'loan_id': 'Debt not found.'})
+        
+        old_rate = loan.interest_rate
+        
+        # Update loan
+        loan.interest_rate = new_rate
+        loan.save(update_fields=['interest_rate', 'updated_at'])
+        
+        # Create log entry
+        return InterestRateChangeService.create_log(
+            setting_key=f'loan_{loan_id}',
+            old_value=old_rate,
+            new_value=new_rate,
+            changed_by=changed_by,
+            reason=reason,
+            loan_id=loan_id,
+            user=user,
+            request=request
+        )

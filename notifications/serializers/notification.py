@@ -16,7 +16,18 @@ class NotificationReadSerializer(serializers.ModelSerializer):
     debt_name = serializers.CharField(source='debt.name', read_only=True, allow_null=True)
     type_display = serializers.CharField(source='get_type_display', read_only=True)
     is_read_display = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtId = serializers.IntegerField(source='debt.id', read_only=True, allow_null=True)
+    debtName = serializers.CharField(source='debt.name', read_only=True, allow_null=True)
+    scheduledFor = serializers.DateTimeField(source='scheduled_for', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+    isRead = serializers.BooleanField(source='is_read', read_only=True)
+    typeDisplay = serializers.CharField(source='get_type_display', read_only=True)
+    isReadDisplay = serializers.SerializerMethodField()
+
     class Meta:
         model = Notification
         fields = [
@@ -31,15 +42,27 @@ class NotificationReadSerializer(serializers.ModelSerializer):
             'is_read',
             'is_read_display',
             'scheduled_for',
-            'is_read_display',
             'created_at',
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'debtId',
+            'debtName',
+            'scheduledFor',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
+            'isRead',
+            'typeDisplay',
+            'isReadDisplay',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_is_read_display(self, obj):
+        return "Read" if obj.is_read else "Unread"
+
+    def get_isReadDisplay(self, obj):
         return "Read" if obj.is_read else "Unread"
 
 
@@ -51,7 +74,16 @@ class NotificationListSerializer(serializers.ModelSerializer):
     debt_name = serializers.CharField(source='debt.name', read_only=True, allow_null=True)
     type_display = serializers.CharField(source='get_type_display', read_only=True)
     is_read_display = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtId = serializers.IntegerField(source='debt.id', read_only=True, allow_null=True)
+    debtName = serializers.CharField(source='debt.name', read_only=True, allow_null=True)
+    scheduledFor = serializers.DateTimeField(source='scheduled_for', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    isRead = serializers.BooleanField(source='is_read', read_only=True)
+    typeDisplay = serializers.CharField(source='get_type_display', read_only=True)
+    isReadDisplay = serializers.SerializerMethodField()
+
     class Meta:
         model = Notification
         fields = [
@@ -66,10 +98,21 @@ class NotificationListSerializer(serializers.ModelSerializer):
             'is_read_display',
             'scheduled_for',
             'created_at',
+            # ✅ CamelCase aliases
+            'debtId',
+            'debtName',
+            'scheduledFor',
+            'createdAt',
+            'isRead',
+            'typeDisplay',
+            'isReadDisplay',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_is_read_display(self, obj):
+        return "Read" if obj.is_read else "Unread"
+
+    def get_isReadDisplay(self, obj):
         return "Read" if obj.is_read else "Unread"
 
 

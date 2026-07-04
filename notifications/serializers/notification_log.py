@@ -3,13 +3,25 @@ from rest_framework import serializers
 from notifications.models.notification_log import NotificationLog
 from django.utils import timezone
 
+
 class NotificationLogReadSerializer(serializers.ModelSerializer):
     """
     Read-only serializer for notification log detail view.
     """
     
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    recipientEmail = serializers.EmailField(source='recipient_email', read_only=True)
+    errorMessage = serializers.CharField(source='error_message', read_only=True)
+    retryCount = serializers.IntegerField(source='retry_count', read_only=True)
+    resendCount = serializers.IntegerField(source='resend_count', read_only=True)
+    sentAt = serializers.DateTimeField(source='sent_at', read_only=True)
+    lastErrorAt = serializers.DateTimeField(source='last_error_at', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    statusDisplay = serializers.CharField(source='get_status_display', read_only=True)
+
     class Meta:
         model = NotificationLog
         fields = [
@@ -26,6 +38,16 @@ class NotificationLogReadSerializer(serializers.ModelSerializer):
             'last_error_at',
             'created_at',
             'updated_at',
+            # ✅ CamelCase aliases
+            'recipientEmail',
+            'errorMessage',
+            'retryCount',
+            'resendCount',
+            'sentAt',
+            'lastErrorAt',
+            'createdAt',
+            'updatedAt',
+            'statusDisplay',
         ]
         read_only_fields = ['__all__']
 
@@ -36,7 +58,14 @@ class NotificationLogListSerializer(serializers.ModelSerializer):
     """
     
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    recipientEmail = serializers.EmailField(source='recipient_email', read_only=True)
+    retryCount = serializers.IntegerField(source='retry_count', read_only=True)
+    sentAt = serializers.DateTimeField(source='sent_at', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    statusDisplay = serializers.CharField(source='get_status_display', read_only=True)
+
     class Meta:
         model = NotificationLog
         fields = [
@@ -48,6 +77,12 @@ class NotificationLogListSerializer(serializers.ModelSerializer):
             'retry_count',
             'sent_at',
             'created_at',
+            # ✅ CamelCase aliases
+            'recipientEmail',
+            'retryCount',
+            'sentAt',
+            'createdAt',
+            'statusDisplay',
         ]
         read_only_fields = ['__all__']
 

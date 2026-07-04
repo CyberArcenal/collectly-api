@@ -142,9 +142,15 @@ class InterestRateChangeLogCRUDView(APIView):
                 limit=limit
             )
 
+            serialized_data = InterestRateChangeLogListSerializer(
+                result['data'],
+                many=True,
+                context={'request': request}
+            ).data
+
             paginator = self.pagination_class()
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=serialized_data,
                 message="Interest rate change logs retrieved successfully.",
                 pagination=result['pagination']
             )

@@ -139,3 +139,55 @@ class ForgivenessService:
         
         logger.info(f"Forgiveness log deleted: {log_id}")
         return log_entry
+    
+    
+    @staticmethod
+    def get_by_borrower(borrower_id, page=1, limit=20):
+        """Get forgiveness logs for a borrower."""
+        qs = ForgivenessLog.objects.filter(
+            borrower_id=borrower_id,
+            deleted_at__isnull=True
+        ).order_by('-created_at')
+        return paginate_queryset(qs, page, limit)
+
+    @staticmethod
+    def get_statistics():
+        """Get forgiveness statistics."""
+        qs = ForgivenessLog.objects.filter(deleted_at__isnull=True)
+        
+        total = qs.count()
+        approved = qs.filter(status=ForgivenessLog.Status.APPROVED).count()
+        pending = qs.filter(status=ForgivenessLog.Status.PENDING).count()
+        
+        total_amount = qs.aggregate(total=Sum('amount_forgiven'))['total'] or Decimal('0')
+        
+        return {
+            'total': total,
+            'approved': approved,
+            'pending': pending,
+            'total_amount_forgiven': total_amount,
+        }
+
+    @staticmethod
+    @transaction.atomic
+    def restore(log_id, user=None, request=None):
+        """Restore a soft-deleted forgiveness log."""
+        log_entry = ForgivenessLog.objects.filter(id=log_id).first()
+        if not log_entry:
+            raise ValidationError({'id': 'Forgiveness log not found.'})
+        if not log_entry.deleted_at:
+            raise ValidationError({'id': 'Forgiveness log is not deleted.'})
+        
+        log_entry.restore()
+        
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='forgiveness_restore',
+                model_name='ForgivenessLog',
+                object_id=str(log_entry.id),
+                changes={'restored_at': timezone.now()}
+            )
+        
+        return log_entry

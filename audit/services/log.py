@@ -5,6 +5,11 @@ from django.utils import timezone
 from audit.models.log import AuditLog
 from audit.models.policy import AuditPolicy
 from utils.pagination import paginate_queryset
+import csv
+import tempfile
+import os
+from django.core.files import File
+
 
 logger = logging.getLogger(__name__)
 
@@ -725,34 +730,26 @@ class AuditLogService:
         temp_dir = tempfile.gettempdir()
         filename = f"audit_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
         file_path = os.path.join(temp_dir, filename)
+        queryset = qs[:min(limit, 10000)]
         
-        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow([
-                'ID', 'Event ID', 'Action', 'Entity', 'Object ID',
-                'User', 'Changes', 'IP Address', 'User Agent',
-                'Is Suspicious', 'Suspicious Reason', 'Timestamp'
-            ])
-            
-            for log in qs:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv', mode='w', newline='') as tmp:
+            writer = csv.writer(tmp)
+            writer.writerow(['ID', 'Action', 'Entity', 'EntityId', 'User', 'Timestamp', 'OldData', 'NewData'])
+            for log in queryset:
                 writer.writerow([
                     log.id,
-                    log.event_id,
                     log.action_type,
                     log.model_name,
                     log.object_id,
-                    log.user.username if log.user else None,
-                    log.changes,
-                    log.ip_address,
-                    log.user_agent,
-                    log.is_suspicious,
-                    log.suspicious_reason,
-                    log.timestamp.isoformat()
+                    log.user.username if log.user else '',
+                    log.timestamp.isoformat(),
+                    log.changes.get('old') if log.changes else '',
+                    log.changes.get('new') if log.changes else '',
                 ])
-        
+            file_path = tmp.name
         return {
             'filePath': file_path,
-            'filename': filename,
+            'filename': os.path.basename(file_path),
         }
 
 
@@ -876,3 +873,4 @@ class AuditLogService:
             'format': format,
             'entryCount': total,
         }
+        

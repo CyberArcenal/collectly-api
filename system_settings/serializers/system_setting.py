@@ -16,7 +16,20 @@ class SystemSettingReadSerializer(serializers.ModelSerializer):
     value_as_int = serializers.SerializerMethodField()
     value_as_float = serializers.SerializerMethodField()
     value_as_json = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    isPublic = serializers.BooleanField(source='is_public', read_only=True)
+    settingType = serializers.CharField(source='setting_type', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+    settingTypeDisplay = serializers.CharField(source='get_setting_type_display', read_only=True)
+    valueParsed = serializers.SerializerMethodField()
+    valueAsBool = serializers.SerializerMethodField()
+    valueAsInt = serializers.SerializerMethodField()
+    valueAsFloat = serializers.SerializerMethodField()
+    valueAsJson = serializers.SerializerMethodField()
+
     class Meta:
         model = SystemSetting
         fields = [
@@ -36,9 +49,21 @@ class SystemSettingReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'isPublic',
+            'settingType',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
+            'settingTypeDisplay',
+            'valueParsed',
+            'valueAsBool',
+            'valueAsInt',
+            'valueAsFloat',
+            'valueAsJson',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_value_parsed(self, obj):
         """Get parsed value (auto-detects type)."""
         try:
@@ -48,17 +73,37 @@ class SystemSettingReadSerializer(serializers.ModelSerializer):
         except (json.JSONDecodeError, TypeError):
             # Return as string
             return obj.value
-    
+
     def get_value_as_bool(self, obj):
         return obj.value_as_bool
-    
+
     def get_value_as_int(self, obj):
         return obj.value_as_int
-    
+
     def get_value_as_float(self, obj):
         return obj.value_as_float
-    
+
     def get_value_as_json(self, obj):
+        return obj.value_as_json
+
+    # CamelCase method fields
+    def get_valueParsed(self, obj):
+        try:
+            parsed = json.loads(obj.value)
+            return parsed
+        except (json.JSONDecodeError, TypeError):
+            return obj.value
+
+    def get_valueAsBool(self, obj):
+        return obj.value_as_bool
+
+    def get_valueAsInt(self, obj):
+        return obj.value_as_int
+
+    def get_valueAsFloat(self, obj):
+        return obj.value_as_float
+
+    def get_valueAsJson(self, obj):
         return obj.value_as_json
 
 
@@ -68,7 +113,14 @@ class SystemSettingListSerializer(serializers.ModelSerializer):
     """
     
     setting_type_display = serializers.CharField(source='get_setting_type_display', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    isPublic = serializers.BooleanField(source='is_public', read_only=True)
+    settingType = serializers.CharField(source='setting_type', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    settingTypeDisplay = serializers.CharField(source='get_setting_type_display', read_only=True)
+
     class Meta:
         model = SystemSetting
         fields = [
@@ -81,6 +133,12 @@ class SystemSettingListSerializer(serializers.ModelSerializer):
             'is_public',
             'created_at',
             'updated_at',
+            # ✅ CamelCase aliases
+            'isPublic',
+            'settingType',
+            'createdAt',
+            'updatedAt',
+            'settingTypeDisplay',
         ]
         read_only_fields = ['__all__']
 

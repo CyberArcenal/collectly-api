@@ -13,7 +13,22 @@ class InterestRateChangeLogReadSerializer(serializers.ModelSerializer):
     change_direction = serializers.SerializerMethodField()
     is_system_change = serializers.SerializerMethodField()
     is_loan_change = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    settingKey = serializers.CharField(source='setting_key', read_only=True)
+    oldValue = serializers.DecimalField(source='old_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    newValue = serializers.DecimalField(source='new_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    changedBy = serializers.CharField(source='changed_by', read_only=True)
+    changedAt = serializers.DateTimeField(source='changed_at', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+    loanId = serializers.PrimaryKeyRelatedField(source='loan', read_only=True)
+    loanName = serializers.CharField(source='loan.name', read_only=True, allow_null=True)
+    changeDirection = serializers.SerializerMethodField()
+    isSystemChange = serializers.SerializerMethodField()
+    isLoanChange = serializers.SerializerMethodField()
+
     class Meta:
         model = InterestRateChangeLog
         fields = [
@@ -33,16 +48,39 @@ class InterestRateChangeLogReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'settingKey',
+            'oldValue',
+            'newValue',
+            'changedBy',
+            'changedAt',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
+            'loanId',
+            'loanName',
+            'changeDirection',
+            'isSystemChange',
+            'isLoanChange',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_change_direction(self, obj):
         return obj.change_direction
-    
+
     def get_is_system_change(self, obj):
         return obj.is_system_change
-    
+
     def get_is_loan_change(self, obj):
+        return obj.is_loan_change
+
+    def get_changeDirection(self, obj):
+        return obj.change_direction
+
+    def get_isSystemChange(self, obj):
+        return obj.is_system_change
+
+    def get_isLoanChange(self, obj):
         return obj.is_loan_change
 
 
@@ -53,7 +91,17 @@ class InterestRateChangeLogListSerializer(serializers.ModelSerializer):
     
     change_direction = serializers.SerializerMethodField()
     is_system_change = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    settingKey = serializers.CharField(source='setting_key', read_only=True)
+    oldValue = serializers.DecimalField(source='old_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    newValue = serializers.DecimalField(source='new_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    changedBy = serializers.CharField(source='changed_by', read_only=True)
+    changedAt = serializers.DateTimeField(source='changed_at', read_only=True)
+    loanId = serializers.PrimaryKeyRelatedField(source='loan', read_only=True)
+    changeDirection = serializers.SerializerMethodField()
+    isSystemChange = serializers.SerializerMethodField()
+
     class Meta:
         model = InterestRateChangeLog
         fields = [
@@ -66,13 +114,28 @@ class InterestRateChangeLogListSerializer(serializers.ModelSerializer):
             'loan',
             'change_direction',
             'is_system_change',
+            # ✅ CamelCase aliases
+            'settingKey',
+            'oldValue',
+            'newValue',
+            'changedBy',
+            'changedAt',
+            'loanId',
+            'changeDirection',
+            'isSystemChange',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_change_direction(self, obj):
         return obj.change_direction
-    
+
     def get_is_system_change(self, obj):
+        return obj.is_system_change
+
+    def get_changeDirection(self, obj):
+        return obj.change_direction
+
+    def get_isSystemChange(self, obj):
         return obj.is_system_change
 
 

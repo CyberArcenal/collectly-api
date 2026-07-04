@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Response serializers for documentation
 # ----------------------------------------------------------------------
 
+
 class NotificationLogListResponseSerializer(serializers.Serializer):
     status = serializers.BooleanField(default=True)
     message = serializers.CharField()
@@ -73,10 +74,12 @@ class ErrorResponseSerializer(serializers.Serializer):
 # View
 # ----------------------------------------------------------------------
 
+
 class NotificationLogCRUDView(APIView):
     """
     CRUD operations for notification logs.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
     pagination_class = CustomPagination
 
@@ -87,13 +90,39 @@ class NotificationLogCRUDView(APIView):
     @extend_schema(
         tags=["Notification Logs"],
         parameters=[
-            OpenApiParameter(name="page", type=int, description="Page number", required=False),
-            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
-            OpenApiParameter(name="status", type=str, description="Filter by status (queued, sent, failed, resend)", required=False),
-            OpenApiParameter(name="recipient_email", type=str, description="Filter by recipient email", required=False),
-            OpenApiParameter(name="from_date", type=str, description="Filter from date", required=False),
-            OpenApiParameter(name="to_date", type=str, description="Filter to date", required=False),
-            OpenApiParameter(name="search", type=str, description="Search by email, subject, or payload", required=False),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
+            OpenApiParameter(
+                name="status",
+                type=str,
+                description="Filter by status (queued, sent, failed, resend)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="recipient_email",
+                type=str,
+                description="Filter by recipient email",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="from_date",
+                type=str,
+                description="Filter from date",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="to_date", type=str, description="Filter to date", required=False
+            ),
+            OpenApiParameter(
+                name="search",
+                type=str,
+                description="Search by email, subject, or payload",
+                required=False,
+            ),
         ],
         responses={
             200: NotificationLogListResponseSerializer,
@@ -101,7 +130,7 @@ class NotificationLogCRUDView(APIView):
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Retrieve a single notification log (if id provided) or a paginated list."
+        description="Retrieve a single notification log (if id provided) or a paginated list.",
     )
     def get(self, request, id=None):
         """Retrieve single notification log or list all."""
@@ -111,7 +140,9 @@ class NotificationLogCRUDView(APIView):
 
         if not can_read(user):
             return _error(
-                data={"detail": "You do not have permission to view notification logs."},
+                data={
+                    "detail": "You do not have permission to view notification logs."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -126,7 +157,9 @@ class NotificationLogCRUDView(APIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
-                serializer = NotificationLogReadSerializer(log_entry, context={"request": request})
+                serializer = NotificationLogReadSerializer(
+                    log_entry, context={"request": request}
+                )
 
                 log_audit_event(
                     request=request,
@@ -146,32 +179,32 @@ class NotificationLogCRUDView(APIView):
 
             # List with filters
             filters = {
-                'status': request.query_params.get('status'),
-                'recipient_email': request.query_params.get('recipient_email'),
-                'from_date': request.query_params.get('from_date'),
-                'to_date': request.query_params.get('to_date'),
-                'search': request.query_params.get('search'),
+                "status": request.query_params.get("status"),
+                "recipient_email": request.query_params.get("recipient_email"),
+                "from_date": request.query_params.get("from_date"),
+                "to_date": request.query_params.get("to_date"),
+                "search": request.query_params.get("search"),
             }
             filters = {k: v for k, v in filters.items() if v is not None}
 
-            page = int(request.query_params.get('page', 1))
-            limit = int(request.query_params.get('page_size', 20))
-            sort_by = request.query_params.get('sort_by', 'created_at')
-            sort_order = request.query_params.get('sort_order', 'desc')
+            page = int(request.query_params.get("page", 1))
+            limit = int(request.query_params.get("page_size", 20))
+            sort_by = request.query_params.get("sort_by", "created_at")
+            sort_order = request.query_params.get("sort_order", "desc")
 
             result = NotificationLogService.get_list(
                 filters=filters,
                 page=page,
                 limit=limit,
                 sort_by=sort_by,
-                sort_order=sort_order
+                sort_order=sort_order,
             )
 
             paginator = self.pagination_class()
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=result["data"],
                 message="Notification logs retrieved successfully.",
-                pagination=result['pagination']
+                pagination=result["pagination"],
             )
 
             log_audit_event(
@@ -180,7 +213,7 @@ class NotificationLogCRUDView(APIView):
                 action_type="read",
                 model_name="NotificationLog",
                 object_id="list",
-                changes={"count": result['pagination']['total']},
+                changes={"count": result["pagination"]["total"]},
                 ip_address=client_ip,
                 user_agent=user_agent,
             )
@@ -210,7 +243,7 @@ class NotificationLogCRUDView(APIView):
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Create a new notification log. Admin/Staff only."
+        description="Create a new notification log. Admin/Staff only.",
     )
     @transaction.atomic
     def post(self, request):
@@ -221,7 +254,9 @@ class NotificationLogCRUDView(APIView):
 
         if not can_edit(user):
             return _error(
-                data={"detail": "You do not have permission to create notification logs."},
+                data={
+                    "detail": "You do not have permission to create notification logs."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -248,12 +283,12 @@ class NotificationLogCRUDView(APIView):
 
         try:
             log_entry = NotificationLogService.create(
-                data=serializer.validated_data,
-                user=user,
-                request=request
+                data=serializer.validated_data, user=user, request=request
             )
 
-            read_serializer = NotificationLogReadSerializer(log_entry, context={"request": request})
+            read_serializer = NotificationLogReadSerializer(
+                log_entry, context={"request": request}
+            )
 
             return _success(
                 data=read_serializer.data,
@@ -298,7 +333,7 @@ class NotificationLogCRUDView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Partial update of a notification log (status and error_message). Admin/Staff only."
+        description="Partial update of a notification log (status and error_message). Admin/Staff only.",
     )
     @transaction.atomic
     def patch(self, request, id):
@@ -309,7 +344,9 @@ class NotificationLogCRUDView(APIView):
 
         if not can_edit(user):
             return _error(
-                data={"detail": "You do not have permission to update notification logs."},
+                data={
+                    "detail": "You do not have permission to update notification logs."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -323,10 +360,7 @@ class NotificationLogCRUDView(APIView):
             )
 
         serializer = NotificationLogUpdateSerializer(
-            log_entry,
-            data=request.data,
-            partial=True,
-            context={"request": request}
+            log_entry, data=request.data, partial=True, context={"request": request}
         )
 
         if not serializer.is_valid():
@@ -339,13 +373,12 @@ class NotificationLogCRUDView(APIView):
 
         try:
             updated = NotificationLogService.update(
-                log_id=id,
-                data=serializer.validated_data,
-                user=user,
-                request=request
+                log_id=id, data=serializer.validated_data, user=user, request=request
             )
 
-            read_serializer = NotificationLogReadSerializer(updated, context={"request": request})
+            read_serializer = NotificationLogReadSerializer(
+                updated, context={"request": request}
+            )
 
             return _success(
                 data=read_serializer.data,
@@ -379,10 +412,12 @@ class NotificationLogCRUDView(APIView):
 # Notification Log Retry View
 # ----------------------------------------------------------------------
 
+
 class NotificationLogRetryView(APIView):
     """
     Retry a failed or queued notification.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -396,7 +431,7 @@ class NotificationLogRetryView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Retry a failed or queued notification. Admin/Staff only."
+        description="Retry a failed or queued notification. Admin/Staff only.",
     )
     @transaction.atomic
     def post(self, request, id):
@@ -421,8 +456,7 @@ class NotificationLogRetryView(APIView):
             )
 
         serializer = NotificationLogRetrySerializer(
-            data=request.data,
-            context={"request": request}
+            data=request.data, context={"request": request}
         )
         serializer.instance = log_entry
 
@@ -436,12 +470,12 @@ class NotificationLogRetryView(APIView):
 
         try:
             updated = NotificationLogService.retry_failed(
-                log_id=id,
-                user=user,
-                request=request
+                log_id=id, user=user, request=request
             )
 
-            read_serializer = NotificationLogReadSerializer(updated, context={"request": request})
+            read_serializer = NotificationLogReadSerializer(
+                updated, context={"request": request}
+            )
 
             log_audit_event(
                 request=request,
@@ -468,7 +502,6 @@ class NotificationLogRetryView(APIView):
                 message="Failed to retry notification.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-            
 
 
 from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
@@ -479,18 +512,29 @@ from django.core.exceptions import ValidationError
 # NOTIFICATION LOG BY RECIPIENT VIEW
 # ===================================================================
 
+
 class NotificationLogByRecipientView(APIView):
     """
     Get notification logs by recipient email.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
         tags=["Notification Logs"],
         parameters=[
-            OpenApiParameter(name="recipient_email", type=str, description="Recipient email", required=True),
-            OpenApiParameter(name="page", type=int, description="Page number", required=False),
-            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
+            OpenApiParameter(
+                name="recipient_email",
+                type=str,
+                description="Recipient email",
+                required=True,
+            ),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
         ],
         responses={
             200: NotificationLogListResponseSerializer,
@@ -499,7 +543,7 @@ class NotificationLogByRecipientView(APIView):
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Get paginated notification logs for a specific recipient."
+        description="Get paginated notification logs for a specific recipient.",
     )
     def get(self, request):
         """Get notification logs by recipient."""
@@ -509,12 +553,14 @@ class NotificationLogByRecipientView(APIView):
 
         if not can_read(user):
             return _error(
-                data={"detail": "You do not have permission to view notification logs."},
+                data={
+                    "detail": "You do not have permission to view notification logs."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        recipient_email = request.query_params.get('recipient_email')
+        recipient_email = request.query_params.get("recipient_email")
         if not recipient_email:
             return _error(
                 data={"detail": "recipient_email parameter is required."},
@@ -523,20 +569,22 @@ class NotificationLogByRecipientView(APIView):
             )
 
         try:
-            page = int(request.query_params.get('page', 1))
-            limit = int(request.query_params.get('page_size', 20))
+            page = int(request.query_params.get("page", 1))
+            limit = int(request.query_params.get("page_size", 20))
 
             result = NotificationLogService.get_by_recipient(
-                recipient_email=recipient_email,
-                page=page,
-                limit=limit
+                recipient_email=recipient_email, page=page, limit=limit
             )
 
             paginator = self.pagination_class()
+            serialized_data = NotificationLogListSerializer(
+                result["data"], many=True, context={"request": request}
+            ).data
+
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=serialized_data,
                 message="Notification logs retrieved successfully.",
-                pagination=result['pagination']
+                pagination=result["pagination"],
             )
 
             log_audit_event(
@@ -565,18 +613,27 @@ class NotificationLogByRecipientView(APIView):
 # NOTIFICATION LOG SEARCH VIEW
 # ===================================================================
 
+
 class NotificationLogSearchView(APIView):
     """
     Search notification logs by keyword.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
+    pagination_classes = CustomPagination
 
     @extend_schema(
         tags=["Notification Logs"],
         parameters=[
-            OpenApiParameter(name="keyword", type=str, description="Search keyword", required=True),
-            OpenApiParameter(name="page", type=int, description="Page number", required=False),
-            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
+            OpenApiParameter(
+                name="keyword", type=str, description="Search keyword", required=True
+            ),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
         ],
         responses={
             200: NotificationLogListResponseSerializer,
@@ -585,7 +642,7 @@ class NotificationLogSearchView(APIView):
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Search notification logs by keyword in email, subject, or payload."
+        description="Search notification logs by keyword in email, subject, or payload.",
     )
     def get(self, request):
         """Search notification logs."""
@@ -595,12 +652,14 @@ class NotificationLogSearchView(APIView):
 
         if not can_read(user):
             return _error(
-                data={"detail": "You do not have permission to search notification logs."},
+                data={
+                    "detail": "You do not have permission to search notification logs."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        keyword = request.query_params.get('keyword')
+        keyword = request.query_params.get("keyword")
         if not keyword:
             return _error(
                 data={"detail": "keyword parameter is required."},
@@ -609,20 +668,21 @@ class NotificationLogSearchView(APIView):
             )
 
         try:
-            page = int(request.query_params.get('page', 1))
-            limit = int(request.query_params.get('page_size', 20))
+            page = int(request.query_params.get("page", 1))
+            limit = int(request.query_params.get("page_size", 20))
 
             result = NotificationLogService.search(
-                keyword=keyword,
-                page=page,
-                limit=limit
+                keyword=keyword, page=page, limit=limit
             )
 
             paginator = self.pagination_class()
+            serialized_data = NotificationLogListSerializer(
+                result["data"], many=True, context={"request": request}
+            ).data
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=serialized_data,
                 message="Search completed successfully.",
-                pagination=result['pagination']
+                pagination=result["pagination"],
             )
 
             log_audit_event(
@@ -651,10 +711,12 @@ class NotificationLogSearchView(APIView):
 # NOTIFICATION LOG RESEND VIEW
 # ===================================================================
 
+
 class NotificationLogResendView(APIView):
     """
     Resend a notification (manual resend).
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -663,7 +725,7 @@ class NotificationLogResendView(APIView):
             name="ResendRequest",
             fields={
                 "confirm": serializers.BooleanField(),
-            }
+            },
         ),
         responses={
             200: NotificationLogRetryResponseSerializer,
@@ -673,7 +735,7 @@ class NotificationLogResendView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Resend a notification (manual resend). Admin/Staff only."
+        description="Resend a notification (manual resend). Admin/Staff only.",
     )
     @transaction.atomic
     def post(self, request, id):
@@ -697,7 +759,7 @@ class NotificationLogResendView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        confirm = request.data.get('confirm', False)
+        confirm = request.data.get("confirm", False)
         if not confirm:
             return _error(
                 data={"detail": "Please confirm to resend this notification."},
@@ -707,12 +769,12 @@ class NotificationLogResendView(APIView):
 
         try:
             updated = NotificationLogService.resend(
-                log_id=id,
-                user=user,
-                request=request
+                log_id=id, user=user, request=request
             )
 
-            read_serializer = NotificationLogReadSerializer(updated, context={"request": request})
+            read_serializer = NotificationLogReadSerializer(
+                updated, context={"request": request}
+            )
 
             log_audit_event(
                 request=request,
@@ -745,10 +807,12 @@ class NotificationLogResendView(APIView):
 # NOTIFICATION LOG RETRY ALL VIEW
 # ===================================================================
 
+
 class NotificationLogRetryAllView(APIView):
     """
     Retry all failed notifications.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -756,9 +820,12 @@ class NotificationLogRetryAllView(APIView):
         request=inline_serializer(
             name="RetryAllRequest",
             fields={
-                "filters": serializers.DictField(required=False, help_text="Optional filters (recipient_email, created_before)"),
+                "filters": serializers.DictField(
+                    required=False,
+                    help_text="Optional filters (recipient_email, created_before)",
+                ),
                 "confirm": serializers.BooleanField(),
-            }
+            },
         ),
         responses={
             200: inline_serializer(
@@ -767,14 +834,14 @@ class NotificationLogRetryAllView(APIView):
                     "status": serializers.BooleanField(),
                     "message": serializers.CharField(),
                     "data": serializers.DictField(),
-                }
+                },
             ),
             400: ErrorResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Retry all failed notifications. Admin only."
+        description="Retry all failed notifications. Admin only.",
     )
     @transaction.atomic
     def post(self, request):
@@ -785,12 +852,14 @@ class NotificationLogRetryAllView(APIView):
 
         if not is_admin(user):
             return _error(
-                data={"detail": "You do not have permission to retry all failed notifications."},
+                data={
+                    "detail": "You do not have permission to retry all failed notifications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        confirm = request.data.get('confirm', False)
+        confirm = request.data.get("confirm", False)
         if not confirm:
             return _error(
                 data={"detail": "Please confirm to retry all failed notifications."},
@@ -798,13 +867,11 @@ class NotificationLogRetryAllView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        filters = request.data.get('filters', {})
+        filters = request.data.get("filters", {})
 
         try:
             result = NotificationLogService.retry_all_failed(
-                filters=filters,
-                user=user,
-                request=request
+                filters=filters, user=user, request=request
             )
 
             log_audit_event(
@@ -838,17 +905,29 @@ class NotificationLogRetryAllView(APIView):
 # NOTIFICATION LOG STATISTICS VIEW
 # ===================================================================
 
+
 class NotificationLogStatsView(APIView):
     """
     Get notification log statistics.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
         tags=["Notification Logs"],
         parameters=[
-            OpenApiParameter(name="start_date", type=str, description="Start date (YYYY-MM-DD)", required=False),
-            OpenApiParameter(name="end_date", type=str, description="End date (YYYY-MM-DD)", required=False),
+            OpenApiParameter(
+                name="start_date",
+                type=str,
+                description="Start date (YYYY-MM-DD)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=str,
+                description="End date (YYYY-MM-DD)",
+                required=False,
+            ),
         ],
         responses={
             200: inline_serializer(
@@ -857,13 +936,13 @@ class NotificationLogStatsView(APIView):
                     "status": serializers.BooleanField(),
                     "message": serializers.CharField(),
                     "data": serializers.DictField(),
-                }
+                },
             ),
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Get notification log statistics including counts by status."
+        description="Get notification log statistics including counts by status.",
     )
     def get(self, request):
         """Get notification log statistics."""
@@ -873,7 +952,9 @@ class NotificationLogStatsView(APIView):
 
         if not can_read(user):
             return _error(
-                data={"detail": "You do not have permission to view notification statistics."},
+                data={
+                    "detail": "You do not have permission to view notification statistics."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )

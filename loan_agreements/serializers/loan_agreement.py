@@ -19,7 +19,29 @@ class LoanAgreementReadSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     debt_name = serializers.CharField(source='debt.name', read_only=True)
     borrower_name = serializers.CharField(source='debt.borrower.name', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtId = serializers.IntegerField(source='debt.id', read_only=True)
+    debtName = serializers.CharField(source='debt.name', read_only=True)
+    borrowerName = serializers.CharField(source='debt.borrower.name', read_only=True)
+    agreementDate = serializers.DateField(source='agreement_date', read_only=True)
+    lenderName = serializers.CharField(source='lender_name', read_only=True)
+    termsText = serializers.CharField(source='terms_text', read_only=True)
+    signedAt = serializers.DateTimeField(source='signed_at', read_only=True)
+    signedBy = serializers.CharField(source='signed_by', read_only=True)
+    principalAmount = serializers.DecimalField(source='principal_amount', max_digits=12, decimal_places=2, read_only=True)
+    interestRate = serializers.DecimalField(source='interest_rate', max_digits=5, decimal_places=2, read_only=True)
+    penaltyRate = serializers.DecimalField(source='penalty_rate', max_digits=5, decimal_places=2, read_only=True)
+    dueDate = serializers.DateField(source='due_date', read_only=True)
+    loanStartDate = serializers.DateField(source='loan_start_date', read_only=True)
+    anniversaryDay = serializers.IntegerField(source='anniversary_day', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+    isSigned = serializers.SerializerMethodField()
+    isDraft = serializers.SerializerMethodField()
+    hasFile = serializers.SerializerMethodField()
+
     class Meta:
         model = LoanAgreement
         fields = [
@@ -50,16 +72,47 @@ class LoanAgreementReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'debtId',
+            'debtName',
+            'borrowerName',
+            'agreementDate',
+            'lenderName',
+            'termsText',
+            'signedAt',
+            'signedBy',
+            'principalAmount',
+            'interestRate',
+            'penaltyRate',
+            'dueDate',
+            'loanStartDate',
+            'anniversaryDay',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
+            'isSigned',
+            'isDraft',
+            'hasFile',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_is_signed(self, obj):
         return obj.is_signed
-    
+
     def get_is_draft(self, obj):
         return obj.is_draft
-    
+
     def get_has_file(self, obj):
+        return obj.has_file
+
+    # CamelCase method fields
+    def get_isSigned(self, obj):
+        return obj.is_signed
+
+    def get_isDraft(self, obj):
+        return obj.is_draft
+
+    def get_hasFile(self, obj):
         return obj.has_file
 
 
@@ -73,7 +126,19 @@ class LoanAgreementListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_signed = serializers.SerializerMethodField()
     has_file = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtId = serializers.IntegerField(source='debt.id', read_only=True)
+    debtName = serializers.CharField(source='debt.name', read_only=True)
+    borrowerName = serializers.CharField(source='debt.borrower.name', read_only=True)
+    agreementDate = serializers.DateField(source='agreement_date', read_only=True)
+    lenderName = serializers.CharField(source='lender_name', read_only=True)
+    signedAt = serializers.DateTimeField(source='signed_at', read_only=True)
+    signedBy = serializers.CharField(source='signed_by', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    isSigned = serializers.SerializerMethodField()
+    hasFile = serializers.SerializerMethodField()
+
     class Meta:
         model = LoanAgreement
         fields = [
@@ -90,13 +155,30 @@ class LoanAgreementListSerializer(serializers.ModelSerializer):
             'is_signed',
             'has_file',
             'created_at',
+            # ✅ CamelCase aliases
+            'debtId',
+            'debtName',
+            'borrowerName',
+            'agreementDate',
+            'lenderName',
+            'signedAt',
+            'signedBy',
+            'createdAt',
+            'isSigned',
+            'hasFile',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_is_signed(self, obj):
         return obj.is_signed
-    
+
     def get_has_file(self, obj):
+        return obj.has_file
+
+    def get_isSigned(self, obj):
+        return obj.is_signed
+
+    def get_hasFile(self, obj):
         return obj.has_file
 
 

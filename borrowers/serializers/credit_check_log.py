@@ -18,7 +18,16 @@ class CreditCheckLogReadSerializer(serializers.ModelSerializer):
     is_passing = serializers.SerializerMethodField()
     is_excellent = serializers.SerializerMethodField()
     performed_by_data = UserMinimalSerializer(source='performed_by', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
+    debtorName = serializers.CharField(source='debtor.name', read_only=True)
+    riskLevel = serializers.CharField(source='risk_level', read_only=True)
+    dateChecked = serializers.DateTimeField(source='date_checked', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+
     class Meta:
         model = CreditCheckLog
         fields = [
@@ -40,12 +49,20 @@ class CreditCheckLogReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ Added camelCase aliases
+            'debtorId',
+            'debtorName',
+            'riskLevel',
+            'dateChecked',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_is_passing(self, obj):
         return obj.is_passing
-    
+
     def get_is_excellent(self, obj):
         return obj.is_excellent
 
@@ -57,7 +74,14 @@ class CreditCheckLogListSerializer(serializers.ModelSerializer):
     
     debtor_name = serializers.CharField(source='debtor.name', read_only=True)
     risk_level_display = serializers.CharField(source='get_risk_level_display', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
+    debtorName = serializers.CharField(source='debtor.name', read_only=True)
+    riskLevel = serializers.CharField(source='risk_level', read_only=True)
+    dateChecked = serializers.DateTimeField(source='date_checked', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
     class Meta:
         model = CreditCheckLog
         fields = [
@@ -69,6 +93,12 @@ class CreditCheckLogListSerializer(serializers.ModelSerializer):
             'risk_level_display',
             'date_checked',
             'created_at',
+            # ✅ Added camelCase aliases
+            'debtorId',
+            'debtorName',
+            'riskLevel',
+            'dateChecked',
+            'createdAt',
         ]
         read_only_fields = ['__all__']
 

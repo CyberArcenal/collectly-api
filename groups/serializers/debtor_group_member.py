@@ -18,7 +18,18 @@ class DebtorGroupMemberReadSerializer(serializers.ModelSerializer):
     debtor_name = serializers.CharField(source='debtor.name', read_only=True)
     group_name = serializers.CharField(source='group.name', read_only=True)
     is_active = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    groupId = serializers.IntegerField(source='group.id', read_only=True)
+    groupName = serializers.CharField(source='group.name', read_only=True)
+    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
+    debtorName = serializers.CharField(source='debtor.name', read_only=True)
+    assignedAt = serializers.DateTimeField(source='assigned_at', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+    isActive = serializers.SerializerMethodField()
+
     class Meta:
         model = DebtorGroupMember
         fields = [
@@ -35,10 +46,23 @@ class DebtorGroupMemberReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'groupId',
+            'groupName',
+            'debtorId',
+            'debtorName',
+            'assignedAt',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
+            'isActive',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_is_active(self, obj):
+        return obj.is_active
+
+    def get_isActive(self, obj):
         return obj.is_active
 
 
@@ -50,7 +74,16 @@ class DebtorGroupMemberListSerializer(serializers.ModelSerializer):
     debtor_name = serializers.CharField(source='debtor.name', read_only=True)
     debtor_email = serializers.CharField(source='debtor.email', read_only=True)
     group_name = serializers.CharField(source='group.name', read_only=True)
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    groupId = serializers.IntegerField(source='group.id', read_only=True)
+    groupName = serializers.CharField(source='group.name', read_only=True)
+    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
+    debtorName = serializers.CharField(source='debtor.name', read_only=True)
+    debtorEmail = serializers.CharField(source='debtor.email', read_only=True)
+    assignedAt = serializers.DateTimeField(source='assigned_at', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
     class Meta:
         model = DebtorGroupMember
         fields = [
@@ -62,6 +95,14 @@ class DebtorGroupMemberListSerializer(serializers.ModelSerializer):
             'debtor_email',
             'assigned_at',
             'created_at',
+            # ✅ CamelCase aliases
+            'groupId',
+            'groupName',
+            'debtorId',
+            'debtorName',
+            'debtorEmail',
+            'assignedAt',
+            'createdAt',
         ]
         read_only_fields = ['__all__']
 

@@ -198,8 +198,14 @@ class PaymentTransactionCRUDView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialized_data = PaymentTransactionListSerializer(
+                result['data'],
+                many=True,
+                context={'request': request}
+            ).data
+
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=serialized_data,
                 message="Payments retrieved successfully.",
                 pagination=result['pagination']
             )

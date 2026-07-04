@@ -213,8 +213,12 @@ class BorrowerCRUDView(APIView):
             )
 
             paginator = self.pagination_class()
+            # logger.debug(f"result: {result}")
+            data = BorrowerListSerializer(result['data'], many=True, context={'request': request}).data
+            
+            # logger.debug(f"Borrower data: {data}")
             response = paginator.get_paginated_response(
-                data=result["data"],
+                data=data,
                 message="Borrowers retrieved successfully.",
                 pagination=result["pagination"],
             )

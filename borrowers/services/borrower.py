@@ -1,6 +1,6 @@
 import logging
 from typing import Optional, Dict, Any, List
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.db import transaction
 from django.db.models import Q, Count, Sum
@@ -9,6 +9,8 @@ from django.utils import timezone
 
 from audit.utils.log import log_audit_event
 from borrowers.models.borrower import Borrower
+from debts.models.debt import Debt
+from debts.services.debt import DebtService
 from utils.pagination import paginate_queryset
 
 logger = logging.getLogger(__name__)
@@ -599,4 +601,124 @@ class BorrowerService:
 
         return export_data
     
+    @staticmethod
+    def get_overdue_debts(page: int = 1, limit: int = 20) -> Dict[str, Any]:
+        """Get all overdue debts (status = 'overdue')."""
+        from debts.models.debt import Debt
+        
+        qs = Debt.objects.filter(
+            status=Debt.Status.OVERDUE,
+            deleted_at__isnull=True
+        ).order_by('due_date')
+        
+        return paginate_queryset(qs, page, limit)
+    
+    @staticmethod
+    def get_by_borrower(borrower_id: int, include_deleted: bool = False) -> List[Debt]:
+        """Get all debts for a specific borrower."""
+        qs = Debt.objects.filter(borrower_id=borrower_id)
+        if not include_deleted:
+            qs = qs.filter(deleted_at__isnull=True)
+        return qs.order_by('due_date').all()
+    
+    @staticmethod
+    def exists_for_borrower(borrower_id: int, debt_name: str) -> bool:
+        """Check if a debt with given name exists for a borrower."""
+        return Debt.objects.filter(
+            borrower_id=borrower_id,
+            name=debt_name,
+            deleted_at__isnull=True
+        ).exists()
+        
+    @staticmethod
+    @transaction.atomic
+    def import_from_csv(file_path: str, user=None, request=None) -> Dict[str, Any]:
+        """Import debts from CSV file."""
+        import csv
+        from decimal import Decimal
+        
+        results = {'imported': [], 'errors': []}
+        
+        with open(file_path, 'r') as f:
+            reader = csv.DictReader(f)
+            for row_num, row in enumerate(reader, start=2):
+                try:
+                    # Validate and create debt
+                    borrower = Borrower.objects.filter(
+                        name=row.get('borrower_name'),
+                        deleted_at__isnull=True
+                    ).first()
+                    
+                    if not borrower:
+                        raise ValidationError(f"Borrower '{row.get('borrower_name')}' not found")
+                    
+                    debt_data = {
+                        'borrower': borrower,
+                        'name': row.get('name'),
+                        'total_amount': Decimal(row.get('total_amount', 0)),
+                        'due_date': datetime.strptime(row.get('due_date'), '%Y-%m-%d').date(),
+                        'interest_rate': Decimal(row.get('interest_rate', 0)) if row.get('interest_rate') else None,
+                        'penalty_rate': Decimal(row.get('penalty_rate', 0)) if row.get('penalty_rate') else None,
+                    }
+                    
+                    debt = DebtService.create(debt_data, user, request)
+                    results['imported'].append(debt)
+                    
+                except Exception as e:
+                    results['errors'].append({
+                        'row': row_num,
+                        'data': row,
+                        'error': str(e)
+                    })
+        
+        return results
+    
+    
+    @staticmethod
+    def export_debts(filters: Optional[Dict[str, Any]] = None, format: str = 'json') -> Dict[str, Any]:
+        """Export debts to JSON or CSV."""
+        from debts.serializers.debt import DebtListSerializer
+        
+        # Get debts with filters
+        qs = Debt.objects.filter(deleted_at__isnull=True)
+        if filters:
+            # Apply filters similar to get_list
+            pass
+        
+        debts = qs.select_related('borrower').all()
+        
+        if format == 'csv':
+            # Generate CSV
+            import csv
+            from io import StringIO
+            
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['ID', 'Name', 'Borrower', 'Total Amount', 'Remaining', 'Due Date', 'Status'])
+            
+            for debt in debts:
+                writer.writerow([
+                    debt.id,
+                    debt.name,
+                    debt.borrower.name if debt.borrower else '',
+                    str(debt.total_amount),
+                    str(debt.remaining_amount),
+                    debt.due_date.isoformat(),
+                    debt.status
+                ])
+            
+            return {
+                'format': 'csv',
+                'data': output.getvalue(),
+                'filename': f'debts_export_{timezone.now().strftime("%Y%m%d")}.csv'
+            }
+        else:
+            # Return JSON
+            data = DebtListSerializer(debts, many=True).data
+            return {
+                'format': 'json',
+                'data': data,
+                'filename': f'debts_export_{timezone.now().strftime("%Y%m%d")}.json'
+            }
+        
     

@@ -41,7 +41,7 @@ class AuditLogListResponseSerializer(serializers.Serializer):
     status = serializers.BooleanField(default=True)
     message = serializers.CharField()
     pagination = BasePaginatedSerializer()
-    data = AuditLogListSerializer()
+    data = AuditLogListSerializer(many=True)
 
 
 class AuditLogDetailResponseDataSerializer(serializers.Serializer):

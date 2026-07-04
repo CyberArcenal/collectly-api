@@ -191,8 +191,14 @@ class SystemSettingCRUDView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialized_data = SystemSettingListSerializer(
+                result['data'],
+                many=True,
+                context={'request': request}
+            ).data
+
             response = paginator.get_paginated_response(
-                data=result['data'],
+                data=serialized_data,
                 message="System settings retrieved successfully.",
                 pagination=result['pagination']
             )

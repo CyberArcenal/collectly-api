@@ -416,3 +416,61 @@ class GroupService:
         
         logger.info(f"Cleared {member_count} members from group {group.name}")
         return {'members_removed': member_count}
+    
+    @staticmethod
+    @transaction.atomic
+    def restore_group(group_id, user=None, request=None):
+        """
+        Restore a soft-deleted group.
+        
+        Args:
+            group_id: ID of the group to restore
+            user: User performing the action
+            request: HTTP request object
+        
+        Returns:
+            DebtorGroup: The restored group instance
+        """
+        group = DebtorGroup.objects.filter(id=group_id).first()
+        if not group:
+            raise ValidationError({'id': 'Group not found.'})
+        
+        if not group.deleted_at:
+            raise ValidationError({'id': 'Group is not deleted.'})
+        
+        group.restore()
+        
+        # Also restore all members (optional - depends on business logic)
+        group.members.filter(deleted_at__isnull=False).update(deleted_at=None)
+        
+        # Audit log
+        if user:
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='group_restore',
+                model_name='DebtorGroup',
+                object_id=str(group.id),
+                changes={'restored_at': timezone.now()}
+            )
+        
+        logger.info(f"Group restored: {group.id} - {group.name}")
+        return group
+    
+    @staticmethod
+    def is_debtor_in_group(group_id, debtor_id):
+        """
+        Check if a debtor is a member of a group.
+        
+        Args:
+            group_id: ID of the group
+            debtor_id: ID of the debtor
+        
+        Returns:
+            bool: True if debtor is a member
+        """
+        return DebtorGroupMember.objects.filter(
+            group_id=group_id,
+            debtor_id=debtor_id,
+            deleted_at__isnull=True
+        ).exists()

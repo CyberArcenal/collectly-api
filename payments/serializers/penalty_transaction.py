@@ -17,7 +17,18 @@ class PenaltyTransactionReadSerializer(serializers.ModelSerializer):
     amount_display = serializers.SerializerMethodField()
     is_void = serializers.SerializerMethodField()
     is_auto_display = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtId = serializers.IntegerField(source='debt.id', read_only=True)
+    penaltyDate = serializers.DateField(source='penalty_date', read_only=True)
+    isAuto = serializers.BooleanField(source='is_auto', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+    isVoid = serializers.SerializerMethodField()
+    isAutoDisplay = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+
     class Meta:
         model = PenaltyTransaction
         fields = [
@@ -35,16 +46,35 @@ class PenaltyTransactionReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
+            # ✅ CamelCase aliases
+            'debtId',
+            'penaltyDate',
+            'isAuto',
+            'amountDisplay',
+            'isVoid',
+            'isAutoDisplay',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_amount_display(self, obj):
         return obj.amount_display
-    
+
     def get_is_void(self, obj):
         return obj.is_void
-    
+
     def get_is_auto_display(self, obj):
+        return "Auto" if obj.is_auto else "Manual"
+
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+    def get_isVoid(self, obj):
+        return obj.is_void
+
+    def get_isAutoDisplay(self, obj):
         return "Auto" if obj.is_auto else "Manual"
 
 
@@ -57,7 +87,17 @@ class PenaltyTransactionListSerializer(serializers.ModelSerializer):
     borrower_name = serializers.CharField(source='debt.borrower.name', read_only=True)
     amount_display = serializers.SerializerMethodField()
     is_auto_display = serializers.SerializerMethodField()
-    
+
+    # ✅ CamelCase fields for frontend compatibility
+    debtId = serializers.IntegerField(source='debt.id', read_only=True)
+    debtName = serializers.CharField(source='debt.name', read_only=True)
+    borrowerName = serializers.CharField(source='debt.borrower.name', read_only=True)
+    penaltyDate = serializers.DateField(source='penalty_date', read_only=True)
+    isAuto = serializers.BooleanField(source='is_auto', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+    isAutoDisplay = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
     class Meta:
         model = PenaltyTransaction
         fields = [
@@ -72,13 +112,28 @@ class PenaltyTransactionListSerializer(serializers.ModelSerializer):
             'is_auto',
             'is_auto_display',
             'created_at',
+            # ✅ CamelCase aliases
+            'debtId',
+            'debtName',
+            'borrowerName',
+            'penaltyDate',
+            'isAuto',
+            'amountDisplay',
+            'isAutoDisplay',
+            'createdAt',
         ]
         read_only_fields = ['__all__']
-    
+
     def get_amount_display(self, obj):
         return obj.amount_display
-    
+
     def get_is_auto_display(self, obj):
+        return "Auto" if obj.is_auto else "Manual"
+
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+    def get_isAutoDisplay(self, obj):
         return "Auto" if obj.is_auto else "Manual"
 
 
