@@ -3,6 +3,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 
 from borrowers.models.credit_check_log import CreditCheckLog
 from borrowers.models.borrower import Borrower
+from borrowers.services.credit_check import CreditCheckService
 from users.models import User
 from users.serializers.User.nested import UserMinimalSerializer
 
@@ -104,34 +105,25 @@ class CreditCheckLogListSerializer(serializers.ModelSerializer):
 
 
 class CreditCheckLogCreateSerializer(serializers.ModelSerializer):
-    """
-    Write serializer for creating a new credit check log.
-    """
-    
     debtor_id = serializers.PrimaryKeyRelatedField(
         source='debtor',
         queryset=Borrower.objects.filter(deleted_at__isnull=True),
         required=True,
-        help_text="ID of the borrower being checked"
     )
     score = serializers.IntegerField(
-        required=True,
-        validators=[
-            MinValueValidator(300, message="Score must be at least 300"),
-            MaxValueValidator(850, message="Score must be at most 850")
-        ],
-        help_text="Credit score (300-850 range)"
+        required=False,  # ← MAKE OPTIONAL
+        validators=[MinValueValidator(300), MaxValueValidator(850)],
+        help_text="Credit score (auto-computed if not provided)"
     )
     risk_level = serializers.ChoiceField(
         choices=CreditCheckLog.RiskLevel.choices,
         required=False,
-        help_text="Risk level (auto-calculated if not provided)"
+        help_text="Risk level (auto-computed if not provided)"
     )
     performed_by = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         required=False,
         allow_null=True,
-        help_text="User who performed the credit check"
     )
     
     class Meta:
@@ -145,20 +137,20 @@ class CreditCheckLogCreateSerializer(serializers.ModelSerializer):
             'external_reference',
         ]
     
-    def validate_score(self, value):
-        """Validate score range."""
-        if value < 300 or value > 850:
-            raise serializers.ValidationError("Score must be between 300 and 850.")
-        return value
-    
     def validate(self, data):
-        """Cross-field validation."""
-        # If risk_level is not provided, it will be auto-calculated on save
+        """If score not provided, compute it."""
+        if 'score' not in data:
+            # Compute using service
+            borrower_id = data['debtor'].id
+            computed = CreditCheckService.compute_score(borrower_id)
+            data['score'] = computed['score']
+            if 'risk_level' not in data:
+                data['risk_level'] = computed['risk_level']
+            if 'remarks' not in data and computed.get('remarks'):
+                data['remarks'] = computed['remarks']
         return data
     
     def create(self, validated_data):
-        """Create a new credit check log."""
-        # Risk level will be auto-calculated in the model's save method
         return CreditCheckLog.objects.create(**validated_data)
 
 

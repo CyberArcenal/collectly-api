@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Response serializers for documentation
 # ----------------------------------------------------------------------
 
+
 class CreditCheckLogListResponseSerializer(serializers.Serializer):
     status = serializers.BooleanField(default=True)
     message = serializers.CharField()
@@ -55,10 +56,12 @@ class ErrorResponseSerializer(serializers.Serializer):
 # View
 # ----------------------------------------------------------------------
 
+
 class CreditCheckLogCRUDView(APIView):
     """
     CRUD operations for credit check logs.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
     pagination_class = CustomPagination
 
@@ -69,12 +72,33 @@ class CreditCheckLogCRUDView(APIView):
     @extend_schema(
         tags=["Credit Checks"],
         parameters=[
-            OpenApiParameter(name="page", type=int, description="Page number", required=False),
-            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
-            OpenApiParameter(name="debtor_id", type=int, description="Filter by debtor ID", required=False),
-            OpenApiParameter(name="risk_level", type=str, description="Filter by risk level", required=False),
-            OpenApiParameter(name="from_date", type=str, description="Filter from date", required=False),
-            OpenApiParameter(name="to_date", type=str, description="Filter to date", required=False),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
+            OpenApiParameter(
+                name="debtor_id",
+                type=int,
+                description="Filter by debtor ID",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="risk_level",
+                type=str,
+                description="Filter by risk level",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="from_date",
+                type=str,
+                description="Filter from date",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="to_date", type=str, description="Filter to date", required=False
+            ),
         ],
         responses={
             200: CreditCheckLogListResponseSerializer,
@@ -82,7 +106,7 @@ class CreditCheckLogCRUDView(APIView):
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Retrieve a single credit check log (if id provided) or a paginated list."
+        description="Retrieve a single credit check log (if id provided) or a paginated list.",
     )
     def get(self, request, id=None):
         """Retrieve single credit check log or list all."""
@@ -107,7 +131,9 @@ class CreditCheckLogCRUDView(APIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
-                serializer = CreditCheckLogReadSerializer(log_entry, context={"request": request})
+                serializer = CreditCheckLogReadSerializer(
+                    log_entry, context={"request": request}
+                )
 
                 log_audit_event(
                     request=request,
@@ -126,7 +152,7 @@ class CreditCheckLogCRUDView(APIView):
                 )
 
             # List with filters
-            debtor_id = request.query_params.get('debtor_id')
+            debtor_id = request.query_params.get("debtor_id")
             if debtor_id:
                 # Validate debtor exists
                 debtor = BorrowerService.get_by_id(debtor_id)
@@ -137,26 +163,22 @@ class CreditCheckLogCRUDView(APIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
-                page = int(request.query_params.get('page', 1))
-                limit = int(request.query_params.get('page_size', 20))
+                page = int(request.query_params.get("page", 1))
+                limit = int(request.query_params.get("page_size", 20))
 
                 result = CreditCheckService.get_by_borrower(
-                    borrower_id=debtor_id,
-                    page=page,
-                    limit=limit
+                    borrower_id=debtor_id, page=page, limit=limit
                 )
 
                 serialized_data = CreditCheckLogListSerializer(
-                    result['data'], 
-                    many=True, 
-                    context={'request': request}
+                    result["data"], many=True, context={"request": request}
                 ).data
 
                 paginator = self.pagination_class()
                 response = paginator.get_paginated_response(
                     data=serialized_data,
                     message="Credit check logs retrieved successfully.",
-                    pagination=result['pagination']
+                    pagination=result["pagination"],
                 )
 
                 log_audit_event(
@@ -173,7 +195,7 @@ class CreditCheckLogCRUDView(APIView):
                 return response
 
             # Get latest credit check for a debtor
-            latest_debtor_id = request.query_params.get('latest_for_debtor')
+            latest_debtor_id = request.query_params.get("latest_for_debtor")
             if latest_debtor_id:
                 latest = CreditCheckService.get_latest(latest_debtor_id)
                 if not latest:
@@ -183,7 +205,9 @@ class CreditCheckLogCRUDView(APIView):
                         status=status.HTTP_200_OK,
                     )
 
-                serializer = CreditCheckLogReadSerializer(latest, context={"request": request})
+                serializer = CreditCheckLogReadSerializer(
+                    latest, context={"request": request}
+                )
                 return _success(
                     data=serializer.data,
                     message="Latest credit check retrieved.",
@@ -191,7 +215,9 @@ class CreditCheckLogCRUDView(APIView):
                 )
 
             return _error(
-                data={"detail": "debtor_id or latest_for_debtor parameter is required for listing."},
+                data={
+                    "detail": "debtor_id or latest_for_debtor parameter is required for listing."
+                },
                 message="Missing required parameter.",
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -219,36 +245,26 @@ class CreditCheckLogCRUDView(APIView):
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Create a new credit check log. Admin/Staff only."
+        description="Create a new credit check log. Admin/Staff only.",
     )
+    
     @transaction.atomic
     def post(self, request):
-        """Create a new credit check log."""
         user = request.user
         client_ip = get_client_ip(request)
-        user_agent = request.META.get("HTTP_USER_AGENT", "")
 
         if not can_edit(user):
             return _error(
-                data={"detail": "You do not have permission to create credit checks."},
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        serializer = CreditCheckLogCreateSerializer(data=request.data)
+        data = request.data.copy()
+        data["performed_by"] = user.pk
+
+        serializer = CreditCheckLogCreateSerializer(data=data)
 
         if not serializer.is_valid():
-            transaction.set_rollback(True)
-            log_audit_event(
-                request=request,
-                user=user,
-                action_type="create",
-                model_name="CreditCheckLog",
-                object_id="new",
-                changes={"error": serializer.errors, "data": request.data},
-                ip_address=client_ip,
-                user_agent=user_agent,
-            )
             return _error(
                 data=serializer.errors,
                 message="Validation error.",
@@ -256,22 +272,16 @@ class CreditCheckLogCRUDView(APIView):
             )
 
         try:
-            # Add performed_by from current user if not provided
-            data = serializer.validated_data
-            if not data.get('performed_by'):
-                data['performed_by'] = user
+            log_entry = serializer.save()
 
-            log_entry = CreditCheckService.create(
-                data=data,
-                user=user,
-                request=request
+            # Return the computed score
+            read_serializer = CreditCheckLogReadSerializer(
+                log_entry, context={"request": request}
             )
-
-            read_serializer = CreditCheckLogReadSerializer(log_entry, context={"request": request})
 
             return _success(
                 data=read_serializer.data,
-                message="Credit check log created successfully.",
+                message="Credit check performed successfully.",
                 status=status.HTTP_201_CREATED,
             )
 
@@ -280,7 +290,7 @@ class CreditCheckLogCRUDView(APIView):
             logger.exception("Credit check creation failed")
             return _error(
                 data={"detail": str(exc)},
-                message="Failed to create credit check log.",
+                message="Failed to perform credit check.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -298,7 +308,7 @@ class CreditCheckLogCRUDView(APIView):
                 fields={
                     "status": serializers.BooleanField(default=False),
                     "message": serializers.CharField(),
-                }
+                },
             ),
         },
         description="Credit check logs are immutable. PUT is not allowed.",
@@ -325,7 +335,7 @@ class CreditCheckLogCRUDView(APIView):
                 fields={
                     "status": serializers.BooleanField(default=False),
                     "message": serializers.CharField(),
-                }
+                },
             ),
         },
         description="Credit check logs are immutable. PATCH is not allowed.",
@@ -351,14 +361,14 @@ class CreditCheckLogCRUDView(APIView):
                 fields={
                     "status": serializers.BooleanField(),
                     "message": serializers.CharField(),
-                }
+                },
             ),
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer,
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Soft delete a credit check log. Admin/Staff only."
+        description="Soft delete a credit check log. Admin/Staff only.",
     )
     @transaction.atomic
     def delete(self, request, id):
@@ -383,11 +393,7 @@ class CreditCheckLogCRUDView(APIView):
             )
 
         try:
-            CreditCheckService.delete(
-                log_id=id,
-                user=user,
-                request=request
-            )
+            CreditCheckService.delete(log_id=id, user=user, request=request)
 
             return _success(
                 data=None,
@@ -409,10 +415,12 @@ class CreditCheckLogCRUDView(APIView):
 # Credit Check Statistics View
 # ----------------------------------------------------------------------
 
+
 class CreditCheckStatsView(APIView):
     """
     Get credit check statistics.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -432,17 +440,17 @@ class CreditCheckStatsView(APIView):
                     "status": serializers.BooleanField(),
                     "message": serializers.CharField(),
                     "data": serializers.DictField(),
-                }
+                },
             ),
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Get credit check statistics."
+        description="Get credit check statistics.",
     )
     def get(self, request):
         try:
-            debtor_id = request.query_params.get('debtor_id')
+            debtor_id = request.query_params.get("debtor_id")
             stats = CreditCheckService.get_statistics(debtor_id)
 
             return _success(

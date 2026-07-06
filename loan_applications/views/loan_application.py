@@ -16,6 +16,7 @@ from loan_applications.serializers.loan_application import (
 )
 from loan_applications.services.loan_application import LoanApplicationService
 from users.permissions.base import IsAccountActive, can_read, can_edit, is_admin
+from utils.helpers import filter_cleaner
 from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
 from utils.security import get_client_ip
 
@@ -174,7 +175,7 @@ class LoanApplicationCRUDView(APIView):
                 'to_date': request.query_params.get('to_date'),
                 'include_deleted': request.query_params.get('include_deleted', 'false').lower() == 'true',
             }
-            filters = {k: v for k, v in filters.items() if v is not None}
+            filters = filter_cleaner(filters)
 
             page = int(request.query_params.get('page', 1))
             limit = int(request.query_params.get('page_size', 20))

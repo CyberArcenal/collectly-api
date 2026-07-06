@@ -14,6 +14,7 @@ from payments.serializers.penalty_transaction import (
 )
 from payments.services.penalty_transaction import PenaltyTransactionService
 from users.permissions.base import IsAccountActive, can_read, can_edit, is_admin
+from utils.helpers import filter_cleaner
 from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
 from utils.security import get_client_ip
 
@@ -172,7 +173,7 @@ class PenaltyTransactionCRUDView(APIView):
                 'is_auto': request.query_params.get('is_auto'),
                 'include_deleted': request.query_params.get('include_deleted', 'false').lower() == 'true',
             }
-            filters = {k: v for k, v in filters.items() if v is not None}
+            filters = filter_cleaner(filters)
 
             # Convert is_auto to boolean
             if filters.get('is_auto') is not None:

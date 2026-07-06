@@ -15,6 +15,7 @@ from system_settings.serializers.system_setting import (
 )
 from system_settings.services.setting import SystemSettingService
 from users.permissions.base import IsAccountActive, can_read, can_edit, is_admin
+from utils.helpers import filter_cleaner
 from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
 from utils.security import get_client_ip
 
@@ -175,7 +176,7 @@ class SystemSettingCRUDView(APIView):
                 'search': request.query_params.get('search'),
                 'include_deleted': request.query_params.get('include_deleted', 'false').lower() == 'true',
             }
-            filters = {k: v for k, v in filters.items() if v is not None}
+            filters = filter_cleaner(filters)
 
             # Convert is_public to boolean
             if filters.get('is_public') is not None:

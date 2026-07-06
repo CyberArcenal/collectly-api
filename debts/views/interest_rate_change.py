@@ -12,6 +12,7 @@ from debts.serializers.interest_rate_change_log import (
 )
 from debts.services.interest_rate_change import InterestRateChangeService
 from users.permissions.base import IsAccountActive, can_read, can_edit
+from utils.helpers import filter_cleaner
 from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
 from utils.security import get_client_ip
 
@@ -131,7 +132,7 @@ class InterestRateChangeLogCRUDView(APIView):
                 'from_date': request.query_params.get('from_date'),
                 'to_date': request.query_params.get('to_date'),
             }
-            filters = {k: v for k, v in filters.items() if v is not None}
+            filters = filter_cleaner(filters)
 
             page = int(request.query_params.get('page', 1))
             limit = int(request.query_params.get('page_size', 20))

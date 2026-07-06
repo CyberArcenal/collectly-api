@@ -23,6 +23,7 @@ from users.permissions.base import (
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
+from utils.helpers import filter_cleaner
 from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
 from utils.security import get_client_ip
 
@@ -197,7 +198,7 @@ class BorrowerCRUDView(APIView):
                 == "true",
             }
             # Remove None values
-            filters = {k: v for k, v in filters.items() if v is not None}
+            filters = filter_cleaner(filters)
 
             page = int(request.query_params.get("page", 1))
             limit = int(request.query_params.get("page_size", 20))
@@ -214,8 +215,10 @@ class BorrowerCRUDView(APIView):
 
             paginator = self.pagination_class()
             # logger.debug(f"result: {result}")
-            data = BorrowerListSerializer(result['data'], many=True, context={'request': request}).data
-            
+            data = BorrowerListSerializer(
+                result["data"], many=True, context={"request": request}
+            ).data
+
             # logger.debug(f"Borrower data: {data}")
             response = paginator.get_paginated_response(
                 data=data,

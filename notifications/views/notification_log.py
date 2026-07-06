@@ -15,6 +15,7 @@ from notifications.serializers.notification_log import (
 )
 from notifications.services.notification_log import NotificationLogService
 from users.permissions.base import IsAccountActive, can_read, can_edit, is_admin
+from utils.helpers import filter_cleaner
 from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
 from utils.security import get_client_ip
 
@@ -185,7 +186,7 @@ class NotificationLogCRUDView(APIView):
                 "to_date": request.query_params.get("to_date"),
                 "search": request.query_params.get("search"),
             }
-            filters = {k: v for k, v in filters.items() if v is not None}
+            filters = filter_cleaner(filters)
 
             page = int(request.query_params.get("page", 1))
             limit = int(request.query_params.get("page_size", 20))
@@ -201,8 +202,10 @@ class NotificationLogCRUDView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialize_data = NotificationLogListSerializer(result['data'], context={'request': request}, many=True).data
+            # logger.debug(serialize_data)
             response = paginator.get_paginated_response(
-                data=result["data"],
+                data=serialize_data,
                 message="Notification logs retrieved successfully.",
                 pagination=result["pagination"],
             )

@@ -16,7 +16,9 @@ from debts.serializers.debt import (
 from debts.services.debt import DebtService
 from debts.services.interest_accrual import InterestAccrualService
 from debts.services.forgiveness import ForgivenessService
+from payments.serializers.payment_transaction import PaymentTransactionReadSerializer
 from users.permissions.base import IsAccountActive, can_read, can_edit, is_admin
+from utils.helpers import filter_cleaner
 from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
 from utils.security import get_client_ip
 
@@ -161,7 +163,7 @@ class DebtCRUDView(APIView):
                 'max_total_amount': request.query_params.get('max_total_amount'),
                 'include_deleted': request.query_params.get('include_deleted', 'false').lower() == 'true',
             }
-            filters = {k: v for k, v in filters.items() if v is not None}
+            filters = filter_cleaner(filters)
 
             page = int(request.query_params.get('page', 1))
             limit = int(request.query_params.get('page_size', 20))
@@ -1451,9 +1453,6 @@ class DebtDebtsInBucketView(APIView):
 # ===================================================================
 
 class DebtMarkPeriodPaidView(APIView):
-    """
-    Mark all debts for a borrower in a period as paid.
-    """
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -1462,7 +1461,9 @@ class DebtMarkPeriodPaidView(APIView):
             name="MarkPeriodPaidRequest",
             fields={
                 "borrowerId": serializers.IntegerField(),
-                "periodType": serializers.ChoiceField(choices=['weekly', 'monthly', 'semi-annual', 'yearly']),
+                "periodType": serializers.ChoiceField(
+                    choices=['weekly', 'monthly', 'semi-annual', 'yearly']
+                ),
                 "paymentDate": serializers.DateField(),
                 "methodId": serializers.IntegerField(),
             }
@@ -1471,7 +1472,7 @@ class DebtMarkPeriodPaidView(APIView):
             200: inline_serializer(
                 name="MarkPeriodPaidResponse",
                 fields={
-                    "payments": serializers.ListField(child=serializers.DictField()),
+                    "payments": PaymentTransactionReadSerializer(many=True),
                     "count": serializers.IntegerField(),
                 }
             ),
@@ -1484,7 +1485,6 @@ class DebtMarkPeriodPaidView(APIView):
     )
     @transaction.atomic
     def post(self, request):
-        """Mark period paid."""
         user = request.user
         client_ip = get_client_ip(request)
         user_agent = request.META.get("HTTP_USER_AGENT", "")
@@ -1496,59 +1496,43 @@ class DebtMarkPeriodPaidView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        borrower_id = request.data.get("borrowerId")
-        period_type = request.data.get("periodType")
-        payment_date = request.data.get("paymentDate")
-        method_id = request.data.get("methodId")
+        
+        data = {
+            "borrower_id": request.data.get("borrowerId"),
+            "period_type": request.data.get("periodType"),
+            "payment_date": request.data.get("paymentDate"),
+            "method_id": request.data.get("methodId"),
+        }
 
-        if not borrower_id:
+        # Validate required fields
+        missing = [k for k, v in data.items() if v is None]
+        if missing:
             return _error(
-                data={"detail": "borrowerId is required."},
-                message="Validation error.",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not period_type:
-            return _error(
-                data={"detail": "periodType is required."},
-                message="Validation error.",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not payment_date:
-            return _error(
-                data={"detail": "paymentDate is required."},
-                message="Validation error.",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not method_id:
-            return _error(
-                data={"detail": "methodId is required."},
+                data={"detail": f"Missing required fields: {', '.join(missing)}"},
                 message="Validation error.",
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            result = DebtService.mark_period_paid(
-                borrower_id=borrower_id,
-                period_type=period_type,
-                payment_date=payment_date,
-                method_id=method_id,
-                user=user,
-                request=request
-            )
+            result = DebtService.mark_period_paid(**data, user=user, request=request)
+
+            # ✅ Serialize payments using PaymentTransactionReadSerializer
+            serialized_payments = PaymentTransactionReadSerializer(
+                result["payments"],
+                many=True,
+                context={"request": request}
+            ).data
 
             log_audit_event(
                 request=request,
                 user=user,
-                action_type="mark_period_paid",
+                action_type="payment_create",
                 model_name="Debt",
                 object_id="period",
                 changes={
-                    "borrower_id": borrower_id,
-                    "period_type": period_type,
-                    "count": result['count'],
+                    "borrower_id": data["borrower_id"],
+                    "period_type": data["period_type"],
+                    "count": result["count"],
                 },
                 ip_address=client_ip,
                 user_agent=user_agent,
@@ -1556,8 +1540,8 @@ class DebtMarkPeriodPaidView(APIView):
 
             return _success(
                 data={
-                    "payments": result['payments'],
-                    "count": result['count'],
+                    "payments": serialized_payments,
+                    "count": result["count"],
                 },
                 message=f"{result['count']} debts marked as paid successfully.",
                 status=status.HTTP_200_OK,

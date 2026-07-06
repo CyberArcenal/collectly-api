@@ -21,6 +21,7 @@ from system_settings.utils import (
     min_credit_score_for_approval,
     require_loan_agreement,
 )
+from utils.helpers import camel_to_snake
 from utils.pagination import paginate_queryset
 
 logger = logging.getLogger(__name__)
@@ -139,6 +140,7 @@ class LoanApplicationService:
                 qs = qs.filter(requested_amount__lte=filters['max_amount'])
 
         # Apply sorting
+        sort_by = camel_to_snake(sort_by)
         if sort_order.lower() == 'asc':
             sort_by = sort_by
         else:

@@ -15,6 +15,7 @@ from loan_agreements.serializers.loan_agreement import (
 )
 from loan_agreements.services.loan_agreement import LoanAgreementService
 from users.permissions.base import IsAccountActive, can_read, can_edit, is_admin
+from utils.helpers import filter_cleaner
 from utils.response import BasePaginatedSerializer, CustomPagination, _success, _error
 from utils.security import get_client_ip
 from django.utils import timezone
@@ -162,7 +163,7 @@ class LoanAgreementCRUDView(APIView):
                 'include_deleted': request.query_params.get('include_deleted', 'false').lower() == 'true',
             }
             # Remove None values
-            filters = {k: v for k, v in filters.items() if v is not None}
+            filters = filter_cleaner(filters)
 
             # Convert has_file to boolean
             if filters.get('has_file') is not None:

@@ -20,6 +20,7 @@ from system_settings.utils import (
     enable_early_payment_discount,
     early_payment_discount_rate,
 )
+from utils.helpers import camel_to_snake
 from utils.pagination import paginate_queryset
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,9 @@ class PaymentTransactionService:
     # ============================================================
 
     @staticmethod
-    def get_by_id(payment_id: int, include_deleted: bool = False) -> Optional[PaymentTransaction]:
+    def get_by_id(
+        payment_id: int, include_deleted: bool = False
+    ) -> Optional[PaymentTransaction]:
         """
         Get a single payment by ID.
 
@@ -49,7 +52,7 @@ class PaymentTransactionService:
         Returns:
             PaymentTransaction instance or None if not found
         """
-        qs = PaymentTransaction.objects.select_related('debt', 'method')
+        qs = PaymentTransaction.objects.select_related("debt", "method")
         if not include_deleted:
             qs = qs.filter(deleted_at__isnull=True)
 
@@ -63,8 +66,8 @@ class PaymentTransactionService:
         filters: Optional[Dict[str, Any]] = None,
         page: int = 1,
         limit: int = 20,
-        sort_by: str = 'payment_date',
-        sort_order: str = 'desc'
+        sort_by: str = "payment_date",
+        sort_order: str = "desc",
     ) -> Dict[str, Any]:
         """
         Get paginated list of payments with filters.
@@ -82,53 +85,54 @@ class PaymentTransactionService:
                 'pagination': pagination metadata
             }
         """
-        qs = PaymentTransaction.objects.select_related('debt', 'method', 'recorded_by')
+        qs = PaymentTransaction.objects.select_related("debt", "method", "recorded_by")
 
         # Handle deleted filtering based on include_deleted flag
-        include_deleted = filters.get('include_deleted', False) if filters else False
+        include_deleted = filters.get("include_deleted", False) if filters else False
         if not include_deleted:
             qs = qs.filter(deleted_at__isnull=True)
 
         # Apply filters
         if filters:
-            if filters.get('debt_id'):
-                qs = qs.filter(debt_id=filters['debt_id'])
+            if filters.get("debt_id"):
+                qs = qs.filter(debt_id=filters["debt_id"])
 
-            if filters.get('borrower_id'):
-                qs = qs.filter(debt__borrower_id=filters['borrower_id'])
+            if filters.get("borrower_id"):
+                qs = qs.filter(debt__borrower_id=filters["borrower_id"])
 
-            if filters.get('method_id'):
-                qs = qs.filter(method_id=filters['method_id'])
+            if filters.get("method_id"):
+                qs = qs.filter(method_id=filters["method_id"])
 
-            if filters.get('reference'):
-                qs = qs.filter(reference__icontains=filters['reference'])
+            if filters.get("reference"):
+                qs = qs.filter(reference__icontains=filters["reference"])
 
-            if filters.get('payment_date_from'):
-                qs = qs.filter(payment_date__gte=filters['payment_date_from'])
+            if filters.get("payment_date_from"):
+                qs = qs.filter(payment_date__gte=filters["payment_date_from"])
 
-            if filters.get('payment_date_to'):
-                qs = qs.filter(payment_date__lte=filters['payment_date_to'])
+            if filters.get("payment_date_to"):
+                qs = qs.filter(payment_date__lte=filters["payment_date_to"])
 
-            if filters.get('min_amount'):
-                qs = qs.filter(amount__gte=filters['min_amount'])
+            if filters.get("min_amount"):
+                qs = qs.filter(amount__gte=filters["min_amount"])
 
-            if filters.get('max_amount'):
-                qs = qs.filter(amount__lte=filters['max_amount'])
+            if filters.get("max_amount"):
+                qs = qs.filter(amount__lte=filters["max_amount"])
 
-            if filters.get('search'):
-                search = filters['search']
+            if filters.get("search"):
+                search = filters["search"]
                 qs = qs.filter(
-                    Q(reference__icontains=search) |
-                    Q(notes__icontains=search) |
-                    Q(debt__name__icontains=search) |
-                    Q(debt__borrower__name__icontains=search)
+                    Q(reference__icontains=search)
+                    | Q(notes__icontains=search)
+                    | Q(debt__name__icontains=search)
+                    | Q(debt__borrower__name__icontains=search)
                 )
 
         # Apply sorting
-        if sort_order.lower() == 'asc':
+        sort_by = camel_to_snake(sort_by)
+        if sort_order.lower() == "asc":
             sort_by = sort_by
         else:
-            sort_by = f'-{sort_by}'
+            sort_by = f"-{sort_by}"
         qs = qs.order_by(sort_by)
 
         return paginate_queryset(qs, page, limit)
@@ -144,29 +148,34 @@ class PaymentTransactionService:
         qs = PaymentTransaction.objects.filter(deleted_at__isnull=True)
 
         total_payments = qs.count()
-        total_amount = qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-        average_amount = total_amount / total_payments if total_payments > 0 else Decimal('0')
+        total_amount = qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        average_amount = (
+            total_amount / total_payments if total_payments > 0 else Decimal("0")
+        )
 
         # Last 30 days
         thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
         recent = qs.filter(payment_date__gte=thirty_days_ago).count()
 
         # By method
-        by_method = qs.values('method__name').annotate(
-            count=Count('id'),
-            total=Sum('amount')
-        ).order_by('-count')
+        by_method = (
+            qs.values("method__name")
+            .annotate(count=Count("id"), total=Sum("amount"))
+            .order_by("-count")
+        )
 
         return {
-            'total_payments': total_payments,
-            'total_amount_collected': total_amount,
-            'average_payment_amount': round(average_amount, 2),
-            'payments_last_30_days': recent,
-            'by_method': list(by_method),
+            "total_payments": total_payments,
+            "total_amount_collected": total_amount,
+            "average_payment_amount": round(average_amount, 2),
+            "payments_last_30_days": recent,
+            "by_method": list(by_method),
         }
 
     @staticmethod
-    def get_collection_report(from_date: date, to_date: date, target: Decimal) -> Dict[str, Any]:
+    def get_collection_report(
+        from_date: date, to_date: date, target: Decimal
+    ) -> Dict[str, Any]:
         """
         Get collection report for a date range.
 
@@ -188,12 +197,12 @@ class PaymentTransactionService:
         payments = PaymentTransaction.objects.filter(
             deleted_at__isnull=True,
             payment_date__gte=from_date,
-            payment_date__lte=to_date
-        ).select_related('debt__borrower')
+            payment_date__lte=to_date,
+        ).select_related("debt__borrower")
 
         # Group by date
         by_date = defaultdict(Decimal)
-        by_debtor = defaultdict(lambda: {'total': Decimal('0'), 'count': 0, 'name': ''})
+        by_debtor = defaultdict(lambda: {"total": Decimal("0"), "count": 0, "name": ""})
 
         for payment in payments:
             date_key = payment.payment_date.isoformat()
@@ -201,51 +210,61 @@ class PaymentTransactionService:
 
             if payment.debt and payment.debt.borrower:
                 debtor = payment.debt.borrower
-                by_debtor[debtor.id]['total'] += payment.amount
-                by_debtor[debtor.id]['count'] += 1
-                by_debtor[debtor.id]['name'] = debtor.name
+                by_debtor[debtor.id]["total"] += payment.amount
+                by_debtor[debtor.id]["count"] += 1
+                by_debtor[debtor.id]["name"] = debtor.name
 
         total_actual = sum(by_date.values())
         total_expected = target
-        collection_rate = (total_actual / total_expected * 100) if total_expected > 0 else 0
+        collection_rate = (
+            (total_actual / total_expected * 100) if total_expected > 0 else 0
+        )
 
         # Generate daily data points
         data_points = []
         current = from_date
         days_in_period = (to_date - from_date).days + 1
-        daily_expected = total_expected / days_in_period if days_in_period > 0 else Decimal('0')
+        daily_expected = (
+            total_expected / days_in_period if days_in_period > 0 else Decimal("0")
+        )
 
         while current <= to_date:
             date_key = current.isoformat()
-            data_points.append({
-                'date': date_key,
-                'actual_collected': by_date.get(date_key, Decimal('0')),
-                'expected_collected': round(daily_expected, 2),
-            })
+            data_points.append(
+                {
+                    "date": date_key,
+                    "actual_collected": by_date.get(date_key, Decimal("0")),
+                    "expected_collected": round(daily_expected, 2),
+                }
+            )
             current += timedelta(days=1)
 
         # Sort debtors by total
         debtors_list = []
         for debtor_id, data in by_debtor.items():
-            debtors_list.append({
-                'debtor_id': debtor_id,
-                'debtor_name': data['name'],
-                'total_paid': data['total'],
-                'transaction_count': data['count'],
-            })
-        debtors_list.sort(key=lambda x: x['total_paid'], reverse=True)
+            debtors_list.append(
+                {
+                    "debtor_id": debtor_id,
+                    "debtor_name": data["name"],
+                    "total_paid": data["total"],
+                    "transaction_count": data["count"],
+                }
+            )
+        debtors_list.sort(key=lambda x: x["total_paid"], reverse=True)
 
         return {
-            'period': {
-                'from': from_date.isoformat(),
-                'to': to_date.isoformat(),
+            "period": {
+                "from": from_date.isoformat(),
+                "to": to_date.isoformat(),
             },
-            'total_actual': total_actual,
-            'total_expected': total_expected,
-            'collection_rate': round(collection_rate, 2),
-            'average_per_day': round(total_actual / len(data_points) if data_points else 0, 2),
-            'data_points': data_points,
-            'payments_by_debtor': debtors_list,
+            "total_actual": total_actual,
+            "total_expected": total_expected,
+            "collection_rate": round(collection_rate, 2),
+            "average_per_day": round(
+                total_actual / len(data_points) if data_points else 0, 2
+            ),
+            "data_points": data_points,
+            "payments_by_debtor": debtors_list,
         }
 
     # ============================================================
@@ -278,12 +297,12 @@ class PaymentTransactionService:
             ValidationError: If validation fails
         """
         # Validate debt exists
-        debt = Debt.objects.filter(id=data.get('debt_id')).first()
+        debt = Debt.objects.filter(id=data.get("debt_id")).first()
         if not debt:
-            raise ValidationError({'debt_id': 'Debt not found.'})
+            raise ValidationError({"debt_id": "Debt not found."})
 
         # Accrue interest up to payment date
-        payment_date = data.get('payment_date')
+        payment_date = data.get("payment_date")
         if isinstance(payment_date, str):
             payment_date = datetime.fromisoformat(payment_date).date()
         elif payment_date is None:
@@ -292,39 +311,43 @@ class PaymentTransactionService:
         InterestAccrualService.apply_accrual(debt, payment_date)
 
         # Get amount and apply early payment discount if applicable
-        amount = Decimal(str(data.get('amount')))
+        amount = Decimal(str(data.get("amount")))
         discount_applied = False
-        discount_amount = Decimal('0')
+        discount_amount = Decimal("0")
         original_amount = amount
 
         if enable_early_payment_discount() and debt.due_date:
             # Check if payment is early and full
             is_early = payment_date < debt.due_date
             remaining_before_payment = debt.remaining_amount
-            is_full_payment = abs(amount - remaining_before_payment) < Decimal('0.01')
+            is_full_payment = abs(amount - remaining_before_payment) < Decimal("0.01")
 
             if is_early and is_full_payment:
                 discount_rate = early_payment_discount_rate()
                 if discount_rate > 0:
-                    discount_amount = remaining_before_payment * (Decimal(str(discount_rate)) / Decimal('100'))
+                    discount_amount = remaining_before_payment * (
+                        Decimal(str(discount_rate)) / Decimal("100")
+                    )
                     amount = remaining_before_payment - discount_amount
                     discount_applied = True
 
         # Validate payment amount does not exceed remaining balance
         if amount > debt.remaining_amount:
-            raise ValidationError({
-                'amount': f'Payment amount (₱{amount:,.2f}) exceeds remaining balance (₱{debt.remaining_amount:,.2f}).'
-            })
+            raise ValidationError(
+                {
+                    "amount": f"Payment amount (₱{amount:,.2f}) exceeds remaining balance (₱{debt.remaining_amount:,.2f})."
+                }
+            )
 
         # Validate payment method
         method = None
-        if data.get('method_id'):
-            method = PaymentMethod.objects.filter(id=data['method_id']).first()
+        if data.get("method_id"):
+            method = PaymentMethod.objects.filter(id=data["method_id"]).first()
             if not method:
-                raise ValidationError({'method_id': 'Payment method not found.'})
+                raise ValidationError({"method_id": "Payment method not found."})
 
         # Generate reference if not provided
-        reference = data.get('reference')
+        reference = data.get("reference")
         if not reference:
             reference = PaymentTransactionService._generate_reference()
 
@@ -335,21 +358,22 @@ class PaymentTransactionService:
             amount=amount,
             payment_date=payment_date,
             reference=reference,
-            notes=data.get('notes'),
-            recorded_by=data.get('recorded_by'),
-            recorded_at=timezone.now()
+            notes=data.get("notes"),
+            recorded_by=data.get("recorded_by"),
+            recorded_at=timezone.now(),
         )
 
         # Update debt balances
         debt.paid_amount += payment.amount
         debt.remaining_amount = debt.total_amount - debt.paid_amount
         if debt.remaining_amount < 0:
-            debt.remaining_amount = Decimal('0')
+            debt.remaining_amount = Decimal("0")
         debt.save()
 
         # Update payment method stats
         if method:
             from payment_methods.services.payment_method import PaymentMethodService
+
             PaymentMethodService.increment_stats(method.id, payment.amount)
 
         # Audit log
@@ -357,15 +381,15 @@ class PaymentTransactionService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='payment_create',
-                model_name='PaymentTransaction',
+                action_type="payment_create",
+                model_name="PaymentTransaction",
                 object_id=str(payment.id),
                 changes={
-                    'data': data,
-                    'discount_applied': discount_applied,
-                    'discount_amount': float(discount_amount),
-                    'original_amount': float(original_amount),
-                }
+                    "data": data,
+                    "discount_applied": discount_applied,
+                    "discount_amount": float(discount_amount),
+                    "original_amount": float(original_amount),
+                },
             )
 
         logger.info(
@@ -393,25 +417,26 @@ class PaymentTransactionService:
         """
         payment = PaymentTransactionService.get_by_id(payment_id)
         if not payment:
-            raise ValidationError({'id': 'Payment not found.'})
+            raise ValidationError({"id": "Payment not found."})
 
         if payment.deleted_at:
-            raise ValidationError({'id': 'Payment is already voided.'})
+            raise ValidationError({"id": "Payment is already voided."})
 
         debt = payment.debt
 
         # Reverse payment amount
         debt.paid_amount -= payment.amount
         if debt.paid_amount < 0:
-            debt.paid_amount = Decimal('0')
+            debt.paid_amount = Decimal("0")
         debt.remaining_amount = debt.total_amount - debt.paid_amount
         if debt.remaining_amount < 0:
-            debt.remaining_amount = Decimal('0')
+            debt.remaining_amount = Decimal("0")
         debt.save()
 
         # Update payment method stats (decrement)
         if payment.method:
             from payment_methods.services.payment_method import PaymentMethodService
+
             PaymentMethodService.decrement_stats(payment.method.id, payment.amount)
 
         # Soft delete payment
@@ -422,10 +447,10 @@ class PaymentTransactionService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='payment_void',
-                model_name='PaymentTransaction',
+                action_type="payment_void",
+                model_name="PaymentTransaction",
                 object_id=str(payment.id),
-                changes={'voided_at': timezone.now()}
+                changes={"voided_at": timezone.now()},
             )
 
         logger.info(f"Payment voided: {payment.id}")
@@ -433,7 +458,9 @@ class PaymentTransactionService:
 
     @staticmethod
     @transaction.atomic
-    def update_payment(payment_id: int, data: Dict[str, Any], user=None, request=None, is_admin=False) -> PaymentTransaction:
+    def update_payment(
+        payment_id: int, data: Dict[str, Any], user=None, request=None, is_admin=False
+    ) -> PaymentTransaction:
         """
         Update an existing payment (admin only or within edit window).
 
@@ -452,61 +479,68 @@ class PaymentTransactionService:
         """
         payment = PaymentTransactionService.get_by_id(payment_id)
         if not payment:
-            raise ValidationError({'id': 'Payment not found.'})
+            raise ValidationError({"id": "Payment not found."})
 
         if payment.deleted_at:
-            raise ValidationError({'id': 'Cannot update a voided payment.'})
+            raise ValidationError({"id": "Cannot update a voided payment."})
 
         # Time limit check (24 hours) unless admin
         if not is_admin:
-            hours_since_creation = (timezone.now() - payment.created_at).total_seconds() / 3600
+            hours_since_creation = (
+                timezone.now() - payment.created_at
+            ).total_seconds() / 3600
             if hours_since_creation > 24:
-                raise ValidationError({
-                    'detail': 'Cannot edit payment after 24 hours. Contact admin for assistance.'
-                })
+                raise ValidationError(
+                    {
+                        "detail": "Cannot edit payment after 24 hours. Contact admin for assistance."
+                    }
+                )
 
         # Validate if amount or debt is changing, need to adjust debt balances
-        if data.get('amount') and data['amount'] != payment.amount:
+        if data.get("amount") and data["amount"] != payment.amount:
             old_amount = payment.amount
-            new_amount = Decimal(str(data['amount']))
+            new_amount = Decimal(str(data["amount"]))
             debt = payment.debt
 
             # Ensure new amount doesn't exceed remaining balance plus old amount
             if new_amount > debt.remaining_amount + old_amount:
-                raise ValidationError({
-                    'amount': f'New amount (₱{new_amount:,.2f}) exceeds available balance.'
-                })
+                raise ValidationError(
+                    {
+                        "amount": f"New amount (₱{new_amount:,.2f}) exceeds available balance."
+                    }
+                )
 
             # Adjust debt balances
             debt.paid_amount -= old_amount
             debt.paid_amount += new_amount
             debt.remaining_amount = debt.total_amount - debt.paid_amount
             if debt.remaining_amount < 0:
-                debt.remaining_amount = Decimal('0')
+                debt.remaining_amount = Decimal("0")
             debt.save()
 
             # Update payment method stats
             if payment.method:
                 from payment_methods.services.payment_method import PaymentMethodService
+
                 PaymentMethodService.decrement_stats(payment.method.id, old_amount)
                 PaymentMethodService.increment_stats(payment.method.id, new_amount)
 
             payment.amount = new_amount
 
         # Update other fields
-        if data.get('payment_date'):
-            payment.payment_date = data['payment_date']
+        if data.get("payment_date"):
+            payment.payment_date = data["payment_date"]
 
-        if data.get('reference'):
-            payment.reference = data['reference']
+        if data.get("reference"):
+            payment.reference = data["reference"]
 
-        if data.get('notes') is not None:
-            payment.notes = data['notes']
+        if data.get("notes") is not None:
+            payment.notes = data["notes"]
 
-        if data.get('method_id'):
-            method = PaymentMethod.objects.filter(id=data['method_id']).first()
+        if data.get("method_id"):
+            method = PaymentMethod.objects.filter(id=data["method_id"]).first()
             if not method:
-                raise ValidationError({'method_id': 'Payment method not found.'})
+                raise ValidationError({"method_id": "Payment method not found."})
             payment.method = method
 
         payment.save()
@@ -516,10 +550,10 @@ class PaymentTransactionService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='payment_update',
-                model_name='PaymentTransaction',
+                action_type="payment_update",
+                model_name="PaymentTransaction",
                 object_id=str(payment.id),
-                changes={'data': data}
+                changes={"data": data},
             )
 
         logger.info(f"Payment updated: {payment.id}")
@@ -537,7 +571,7 @@ class PaymentTransactionService:
         Returns:
             str: Unique reference in format PAY-YYYYMMDD-XXXXXXXX
         """
-        date_part = timezone.now().strftime('%Y%m%d')
+        date_part = timezone.now().strftime("%Y%m%d")
         random_part = str(uuid.uuid4())[:8].upper()
         return f"PAY-{date_part}-{random_part}"
 
@@ -557,18 +591,17 @@ class PaymentTransactionService:
             }
         """
         stats = PaymentTransaction.objects.filter(
-            debt_id=debt_id,
-            deleted_at__isnull=True
+            debt_id=debt_id, deleted_at__isnull=True
         ).aggregate(
-            total_amount=Sum('amount'),
-            payment_count=Count('id'),
-            last_payment_date=Max('payment_date')
+            total_amount=Sum("amount"),
+            payment_count=Count("id"),
+            last_payment_date=Max("payment_date"),
         )
 
         return {
-            'total_amount': stats.get('total_amount') or Decimal('0'),
-            'payment_count': stats.get('payment_count') or 0,
-            'last_payment_date': stats.get('last_payment_date'),
+            "total_amount": stats.get("total_amount") or Decimal("0"),
+            "payment_count": stats.get("payment_count") or 0,
+            "last_payment_date": stats.get("last_payment_date"),
         }
 
     # ============================================================
@@ -580,60 +613,60 @@ class PaymentTransactionService:
     def restore(payment_id: int, user=None, request=None) -> PaymentTransaction:
         """
         Restore a soft-deleted payment.
-        
+
         Args:
             payment_id: ID of the payment to restore
             user: User performing the action
             request: HTTP request object
-        
+
         Returns:
             PaymentTransaction: The restored payment instance
         """
         payment = PaymentTransaction.objects.filter(id=payment_id).first()
         if not payment:
-            raise ValidationError({'id': 'Payment not found.'})
-        
+            raise ValidationError({"id": "Payment not found."})
+
         if not payment.deleted_at:
-            raise ValidationError({'id': 'Payment is not deleted.'})
-        
+            raise ValidationError({"id": "Payment is not deleted."})
+
         # Restore the payment
         payment.restore()
-        
+
         # Restore debt balances
         debt = payment.debt
         if debt:
             debt.paid_amount += payment.amount
             debt.remaining_amount = debt.total_amount - debt.paid_amount
             if debt.remaining_amount < 0:
-                debt.remaining_amount = Decimal('0')
+                debt.remaining_amount = Decimal("0")
             debt.save()
-        
+
         # Restore payment method stats
         if payment.method:
             from payment_methods.services.payment_method import PaymentMethodService
+
             PaymentMethodService.increment_stats(payment.method.id, payment.amount)
-        
+
         # Audit log
         if user:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='payment_restore',
-                model_name='PaymentTransaction',
+                action_type="payment_restore",
+                model_name="PaymentTransaction",
                 object_id=str(payment.id),
-                changes={'restored_at': timezone.now()}
+                changes={"restored_at": timezone.now()},
             )
-        
+
         logger.info(f"Payment restored: {payment.id}")
         return payment
-
 
     @staticmethod
     @transaction.atomic
     def permanent_delete(payment_id: int, user=None, request=None) -> None:
         """
         Permanently delete a payment (hard delete).
-        
+
         Args:
             payment_id: ID of the payment to permanently delete
             user: User performing the action
@@ -641,28 +674,27 @@ class PaymentTransactionService:
         """
         payment = PaymentTransaction.objects.filter(id=payment_id).first()
         if not payment:
-            raise ValidationError({'id': 'Payment not found.'})
-        
+            raise ValidationError({"id": "Payment not found."})
+
         # If not voided, void it first
         if not payment.deleted_at:
             # Void the payment (reverses amounts)
             PaymentTransactionService.void_payment(payment_id, user, request)
             payment.refresh_from_db()
-        
+
         # Audit log before deletion
         if user:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='payment_permanent_delete',
-                model_name='PaymentTransaction',
+                action_type="payment_permanent_delete",
+                model_name="PaymentTransaction",
                 object_id=str(payment.id),
-                changes={'permanent': True}
+                changes={"permanent": True},
             )
-        
+
         payment.delete()
         logger.info(f"Payment permanently deleted: {payment_id}")
-
 
     # ============================================================
     # BULK OPERATIONS
@@ -670,138 +702,154 @@ class PaymentTransactionService:
 
     @staticmethod
     @transaction.atomic
-    def bulk_create(payments_data: List[Dict[str, Any]], user=None, request=None) -> Dict[str, Any]:
+    def bulk_create(
+        payments_data: List[Dict[str, Any]], user=None, request=None
+    ) -> Dict[str, Any]:
         """
         Bulk create multiple payments.
-        
+
         Args:
             payments_data: List of payment data dictionaries
             user: User performing the action
             request: HTTP request object
-        
+
         Returns:
             dict: {'created': list of created payments, 'errors': list of errors}
         """
-        results = {'created': [], 'errors': []}
-        
+        results = {"created": [], "errors": []}
+
         for data in payments_data:
             try:
                 # Validate required fields
-                if not data.get('debt_id'):
-                    raise ValidationError({'debt_id': 'Debt ID is required.'})
-                if not data.get('amount'):
-                    raise ValidationError({'amount': 'Amount is required.'})
-                if not data.get('payment_date'):
-                    raise ValidationError({'payment_date': 'Payment date is required.'})
-                
-                # Add recorded_by if not provided
-                if not data.get('recorded_by') and user:
-                    data['recorded_by'] = user
-                
-                payment = PaymentTransactionService.create(data, user, request)
-                results['created'].append(payment)
-            except Exception as e:
-                results['errors'].append({
-                    'payment': data,
-                    'error': str(e)
-                })
-        
-        return results
+                if not data.get("debt_id"):
+                    raise ValidationError({"debt_id": "Debt ID is required."})
+                if not data.get("amount"):
+                    raise ValidationError({"amount": "Amount is required."})
+                if not data.get("payment_date"):
+                    raise ValidationError({"payment_date": "Payment date is required."})
 
+                # Add recorded_by if not provided
+                if not data.get("recorded_by") and user:
+                    data["recorded_by"] = user
+
+                payment = PaymentTransactionService.create(data, user, request)
+                results["created"].append(payment)
+            except Exception as e:
+                results["errors"].append({"payment": data, "error": str(e)})
+
+        return results
 
     @staticmethod
     @transaction.atomic
-    def bulk_update(updates: List[Dict[str, Any]], user=None, request=None) -> Dict[str, Any]:
+    def bulk_update(
+        updates: List[Dict[str, Any]], user=None, request=None
+    ) -> Dict[str, Any]:
         """
         Bulk update multiple payments.
-        
+
         Args:
             updates: List of dicts with 'id' and 'updates' keys
             user: User performing the action
             request: HTTP request object
-        
+
         Returns:
             dict: {'updated': list of updated payments, 'errors': list of errors}
         """
-        results = {'updated': [], 'errors': []}
-        
+        results = {"updated": [], "errors": []}
+
         for item in updates:
             try:
-                payment_id = item.get('id')
-                data = item.get('updates', {})
-                
+                payment_id = item.get("id")
+                data = item.get("updates", {})
+
                 if not payment_id:
-                    raise ValidationError({'id': 'Payment ID is required.'})
-                
-                is_admin_user = user and user.is_admin if hasattr(user, 'is_admin') else False
+                    raise ValidationError({"id": "Payment ID is required."})
+
+                is_admin_user = (
+                    user and user.is_admin if hasattr(user, "is_admin") else False
+                )
                 updated = PaymentTransactionService.update(
                     payment_id=payment_id,
                     data=data,
                     user=user,
                     request=request,
-                    is_admin=is_admin_user
+                    is_admin=is_admin_user,
                 )
-                results['updated'].append(updated)
+                results["updated"].append(updated)
             except Exception as e:
-                results['errors'].append({
-                    'id': item.get('id'),
-                    'updates': item.get('updates', {}),
-                    'error': str(e)
-                })
-        
-        return results
+                results["errors"].append(
+                    {
+                        "id": item.get("id"),
+                        "updates": item.get("updates", {}),
+                        "error": str(e),
+                    }
+                )
 
+        return results
 
     # ============================================================
     # EXPORT
     # ============================================================
 
     @staticmethod
-    def export_payments(filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def export_payments(
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Export payments data for reporting.
-        
+
         Args:
             filters: Optional filters
-        
+
         Returns:
             list: List of payment dictionaries with selected fields
         """
         qs = PaymentTransaction.objects.filter(deleted_at__isnull=True).select_related(
-            'debt', 'debt__borrower', 'method'
+            "debt", "debt__borrower", "method"
         )
-        
+
         if filters:
-            if filters.get('debt_id'):
-                qs = qs.filter(debt_id=filters['debt_id'])
-            if filters.get('borrower_id'):
-                qs = qs.filter(debt__borrower_id=filters['borrower_id'])
-            if filters.get('method_id'):
-                qs = qs.filter(method_id=filters['method_id'])
-            if filters.get('payment_date_from'):
-                qs = qs.filter(payment_date__gte=filters['payment_date_from'])
-            if filters.get('payment_date_to'):
-                qs = qs.filter(payment_date__lte=filters['payment_date_to'])
-        
+            if filters.get("debt_id"):
+                qs = qs.filter(debt_id=filters["debt_id"])
+            if filters.get("borrower_id"):
+                qs = qs.filter(debt__borrower_id=filters["borrower_id"])
+            if filters.get("method_id"):
+                qs = qs.filter(method_id=filters["method_id"])
+            if filters.get("payment_date_from"):
+                qs = qs.filter(payment_date__gte=filters["payment_date_from"])
+            if filters.get("payment_date_to"):
+                qs = qs.filter(payment_date__lte=filters["payment_date_to"])
+
         export_data = []
         for payment in qs:
-            export_data.append({
-                'id': payment.id,
-                'debt_id': payment.debt_id,
-                'debt_name': payment.debt.name if payment.debt else None,
-                'borrower_name': payment.debt.borrower.name if payment.debt and payment.debt.borrower else None,
-                'borrower_contact': payment.debt.borrower.contact if payment.debt and payment.debt.borrower else None,
-                'amount': float(payment.amount),
-                'payment_date': payment.payment_date.isoformat(),
-                'reference': payment.reference,
-                'notes': payment.notes,
-                'method_name': payment.method.name if payment.method else None,
-                'recorded_at': payment.recorded_at.isoformat(),
-                'recorded_by': payment.recorded_by.username if payment.recorded_by else None,
-            })
-        
-        return export_data
+            export_data.append(
+                {
+                    "id": payment.id,
+                    "debt_id": payment.debt_id,
+                    "debt_name": payment.debt.name if payment.debt else None,
+                    "borrower_name": (
+                        payment.debt.borrower.name
+                        if payment.debt and payment.debt.borrower
+                        else None
+                    ),
+                    "borrower_contact": (
+                        payment.debt.borrower.contact
+                        if payment.debt and payment.debt.borrower
+                        else None
+                    ),
+                    "amount": float(payment.amount),
+                    "payment_date": payment.payment_date.isoformat(),
+                    "reference": payment.reference,
+                    "notes": payment.notes,
+                    "method_name": payment.method.name if payment.method else None,
+                    "recorded_at": payment.recorded_at.isoformat(),
+                    "recorded_by": (
+                        payment.recorded_by.username if payment.recorded_by else None
+                    ),
+                }
+            )
 
+        return export_data
 
     # ============================================================
     # IMPORT FROM CSV
@@ -812,89 +860,87 @@ class PaymentTransactionService:
     def import_from_csv(file_path: str, user=None, request=None) -> Dict[str, Any]:
         """
         Import payments from CSV file.
-        
+
         Args:
             file_path: Path to CSV file
             user: User performing the action
             request: HTTP request object
-        
+
         Returns:
             dict: {'imported': list of imported payments, 'errors': list of errors}
         """
         import csv
         from io import StringIO
-        
-        results = {'imported': [], 'errors': []}
-        
+
+        results = {"imported": [], "errors": []}
+
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
-            
+
             reader = csv.DictReader(StringIO(content))
             row_number = 1
-            
+
             for row in reader:
                 row_number += 1
                 try:
                     # Validate required fields
-                    debt_name = row.get('debt_name')
+                    debt_name = row.get("debt_name")
                     if not debt_name:
-                        raise ValidationError({'debt_name': 'Debt name is required.'})
-                    
+                        raise ValidationError({"debt_name": "Debt name is required."})
+
                     # Find debt
                     debt = Debt.objects.filter(
-                        name__icontains=debt_name,
-                        deleted_at__isnull=True
+                        name__icontains=debt_name, deleted_at__isnull=True
                     ).first()
-                    
+
                     if not debt:
                         # Try to find by borrower name
-                        borrower_name = row.get('borrower_name')
+                        borrower_name = row.get("borrower_name")
                         if borrower_name:
                             borrower = Borrower.objects.filter(
-                                name__icontains=borrower_name,
-                                deleted_at__isnull=True
+                                name__icontains=borrower_name, deleted_at__isnull=True
                             ).first()
                             if borrower:
                                 debt = Debt.objects.filter(
-                                    borrower=borrower,
-                                    deleted_at__isnull=True
+                                    borrower=borrower, deleted_at__isnull=True
                                 ).first()
-                    
+
                     if not debt:
-                        raise ValidationError({'debt_name': f'Debt "{debt_name}" not found.'})
-                    
+                        raise ValidationError(
+                            {"debt_name": f'Debt "{debt_name}" not found.'}
+                        )
+
                     # Find payment method
-                    method_name = row.get('method_name', 'Cash')
+                    method_name = row.get("method_name", "Cash")
                     method = PaymentMethod.objects.filter(
-                        name__icontains=method_name,
-                        deleted_at__isnull=True
+                        name__icontains=method_name, deleted_at__isnull=True
                     ).first()
-                    
+
                     # Prepare payment data
                     payment_data = {
-                        'debt_id': debt.id,
-                        'method_id': method.id if method else None,
-                        'amount': Decimal(row.get('amount', 0)),
-                        'payment_date': row.get('payment_date'),
-                        'reference': row.get('reference'),
-                        'notes': row.get('notes'),
+                        "debt_id": debt.id,
+                        "method_id": method.id if method else None,
+                        "amount": Decimal(row.get("amount", 0)),
+                        "payment_date": row.get("payment_date"),
+                        "reference": row.get("reference"),
+                        "notes": row.get("notes"),
                     }
-                    
+
                     if user:
-                        payment_data['recorded_by'] = user
-                    
-                    payment = PaymentTransactionService.create(payment_data, user, request)
-                    results['imported'].append(payment)
-                    
+                        payment_data["recorded_by"] = user
+
+                    payment = PaymentTransactionService.create(
+                        payment_data, user, request
+                    )
+                    results["imported"].append(payment)
+
                 except Exception as e:
-                    results['errors'].append({
-                        'row': row_number,
-                        'data': row,
-                        'error': str(e)
-                    })
-            
+                    results["errors"].append(
+                        {"row": row_number, "data": row, "error": str(e)}
+                    )
+
             return results
-        
+
         except Exception as e:
-            raise ValidationError({'file': f'Failed to read CSV: {str(e)}'})
+            raise ValidationError({"file": f"Failed to read CSV: {str(e)}"})

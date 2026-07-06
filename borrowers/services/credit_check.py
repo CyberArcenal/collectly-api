@@ -10,6 +10,7 @@ from django.utils import timezone
 from audit.utils.log import log_audit_event
 from borrowers.models.credit_check_log import CreditCheckLog
 from borrowers.models.borrower import Borrower
+from payments.models.payment_transaction import PaymentTransaction
 from utils.pagination import paginate_queryset
 
 logger = logging.getLogger(__name__)
@@ -424,3 +425,108 @@ class CreditCheckService:
             bool: True if valid
         """
         return 300 <= score <= 850
+
+    @staticmethod
+    def compute_score(borrower_id: int) -> Dict[str, Any]:
+        """
+        Compute credit score based on borrower's debt history.
+        Same algorithm as Electron's _computeScore().
+        """
+        from django.db.models import Sum, Count, Q, Avg
+        from django.utils import timezone
+        from debts.models import Debt
+        
+        # Get all active debts for this borrower
+        debts = Debt.objects.filter(
+            borrower_id=borrower_id,
+            deleted_at__isnull=True
+        ).prefetch_related('payments')
+        
+        if not debts.exists():
+            return {
+                'score': 700,
+                'risk_level': 'Medium',
+                'remarks': 'No debt history. Default score.',
+            }
+        
+        total_debt = debts.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+        total_paid = debts.aggregate(Sum('paid_amount'))['paid_amount__sum'] or 0
+        total_transactions = PaymentTransaction.objects.filter(
+            debt__borrower_id=borrower_id
+        ).count()
+        
+        # Overdue count
+        now = timezone.now()
+        overdue_count = debts.filter(
+            due_date__lt=now,
+            status__in=['active', 'overdue']
+        ).count()
+        
+        # Average payment delay
+        payments = PaymentTransaction.objects.filter(
+            debt__borrower_id=borrower_id
+        ).select_related('debt')
+        
+        delays = []
+        for payment in payments:
+            debt = payment.debt
+            if payment.payment_date > debt.due_date:
+                delay = (payment.payment_date - debt.due_date).days
+                delays.append(delay)
+        
+        avg_delay = sum(delays) / len(delays) if delays else 0
+        
+        # ===== SCORING ALGORITHM (300-850 range) =====
+        score = 700
+        
+        # Debt amount penalties
+        if total_debt > 100000:
+            score -= 50
+        elif total_debt > 50000:
+            score -= 30
+        elif total_debt > 10000:
+            score -= 15
+        
+        # Overdue penalties
+        if overdue_count > 0:
+            score -= min(100, overdue_count * 20)
+        
+        # Payment ratio bonus
+        paid_ratio = total_paid / total_debt if total_debt > 0 else 1
+        if paid_ratio > 0.8:
+            score += 20
+        elif paid_ratio > 0.5:
+            score += 10
+        
+        # Transaction history bonus
+        if total_transactions > 5:
+            score += 10
+        
+        # Delay penalties
+        if avg_delay > 30:
+            score -= 25
+        elif avg_delay > 15:
+            score -= 10
+        
+        # Clamp
+        score = max(300, min(850, score))
+        
+        # Risk level
+        if score >= 700:
+            risk_level = 'Low'
+            remarks = 'Good credit history. Low risk.'
+        elif score >= 500:
+            risk_level = 'Medium'
+            remarks = 'Moderate risk. Monitor payments.'
+        else:
+            risk_level = 'High'
+            remarks = 'High risk. Overdue debts detected.'
+        
+        if overdue_count > 0:
+            remarks += f' Has {overdue_count} overdue debt(s).'
+        
+        return {
+            'score': score,
+            'risk_level': risk_level,
+            'remarks': remarks,
+        }

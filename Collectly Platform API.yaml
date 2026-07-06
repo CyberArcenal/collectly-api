@@ -6525,9 +6525,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/:
+  /api/v1/loan_agreements/:
     get:
-      operationId: api_v1_loan_agreements_loan_agreements_retrieve
+      operationId: api_v1_loan_agreements_retrieve
       description: Retrieve a single loan agreement (if id provided) or a paginated
         list.
       parameters:
@@ -6602,7 +6602,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_loan_agreements_loan_agreements_create
+      operationId: api_v1_loan_agreements_create
       description: Create a new loan agreement. Admin/Staff only.
       tags:
       - Loan Agreements
@@ -6653,7 +6653,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_loan_agreements_loan_agreements_update
+      operationId: api_v1_loan_agreements_update
       description: Full update of an existing loan agreement. Admin/Staff only. Cannot
         update signed agreements.
       tags:
@@ -6710,7 +6710,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_loan_agreements_loan_agreements_partial_update
+      operationId: api_v1_loan_agreements_partial_update
       description: Partial update of an existing loan agreement. Admin/Staff only.
         Cannot update signed agreements.
       tags:
@@ -6767,7 +6767,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     delete:
-      operationId: api_v1_loan_agreements_loan_agreements_destroy
+      operationId: api_v1_loan_agreements_destroy
       description: Soft delete a loan agreement. Admin/Staff only. Signed agreements
         can only be deleted by admin with flag.
       parameters:
@@ -6813,9 +6813,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/{id}/:
+  /api/v1/loan_agreements/{id}/:
     get:
-      operationId: api_v1_loan_agreements_loan_agreements_retrieve_2
+      operationId: api_v1_loan_agreements_retrieve_2
       description: Retrieve a single loan agreement (if id provided) or a paginated
         list.
       parameters:
@@ -6895,7 +6895,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_loan_agreements_loan_agreements_create_2
+      operationId: api_v1_loan_agreements_create_2
       description: Create a new loan agreement. Admin/Staff only.
       parameters:
       - in: path
@@ -6952,7 +6952,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_loan_agreements_loan_agreements_update_2
+      operationId: api_v1_loan_agreements_update_2
       description: Full update of an existing loan agreement. Admin/Staff only. Cannot
         update signed agreements.
       parameters:
@@ -7015,7 +7015,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_loan_agreements_loan_agreements_partial_update_2
+      operationId: api_v1_loan_agreements_partial_update_2
       description: Partial update of an existing loan agreement. Admin/Staff only.
         Cannot update signed agreements.
       parameters:
@@ -7078,7 +7078,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     delete:
-      operationId: api_v1_loan_agreements_loan_agreements_destroy_2
+      operationId: api_v1_loan_agreements_destroy_2
       description: Soft delete a loan agreement. Admin/Staff only. Signed agreements
         can only be deleted by admin with flag.
       parameters:
@@ -7129,9 +7129,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/{id}/permanent/:
+  /api/v1/loan_agreements/{id}/permanent/:
     delete:
-      operationId: api_v1_loan_agreements_loan_agreements_permanent_destroy
+      operationId: api_v1_loan_agreements_permanent_destroy
       description: Permanently delete a loan agreement (hard delete). Admin only.
       parameters:
       - in: query
@@ -7187,9 +7187,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/{id}/restore/:
+  /api/v1/loan_agreements/{id}/restore/:
     post:
-      operationId: api_v1_loan_agreements_loan_agreements_restore_create
+      operationId: api_v1_loan_agreements_restore_create
       description: Restore a soft-deleted loan agreement. Admin only.
       parameters:
       - in: path
@@ -7239,9 +7239,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/{id}/sign/:
+  /api/v1/loan_agreements/{id}/sign/:
     post:
-      operationId: api_v1_loan_agreements_loan_agreements_sign_create
+      operationId: api_v1_loan_agreements_sign_create
       description: Sign a loan agreement (draft → signed). Admin/Staff only.
       parameters:
       - in: path
@@ -7303,9 +7303,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/bulkCreate/:
+  /api/v1/loan_agreements/bulkCreate/:
     post:
-      operationId: api_v1_loan_agreements_loan_agreements_bulkCreate_create
+      operationId: api_v1_loan_agreements_bulkCreate_create
       description: Bulk create multiple loan agreements. Admin/Staff only.
       tags:
       - Loan Agreements
@@ -7355,9 +7355,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/bulkUpdate/:
+  /api/v1/loan_agreements/bulkUpdate/:
     put:
-      operationId: api_v1_loan_agreements_loan_agreements_bulkUpdate_update
+      operationId: api_v1_loan_agreements_bulkUpdate_update
       description: Bulk update multiple loan agreements. Admin/Staff only.
       tags:
       - Loan Agreements
@@ -7407,9 +7407,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/export/:
+  /api/v1/loan_agreements/export/:
     post:
-      operationId: api_v1_loan_agreements_loan_agreements_export_create
+      operationId: api_v1_loan_agreements_export_create
       description: Export loan agreements to CSV or JSON.
       tags:
       - Loan Agreements
@@ -7458,9 +7458,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/import/:
+  /api/v1/loan_agreements/import/:
     post:
-      operationId: api_v1_loan_agreements_loan_agreements_import_create
+      operationId: api_v1_loan_agreements_import_create
       description: Import loan agreements from CSV content. Admin/Staff only.
       tags:
       - Loan Agreements
@@ -7510,9 +7510,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_agreements/loan-agreements/statistics/:
+  /api/v1/loan_agreements/statistics/:
     get:
-      operationId: api_v1_loan_agreements_loan_agreements_statistics_retrieve
+      operationId: api_v1_loan_agreements_statistics_retrieve
       description: Get loan agreement statistics including totals and breakdowns.
       tags:
       - Loan Agreements
@@ -7544,9 +7544,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_applications/loan-applications/:
+  /api/v1/loan_applications/:
     get:
-      operationId: api_v1_loan_applications_loan_applications_retrieve
+      operationId: api_v1_loan_applications_retrieve
       description: Retrieve a single loan application (if id provided) or a paginated
         list.
       parameters:
@@ -7621,7 +7621,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_loan_applications_loan_applications_create
+      operationId: api_v1_loan_applications_create
       description: Create a new loan application. Admin/Staff only.
       tags:
       - Loan Applications
@@ -7672,7 +7672,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_loan_applications_loan_applications_update
+      operationId: api_v1_loan_applications_update
       description: Full update of an existing loan application. Admin/Staff only.
         Only pending applications can be updated.
       tags:
@@ -7729,7 +7729,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_loan_applications_loan_applications_partial_update
+      operationId: api_v1_loan_applications_partial_update
       description: Partial update of an existing loan application. Admin/Staff only.
         Only pending applications can be updated.
       tags:
@@ -7786,7 +7786,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     delete:
-      operationId: api_v1_loan_applications_loan_applications_destroy
+      operationId: api_v1_loan_applications_destroy
       description: Soft delete a loan application. Admin/Staff only. Only pending
         applications can be deleted.
       tags:
@@ -7825,9 +7825,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_applications/loan-applications/{id}/:
+  /api/v1/loan_applications/{id}/:
     get:
-      operationId: api_v1_loan_applications_loan_applications_retrieve_2
+      operationId: api_v1_loan_applications_retrieve_2
       description: Retrieve a single loan application (if id provided) or a paginated
         list.
       parameters:
@@ -7907,7 +7907,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_loan_applications_loan_applications_create_2
+      operationId: api_v1_loan_applications_create_2
       description: Create a new loan application. Admin/Staff only.
       parameters:
       - in: path
@@ -7964,7 +7964,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_loan_applications_loan_applications_update_2
+      operationId: api_v1_loan_applications_update_2
       description: Full update of an existing loan application. Admin/Staff only.
         Only pending applications can be updated.
       parameters:
@@ -8027,7 +8027,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_loan_applications_loan_applications_partial_update_2
+      operationId: api_v1_loan_applications_partial_update_2
       description: Partial update of an existing loan application. Admin/Staff only.
         Only pending applications can be updated.
       parameters:
@@ -8090,7 +8090,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     delete:
-      operationId: api_v1_loan_applications_loan_applications_destroy_2
+      operationId: api_v1_loan_applications_destroy_2
       description: Soft delete a loan application. Admin/Staff only. Only pending
         applications can be deleted.
       parameters:
@@ -8135,9 +8135,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_applications/loan-applications/{id}/approve/:
+  /api/v1/loan_applications/{id}/approve/:
     post:
-      operationId: api_v1_loan_applications_loan_applications_approve_create
+      operationId: api_v1_loan_applications_approve_create
       description: Approve a pending loan application. Admin/Manager only.
       parameters:
       - in: path
@@ -8199,9 +8199,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_applications/loan-applications/{id}/permanent/:
+  /api/v1/loan_applications/{id}/permanent/:
     delete:
-      operationId: api_v1_loan_applications_loan_applications_permanent_destroy
+      operationId: api_v1_loan_applications_permanent_destroy
       description: Permanently delete a loan application (hard delete). Admin only.
         Only pending applications can be permanently deleted.
       parameters:
@@ -8252,9 +8252,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_applications/loan-applications/{id}/reject/:
+  /api/v1/loan_applications/{id}/reject/:
     post:
-      operationId: api_v1_loan_applications_loan_applications_reject_create
+      operationId: api_v1_loan_applications_reject_create
       description: Reject a pending loan application. Admin/Staff only.
       parameters:
       - in: path
@@ -8316,9 +8316,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_applications/loan-applications/{id}/restore/:
+  /api/v1/loan_applications/{id}/restore/:
     post:
-      operationId: api_v1_loan_applications_loan_applications_restore_create
+      operationId: api_v1_loan_applications_restore_create
       description: Restore a soft-deleted loan application. Admin only.
       parameters:
       - in: path
@@ -8368,9 +8368,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/loan_applications/loan-applications/stats/:
+  /api/v1/loan_applications/stats/:
     get:
-      operationId: api_v1_loan_applications_loan_applications_stats_retrieve
+      operationId: api_v1_loan_applications_stats_retrieve
       description: Get loan application statistics including counts by status and
         total amounts.
       tags:
@@ -8384,6 +8384,1079 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoanApplicationStatisticsResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/:
+    get:
+      operationId: api_v1_notifications_retrieve
+      description: Retrieve a single notification (if id provided) or a paginated
+        list.
+      parameters:
+      - in: query
+        name: debt_id
+        schema:
+          type: integer
+        description: Filter by debt ID
+      - in: query
+        name: from_date
+        schema:
+          type: string
+        description: Filter from date
+      - in: query
+        name: include_deleted
+        schema:
+          type: boolean
+        description: Include soft-deleted
+      - in: query
+        name: is_read
+        schema:
+          type: boolean
+        description: Filter by read status
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: Page number
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Items per page
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by title or message
+      - in: query
+        name: to_date
+        schema:
+          type: string
+        description: Filter to date
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by type
+      tags:
+      - Notifications
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    post:
+      operationId: api_v1_notifications_create
+      description: Create a new notification. Admin/Staff only.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationCreateRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationCreateResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    put:
+      operationId: api_v1_notifications_update
+      description: Full update of an existing notification. Admin/Staff only.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationUpdateRequest'
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationUpdateResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    patch:
+      operationId: api_v1_notifications_partial_update
+      description: Partial update of an existing notification. Admin/Staff only.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationUpdateResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    delete:
+      operationId: api_v1_notifications_destroy
+      description: Soft delete a notification. Admin/Staff only.
+      tags:
+      - Notifications
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '204':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDeleteResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/{id}/:
+    get:
+      operationId: api_v1_notifications_retrieve_2
+      description: Retrieve a single notification (if id provided) or a paginated
+        list.
+      parameters:
+      - in: query
+        name: debt_id
+        schema:
+          type: integer
+        description: Filter by debt ID
+      - in: query
+        name: from_date
+        schema:
+          type: string
+        description: Filter from date
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: query
+        name: include_deleted
+        schema:
+          type: boolean
+        description: Include soft-deleted
+      - in: query
+        name: is_read
+        schema:
+          type: boolean
+        description: Filter by read status
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: Page number
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Items per page
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search by title or message
+      - in: query
+        name: to_date
+        schema:
+          type: string
+        description: Filter to date
+      - in: query
+        name: type
+        schema:
+          type: string
+        description: Filter by type
+      tags:
+      - Notifications
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    post:
+      operationId: api_v1_notifications_create_2
+      description: Create a new notification. Admin/Staff only.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationCreateRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationCreateResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    put:
+      operationId: api_v1_notifications_update_2
+      description: Full update of an existing notification. Admin/Staff only.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationUpdateRequest'
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationUpdateResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    patch:
+      operationId: api_v1_notifications_partial_update_2
+      description: Partial update of an existing notification. Admin/Staff only.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationUpdateResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+    delete:
+      operationId: api_v1_notifications_destroy_2
+      description: Soft delete a notification. Admin/Staff only.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notifications
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '204':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDeleteResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/{id}/mark-read/:
+    patch:
+      operationId: api_v1_notifications_mark_read_partial_update
+      description: Mark a notification as read or unread.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationMarkReadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationMarkReadRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationMarkReadRequest'
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationMarkReadResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/{id}/permanent/:
+    delete:
+      operationId: api_v1_notifications_permanent_destroy
+      description: Permanently delete a notification (hard delete). Admin only.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notifications
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '204':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDeleteResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/{id}/restore/:
+    post:
+      operationId: api_v1_notifications_restore_create
+      description: Restore a soft-deleted notification. Admin only.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notifications
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationDetailResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/bulkCreate/:
+    post:
+      operationId: api_v1_notifications_bulkCreate_create
+      description: Bulk create multiple notifications. Admin/Staff only.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkCreateRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BulkCreateRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BulkCreateRequestRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkCreateResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/bulkUpdate/:
+    put:
+      operationId: api_v1_notifications_bulkUpdate_update
+      description: Bulk update multiple notifications. Admin/Staff only.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkUpdateRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BulkUpdateRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BulkUpdateRequestRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkUpdateResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/export/:
+    post:
+      operationId: api_v1_notifications_export_create
+      description: Export notifications to CSV or JSON.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExportRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExportRequestRequest'
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/import/:
+    post:
+      operationId: api_v1_notifications_import_create
+      description: Import notifications from CSV content. Admin/Staff only.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ImportRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImportRequestRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/mark-all-read/:
+    post:
+      operationId: api_v1_notifications_mark_all_read_create
+      description: Mark all notifications as read. Admin/Staff only.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationMarkAllReadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationMarkAllReadRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationMarkAllReadRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationMarkAllReadResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/notifications/mark-many-read/:
+    post:
+      operationId: api_v1_notifications_mark_many_read_create
+      description: Mark multiple notifications as read. Admin/Staff only.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkManyReadRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MarkManyReadRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MarkManyReadRequestRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarkManyReadResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           description: ''
         '401':
           content:
@@ -9173,1082 +10246,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/notifications/notifications/:
+  /api/v1/notifications/stats/:
     get:
-      operationId: api_v1_notifications_notifications_retrieve
-      description: Retrieve a single notification (if id provided) or a paginated
-        list.
-      parameters:
-      - in: query
-        name: debt_id
-        schema:
-          type: integer
-        description: Filter by debt ID
-      - in: query
-        name: from_date
-        schema:
-          type: string
-        description: Filter from date
-      - in: query
-        name: include_deleted
-        schema:
-          type: boolean
-        description: Include soft-deleted
-      - in: query
-        name: is_read
-        schema:
-          type: boolean
-        description: Filter by read status
-      - in: query
-        name: page
-        schema:
-          type: integer
-        description: Page number
-      - in: query
-        name: page_size
-        schema:
-          type: integer
-        description: Items per page
-      - in: query
-        name: search
-        schema:
-          type: string
-        description: Search by title or message
-      - in: query
-        name: to_date
-        schema:
-          type: string
-        description: Filter to date
-      - in: query
-        name: type
-        schema:
-          type: string
-        description: Filter by type
-      tags:
-      - Notifications
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationListResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-    post:
-      operationId: api_v1_notifications_notifications_create
-      description: Create a new notification. Admin/Staff only.
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NotificationCreateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/NotificationCreateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/NotificationCreateRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationCreateResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-    put:
-      operationId: api_v1_notifications_notifications_update
-      description: Full update of an existing notification. Admin/Staff only.
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NotificationUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/NotificationUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/NotificationUpdateRequest'
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationUpdateResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-    patch:
-      operationId: api_v1_notifications_notifications_partial_update
-      description: Partial update of an existing notification. Admin/Staff only.
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationUpdateResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-    delete:
-      operationId: api_v1_notifications_notifications_destroy
-      description: Soft delete a notification. Admin/Staff only.
-      tags:
-      - Notifications
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '204':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationDeleteResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/{id}/:
-    get:
-      operationId: api_v1_notifications_notifications_retrieve_2
-      description: Retrieve a single notification (if id provided) or a paginated
-        list.
-      parameters:
-      - in: query
-        name: debt_id
-        schema:
-          type: integer
-        description: Filter by debt ID
-      - in: query
-        name: from_date
-        schema:
-          type: string
-        description: Filter from date
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      - in: query
-        name: include_deleted
-        schema:
-          type: boolean
-        description: Include soft-deleted
-      - in: query
-        name: is_read
-        schema:
-          type: boolean
-        description: Filter by read status
-      - in: query
-        name: page
-        schema:
-          type: integer
-        description: Page number
-      - in: query
-        name: page_size
-        schema:
-          type: integer
-        description: Items per page
-      - in: query
-        name: search
-        schema:
-          type: string
-        description: Search by title or message
-      - in: query
-        name: to_date
-        schema:
-          type: string
-        description: Filter to date
-      - in: query
-        name: type
-        schema:
-          type: string
-        description: Filter by type
-      tags:
-      - Notifications
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationListResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-    post:
-      operationId: api_v1_notifications_notifications_create_2
-      description: Create a new notification. Admin/Staff only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NotificationCreateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/NotificationCreateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/NotificationCreateRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationCreateResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-    put:
-      operationId: api_v1_notifications_notifications_update_2
-      description: Full update of an existing notification. Admin/Staff only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NotificationUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/NotificationUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/NotificationUpdateRequest'
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationUpdateResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-    patch:
-      operationId: api_v1_notifications_notifications_partial_update_2
-      description: Partial update of an existing notification. Admin/Staff only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedNotificationUpdateRequest'
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationUpdateResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-    delete:
-      operationId: api_v1_notifications_notifications_destroy_2
-      description: Soft delete a notification. Admin/Staff only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - Notifications
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '204':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationDeleteResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/{id}/mark-read/:
-    patch:
-      operationId: api_v1_notifications_notifications_mark_read_partial_update
-      description: Mark a notification as read or unread.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedNotificationMarkReadRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedNotificationMarkReadRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedNotificationMarkReadRequest'
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationMarkReadResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/{id}/permanent/:
-    delete:
-      operationId: api_v1_notifications_notifications_permanent_destroy
-      description: Permanently delete a notification (hard delete). Admin only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - Notifications
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '204':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationDeleteResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/{id}/restore/:
-    post:
-      operationId: api_v1_notifications_notifications_restore_create
-      description: Restore a soft-deleted notification. Admin only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - Notifications
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationDetailResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/bulkCreate/:
-    post:
-      operationId: api_v1_notifications_notifications_bulkCreate_create
-      description: Bulk create multiple notifications. Admin/Staff only.
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BulkCreateRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/BulkCreateRequestRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/BulkCreateRequestRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BulkCreateResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/bulkUpdate/:
-    put:
-      operationId: api_v1_notifications_notifications_bulkUpdate_update
-      description: Bulk update multiple notifications. Admin/Staff only.
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BulkUpdateRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/BulkUpdateRequestRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/BulkUpdateRequestRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BulkUpdateResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/export/:
-    post:
-      operationId: api_v1_notifications_notifications_export_create
-      description: Export notifications to CSV or JSON.
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ExportRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ExportRequestRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ExportRequestRequest'
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ExportResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/import/:
-    post:
-      operationId: api_v1_notifications_notifications_import_create
-      description: Import notifications from CSV content. Admin/Staff only.
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ImportRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ImportRequestRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ImportRequestRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/mark-all-read/:
-    post:
-      operationId: api_v1_notifications_notifications_mark_all_read_create
-      description: Mark all notifications as read. Admin/Staff only.
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NotificationMarkAllReadRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/NotificationMarkAllReadRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/NotificationMarkAllReadRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationMarkAllReadResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/mark-many-read/:
-    post:
-      operationId: api_v1_notifications_notifications_mark_many_read_create
-      description: Mark multiple notifications as read. Admin/Staff only.
-      tags:
-      - Notifications
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MarkManyReadRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/MarkManyReadRequestRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/MarkManyReadRequestRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MarkManyReadResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/notifications/notifications/stats/:
-    get:
-      operationId: api_v1_notifications_notifications_stats_retrieve
+      operationId: api_v1_notifications_stats_retrieve
       description: Get notification statistics including counts by type and read status.
       tags:
       - Notifications
@@ -10280,9 +10280,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/notifications/notifications/unread-count/:
+  /api/v1/notifications/unread-count/:
     get:
-      operationId: api_v1_notifications_notifications_unread_count_retrieve
+      operationId: api_v1_notifications_unread_count_retrieve
       description: Get the count of unread notifications.
       tags:
       - Notifications
@@ -10314,9 +10314,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payment_methods/payment-methods/:
+  /api/v1/payment_methods/:
     get:
-      operationId: api_v1_payment_methods_payment_methods_retrieve
+      operationId: api_v1_payment_methods_retrieve
       description: Retrieve a single payment method (if id provided) or a paginated
         list.
       parameters:
@@ -10366,7 +10366,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_payment_methods_payment_methods_create
+      operationId: api_v1_payment_methods_create
       description: Create a new payment method. Admin/Staff only.
       tags:
       - Payment Methods
@@ -10417,7 +10417,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_payment_methods_payment_methods_update
+      operationId: api_v1_payment_methods_update
       description: Full update of an existing payment method. Admin/Staff only.
       tags:
       - Payment Methods
@@ -10473,7 +10473,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_payment_methods_payment_methods_partial_update
+      operationId: api_v1_payment_methods_partial_update
       description: Partial update of an existing payment method. Admin/Staff only.
       tags:
       - Payment Methods
@@ -10529,7 +10529,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     delete:
-      operationId: api_v1_payment_methods_payment_methods_destroy
+      operationId: api_v1_payment_methods_destroy
       description: Soft delete a payment method. Admin/Staff only. Cannot delete default
         payment method.
       tags:
@@ -10568,9 +10568,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payment_methods/payment-methods/{id}/:
+  /api/v1/payment_methods/{id}/:
     get:
-      operationId: api_v1_payment_methods_payment_methods_retrieve_2
+      operationId: api_v1_payment_methods_retrieve_2
       description: Retrieve a single payment method (if id provided) or a paginated
         list.
       parameters:
@@ -10625,7 +10625,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_payment_methods_payment_methods_create_2
+      operationId: api_v1_payment_methods_create_2
       description: Create a new payment method. Admin/Staff only.
       parameters:
       - in: path
@@ -10682,7 +10682,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_payment_methods_payment_methods_update_2
+      operationId: api_v1_payment_methods_update_2
       description: Full update of an existing payment method. Admin/Staff only.
       parameters:
       - in: path
@@ -10744,7 +10744,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_payment_methods_payment_methods_partial_update_2
+      operationId: api_v1_payment_methods_partial_update_2
       description: Partial update of an existing payment method. Admin/Staff only.
       parameters:
       - in: path
@@ -10806,7 +10806,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     delete:
-      operationId: api_v1_payment_methods_payment_methods_destroy_2
+      operationId: api_v1_payment_methods_destroy_2
       description: Soft delete a payment method. Admin/Staff only. Cannot delete default
         payment method.
       parameters:
@@ -10851,9 +10851,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payment_methods/payment-methods/{id}/set-default/:
+  /api/v1/payment_methods/{id}/set-default/:
     post:
-      operationId: api_v1_payment_methods_payment_methods_set_default_create
+      operationId: api_v1_payment_methods_set_default_create
       description: Set a payment method as default. Admin/Staff only.
       parameters:
       - in: path
@@ -10915,9 +10915,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payment_methods/payment-methods/{id}/stats/:
+  /api/v1/payment_methods/{id}/stats/:
     get:
-      operationId: api_v1_payment_methods_payment_methods_stats_retrieve
+      operationId: api_v1_payment_methods_stats_retrieve
       description: Get statistics for a specific payment method.
       parameters:
       - in: path
@@ -10961,9 +10961,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payment_methods/payment-methods/stats/all/:
+  /api/v1/payment_methods/stats/all/:
     get:
-      operationId: api_v1_payment_methods_payment_methods_stats_all_retrieve
+      operationId: api_v1_payment_methods_stats_all_retrieve
       description: Get statistics for all payment methods.
       tags:
       - Payment Methods
@@ -10995,9 +10995,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/:
+  /api/v1/payments/:
     get:
-      operationId: api_v1_payments_payments_retrieve
+      operationId: api_v1_payments_retrieve
       description: Retrieve a single payment (if id provided) or a paginated list
         of payments.
       parameters:
@@ -11094,7 +11094,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_payments_payments_create
+      operationId: api_v1_payments_create
       description: Create a new payment transaction. Admin/Staff only.
       tags:
       - Payments
@@ -11145,7 +11145,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_payments_payments_update
+      operationId: api_v1_payments_update
       description: Full update of an existing payment. Admin/Staff only.
       tags:
       - Payments
@@ -11201,7 +11201,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_payments_payments_partial_update
+      operationId: api_v1_payments_partial_update
       description: Partial update of an existing payment. Admin/Staff only.
       tags:
       - Payments
@@ -11256,9 +11256,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/{id}/:
+  /api/v1/payments/{id}/:
     get:
-      operationId: api_v1_payments_payments_retrieve_2
+      operationId: api_v1_payments_retrieve_2
       description: Retrieve a single payment (if id provided) or a paginated list
         of payments.
       parameters:
@@ -11360,7 +11360,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_payments_payments_create_2
+      operationId: api_v1_payments_create_2
       description: Create a new payment transaction. Admin/Staff only.
       parameters:
       - in: path
@@ -11417,7 +11417,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_payments_payments_update_2
+      operationId: api_v1_payments_update_2
       description: Full update of an existing payment. Admin/Staff only.
       parameters:
       - in: path
@@ -11479,7 +11479,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_payments_payments_partial_update_2
+      operationId: api_v1_payments_partial_update_2
       description: Partial update of an existing payment. Admin/Staff only.
       parameters:
       - in: path
@@ -11540,9 +11540,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/{id}/permanent/:
+  /api/v1/payments/{id}/permanent/:
     delete:
-      operationId: api_v1_payments_payments_permanent_destroy
+      operationId: api_v1_payments_permanent_destroy
       description: Permanently delete a payment (hard delete). Admin only.
       parameters:
       - in: path
@@ -11592,9 +11592,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/{id}/restore/:
+  /api/v1/payments/{id}/restore/:
     post:
-      operationId: api_v1_payments_payments_restore_create
+      operationId: api_v1_payments_restore_create
       description: Restore a soft-deleted payment. Admin only.
       parameters:
       - in: path
@@ -11644,9 +11644,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/{id}/void/:
+  /api/v1/payments/{id}/void/:
     post:
-      operationId: api_v1_payments_payments_void_create
+      operationId: api_v1_payments_void_create
       description: Void a payment transaction. Admin/Staff only.
       parameters:
       - in: path
@@ -11708,9 +11708,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/bulkCreate/:
+  /api/v1/payments/bulkCreate/:
     post:
-      operationId: api_v1_payments_payments_bulkCreate_create
+      operationId: api_v1_payments_bulkCreate_create
       description: Bulk create multiple payments. Admin/Staff only.
       tags:
       - Payments
@@ -11760,9 +11760,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/bulkUpdate/:
+  /api/v1/payments/bulkUpdate/:
     put:
-      operationId: api_v1_payments_payments_bulkUpdate_update
+      operationId: api_v1_payments_bulkUpdate_update
       description: Bulk update multiple payments. Admin/Staff only.
       tags:
       - Payments
@@ -11812,9 +11812,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/collection-report/:
+  /api/v1/payments/collection-report/:
     get:
-      operationId: api_v1_payments_payments_collection_report_retrieve
+      operationId: api_v1_payments_collection_report_retrieve
       description: Get collection report with actual vs expected collection by date
         and debtor.
       parameters:
@@ -11873,9 +11873,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/export/:
+  /api/v1/payments/export/:
     post:
-      operationId: api_v1_payments_payments_export_create
+      operationId: api_v1_payments_export_create
       description: Export payments to CSV or JSON.
       tags:
       - Payments
@@ -11924,9 +11924,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/payments/payments/import/:
+  /api/v1/payments/import/:
     post:
-      operationId: api_v1_payments_payments_import_create
+      operationId: api_v1_payments_import_create
       description: Import payments from CSV content. Admin/Staff only.
       tags:
       - Payments
@@ -11957,40 +11957,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-          description: ''
-  /api/v1/payments/payments/stats/:
-    get:
-      operationId: api_v1_payments_payments_stats_retrieve
-      description: Get payment statistics including totals by method and date ranges.
-      tags:
-      - Payments
-      security:
-      - tokenAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaymentTransactionStatisticsResponse'
           description: ''
         '401':
           content:
@@ -13067,9 +13033,43 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/system_settings/settings/:
+  /api/v1/payments/stats/:
     get:
-      operationId: api_v1_system_settings_settings_retrieve
+      operationId: api_v1_payments_stats_retrieve
+      description: Get payment statistics including totals by method and date ranges.
+      tags:
+      - Payments
+      security:
+      - tokenAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentTransactionStatisticsResponse'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: ''
+  /api/v1/system_settings/:
+    get:
+      operationId: api_v1_system_settings_retrieve
       description: Retrieve a single system setting (if id provided) or a paginated
         list.
       parameters:
@@ -13134,7 +13134,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_system_settings_settings_create
+      operationId: api_v1_system_settings_create
       description: Bulk create or update system settings. Admin only.
       tags:
       - System Settings
@@ -13185,7 +13185,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_system_settings_settings_update
+      operationId: api_v1_system_settings_update
       description: Full update of an existing system setting. Admin only.
       tags:
       - System Settings
@@ -13241,7 +13241,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_system_settings_settings_partial_update
+      operationId: api_v1_system_settings_partial_update
       description: Partial update of an existing system setting. Admin only.
       tags:
       - System Settings
@@ -13297,7 +13297,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     delete:
-      operationId: api_v1_system_settings_settings_destroy
+      operationId: api_v1_system_settings_destroy
       description: Soft delete a system setting. Admin only.
       tags:
       - System Settings
@@ -13335,9 +13335,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/system_settings/settings/{id}/:
+  /api/v1/system_settings/{id}/:
     get:
-      operationId: api_v1_system_settings_settings_retrieve_2
+      operationId: api_v1_system_settings_retrieve_2
       description: Retrieve a single system setting (if id provided) or a paginated
         list.
       parameters:
@@ -13407,7 +13407,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_system_settings_settings_create_2
+      operationId: api_v1_system_settings_create_2
       description: Bulk create or update system settings. Admin only.
       parameters:
       - in: path
@@ -13464,7 +13464,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_system_settings_settings_update_2
+      operationId: api_v1_system_settings_update_2
       description: Full update of an existing system setting. Admin only.
       parameters:
       - in: path
@@ -13526,7 +13526,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_system_settings_settings_partial_update_2
+      operationId: api_v1_system_settings_partial_update_2
       description: Partial update of an existing system setting. Admin only.
       parameters:
       - in: path
@@ -13588,7 +13588,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     delete:
-      operationId: api_v1_system_settings_settings_destroy_2
+      operationId: api_v1_system_settings_destroy_2
       description: Soft delete a system setting. Admin only.
       parameters:
       - in: path
@@ -13632,9 +13632,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/system_settings/settings/bulk-update/:
+  /api/v1/system_settings/bulk-update/:
     get:
-      operationId: api_v1_system_settings_settings_bulk_update_retrieve
+      operationId: api_v1_system_settings_bulk_update_retrieve
       description: Retrieve a single system setting (if id provided) or a paginated
         list.
       parameters:
@@ -13699,7 +13699,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     post:
-      operationId: api_v1_system_settings_settings_bulk_update_create
+      operationId: api_v1_system_settings_bulk_update_create
       description: Bulk create or update system settings. Admin only.
       tags:
       - System Settings
@@ -13750,7 +13750,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     put:
-      operationId: api_v1_system_settings_settings_bulk_update_update
+      operationId: api_v1_system_settings_bulk_update_update
       description: Full update of an existing system setting. Admin only.
       tags:
       - System Settings
@@ -13806,7 +13806,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     patch:
-      operationId: api_v1_system_settings_settings_bulk_update_partial_update
+      operationId: api_v1_system_settings_bulk_update_partial_update
       description: Partial update of an existing system setting. Admin only.
       tags:
       - System Settings
@@ -13862,7 +13862,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
     delete:
-      operationId: api_v1_system_settings_settings_bulk_update_destroy
+      operationId: api_v1_system_settings_bulk_update_destroy
       description: Soft delete a system setting. Admin only.
       tags:
       - System Settings
@@ -13900,9 +13900,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/system_settings/settings/grouped/:
+  /api/v1/system_settings/grouped/:
     get:
-      operationId: api_v1_system_settings_settings_grouped_retrieve
+      operationId: api_v1_system_settings_grouped_retrieve
       description: Get all system settings grouped by setting_type. Admin/Staff only.
       tags:
       - System Settings
@@ -13934,9 +13934,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: ''
-  /api/v1/system_settings/settings/public/:
+  /api/v1/system_settings/public/:
     get:
-      operationId: api_v1_system_settings_settings_public_retrieve
+      operationId: api_v1_system_settings_public_retrieve
       description: Get public system settings. No authentication required.
       tags:
       - System Settings
@@ -17306,8 +17306,20 @@ components:
           type: string
           format: date-time
           readOnly: true
+        action:
+          type: string
+          readOnly: true
+        entity:
+          type: string
+        entityId:
+          type: string
+        user:
+          type: string
+          readOnly: true
       required:
       - action_type
+      - entity
+      - entityId
       - model_name
       - object_id
     AuditLogListResponse:
@@ -17322,7 +17334,9 @@ components:
         pagination:
           $ref: '#/components/schemas/BasePaginated'
         data:
-          $ref: '#/components/schemas/AuditLogList'
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogList'
       required:
       - data
       - message
@@ -17334,13 +17348,26 @@ components:
         id:
           type: integer
           readOnly: true
+        action:
+          type: string
+          readOnly: true
+        entity:
+          type: string
+        entityId:
+          type: string
+        user:
+          type: string
+          readOnly: true
+        oldData:
+          type: string
+          readOnly: true
+        newData:
+          type: string
+          readOnly: true
         event_id:
           type: string
           format: uuid
           readOnly: true
-        user:
-          type: integer
-          nullable: true
         user_display:
           type: string
           readOnly: true
@@ -17378,6 +17405,8 @@ components:
           readOnly: true
       required:
       - action_type
+      - entity
+      - entityId
       - model_name
       - object_id
     AuditLogRecentActivityResponse:
@@ -17931,6 +17960,18 @@ components:
           type: string
           format: date-time
           readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - name
     BorrowerListResponse:
@@ -18025,6 +18066,18 @@ components:
           nullable: true
         is_deleted:
           type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
           readOnly: true
       required:
       - name
@@ -18282,6 +18335,23 @@ components:
           type: string
           format: date-time
           readOnly: true
+        debtorId:
+          type: integer
+          readOnly: true
+        debtorName:
+          type: string
+          readOnly: true
+        riskLevel:
+          type: string
+          readOnly: true
+        dateChecked:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - debtor
       - risk_level
@@ -18378,6 +18448,31 @@ components:
           nullable: true
         is_deleted:
           type: string
+          readOnly: true
+        debtorId:
+          type: integer
+          readOnly: true
+        debtorName:
+          type: string
+          readOnly: true
+        riskLevel:
+          type: string
+          readOnly: true
+        dateChecked:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
           readOnly: true
       required:
       - debtor
@@ -18608,6 +18703,40 @@ components:
           type: string
           format: date-time
           readOnly: true
+        totalAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        remainingAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        dueDate:
+          type: string
+          format: date
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        amountDisplay:
+          type: string
+          readOnly: true
+        remainingDisplay:
+          type: string
+          readOnly: true
+        isOverdue:
+          type: string
+          readOnly: true
+        borrowerName:
+          type: string
+          readOnly: true
       required:
       - borrower
       - due_date
@@ -18756,6 +18885,59 @@ components:
         is_deleted:
           type: string
           readOnly: true
+        totalAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        paidAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        remainingAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        dueDate:
+          type: string
+          format: date
+          readOnly: true
+        interestCalculationPeriod:
+          type: string
+          readOnly: true
+        interestRate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+        penaltyRate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        amountDisplay:
+          type: string
+          readOnly: true
+        remainingDisplay:
+          type: string
+          readOnly: true
+        isOverdue:
+          type: string
+          readOnly: true
       required:
       - borrower
       - due_date
@@ -18896,6 +19078,17 @@ components:
           type: string
           format: date-time
           readOnly: true
+        memberCount:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - name
     DebtorGroupMemberCreateRequest:
@@ -18939,6 +19132,29 @@ components:
           readOnly: true
           description: When the borrower was assigned to the group
         created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        groupId:
+          type: integer
+          readOnly: true
+        groupName:
+          type: string
+          readOnly: true
+        debtorId:
+          type: integer
+          readOnly: true
+        debtorName:
+          type: string
+          readOnly: true
+        debtorEmail:
+          type: string
+          readOnly: true
+        assignedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
           type: string
           format: date-time
           readOnly: true
@@ -18997,6 +19213,37 @@ components:
         is_deleted:
           type: string
           readOnly: true
+        groupId:
+          type: integer
+          readOnly: true
+        groupName:
+          type: string
+          readOnly: true
+        debtorId:
+          type: integer
+          readOnly: true
+        debtorName:
+          type: string
+          readOnly: true
+        assignedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        isActive:
+          type: string
+          readOnly: true
       required:
       - debtor
       - group
@@ -19044,6 +19291,27 @@ components:
           nullable: true
         is_deleted:
           type: string
+          readOnly: true
+        memberCount:
+          type: string
+          readOnly: true
+        totalDebt:
+          type: string
+          readOnly: true
+        activeMembersCount:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
           readOnly: true
       required:
       - name
@@ -19257,6 +19525,27 @@ components:
           type: string
           format: date-time
           readOnly: true
+        amountForgiven:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        createdBy:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        amountDisplay:
+          type: string
+          readOnly: true
+        debtName:
+          type: string
+          readOnly: true
+        debtorName:
+          type: string
+          readOnly: true
       required:
       - amount_forgiven
       - borrower
@@ -19366,6 +19655,58 @@ components:
           format: date-time
           nullable: true
         is_deleted:
+          type: string
+          readOnly: true
+        amountForgiven:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        previousTotalAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        newTotalAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        createdBy:
+          type: string
+          readOnly: true
+        approvedBy:
+          type: string
+          readOnly: true
+        approvedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        amountDisplay:
+          type: string
+          readOnly: true
+        isApproved:
+          type: string
+          readOnly: true
+        isPending:
+          type: string
+          readOnly: true
+        debtName:
+          type: string
+          readOnly: true
+        debtorName:
           type: string
           readOnly: true
       required:
@@ -19763,6 +20104,37 @@ components:
         is_system_change:
           type: string
           readOnly: true
+        settingKey:
+          type: string
+          readOnly: true
+        oldValue:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        newValue:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        changedBy:
+          type: string
+          readOnly: true
+        changedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        loanId:
+          type: integer
+          readOnly: true
+        changeDirection:
+          type: string
+          readOnly: true
+        isSystemChange:
+          type: string
+          readOnly: true
       required:
       - setting_key
     InterestRateChangeLogListResponse:
@@ -19849,6 +20221,56 @@ components:
           format: date-time
           nullable: true
         is_deleted:
+          type: string
+          readOnly: true
+        settingKey:
+          type: string
+          readOnly: true
+        oldValue:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        newValue:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        changedBy:
+          type: string
+          readOnly: true
+        changedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        loanId:
+          type: integer
+          readOnly: true
+        loanName:
+          type: string
+          readOnly: true
+          nullable: true
+        changeDirection:
+          type: string
+          readOnly: true
+        isSystemChange:
+          type: string
+          readOnly: true
+        isLoanChange:
           type: string
           readOnly: true
       required:
@@ -20028,6 +20450,39 @@ components:
           type: string
           format: date-time
           readOnly: true
+        debtId:
+          type: integer
+          readOnly: true
+        debtName:
+          type: string
+          readOnly: true
+        borrowerName:
+          type: string
+          readOnly: true
+        agreementDate:
+          type: string
+          format: date
+          readOnly: true
+        lenderName:
+          type: string
+          readOnly: true
+        signedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        signedBy:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        isSigned:
+          type: string
+          readOnly: true
+        hasFile:
+          type: string
+          readOnly: true
       required:
       - debt
     LoanAgreementListResponse:
@@ -20172,6 +20627,79 @@ components:
           format: date-time
           nullable: true
         is_deleted:
+          type: string
+          readOnly: true
+        debtId:
+          type: integer
+          readOnly: true
+        debtName:
+          type: string
+          readOnly: true
+        borrowerName:
+          type: string
+          readOnly: true
+        agreementDate:
+          type: string
+          format: date
+          readOnly: true
+        lenderName:
+          type: string
+          readOnly: true
+        termsText:
+          type: string
+          readOnly: true
+        signedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        signedBy:
+          type: string
+          readOnly: true
+        principalAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        interestRate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+        penaltyRate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+        dueDate:
+          type: string
+          format: date
+          readOnly: true
+        loanStartDate:
+          type: string
+          format: date
+          readOnly: true
+        anniversaryDay:
+          type: integer
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        isSigned:
+          type: string
+          readOnly: true
+        isDraft:
+          type: string
+          readOnly: true
+        hasFile:
           type: string
           readOnly: true
       required:
@@ -20494,6 +21022,31 @@ components:
           type: string
           format: date-time
           readOnly: true
+        debtorId:
+          type: integer
+          readOnly: true
+        debtorName:
+          type: string
+          readOnly: true
+        debtorEmail:
+          type: string
+          readOnly: true
+        requestedAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        proposedDueDate:
+          type: string
+          format: date
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        amountDisplay:
+          type: string
+          readOnly: true
       required:
       - debtor_name
       - proposed_due_date
@@ -20628,6 +21181,73 @@ components:
           format: date-time
           nullable: true
         is_deleted:
+          type: string
+          readOnly: true
+        debtorId:
+          type: integer
+          readOnly: true
+        debtorName:
+          type: string
+          readOnly: true
+        debtorContact:
+          type: string
+          readOnly: true
+        debtorEmail:
+          type: string
+          readOnly: true
+        debtorAddress:
+          type: string
+          readOnly: true
+        requestedAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        proposedDueDate:
+          type: string
+          format: date
+          readOnly: true
+        interestRate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+        approvedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        rejectedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        approvedBy:
+          type: string
+          readOnly: true
+        rejectionReason:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        amountDisplay:
+          type: string
+          readOnly: true
+        isPending:
+          type: string
+          readOnly: true
+        isApproved:
+          type: string
+          readOnly: true
+        isRejected:
           type: string
           readOnly: true
       required:
@@ -21105,6 +21725,31 @@ components:
           type: string
           format: date-time
           readOnly: true
+        debtId:
+          type: integer
+          readOnly: true
+          nullable: true
+        debtName:
+          type: string
+          readOnly: true
+          nullable: true
+        scheduledFor:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        isRead:
+          type: boolean
+          readOnly: true
+        typeDisplay:
+          type: string
+          readOnly: true
+        isReadDisplay:
+          type: string
+          readOnly: true
       required:
       - message
       - title
@@ -21215,6 +21860,24 @@ components:
           type: string
           format: date-time
           readOnly: true
+        recipientEmail:
+          type: string
+          format: email
+          readOnly: true
+        retryCount:
+          type: integer
+          readOnly: true
+        sentAt:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        statusDisplay:
+          type: string
+          readOnly: true
       required:
       - recipient_email
     NotificationLogListResponse:
@@ -21302,6 +21965,38 @@ components:
         updated_at:
           type: string
           format: date-time
+          readOnly: true
+        recipientEmail:
+          type: string
+          format: email
+          readOnly: true
+        errorMessage:
+          type: string
+          readOnly: true
+        retryCount:
+          type: integer
+          readOnly: true
+        resendCount:
+          type: integer
+          readOnly: true
+        sentAt:
+          type: string
+          format: date-time
+          readOnly: true
+        lastErrorAt:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        statusDisplay:
+          type: string
           readOnly: true
       required:
       - recipient_email
@@ -21442,6 +22137,39 @@ components:
           format: date-time
           nullable: true
         is_deleted:
+          type: string
+          readOnly: true
+        debtId:
+          type: integer
+          readOnly: true
+          nullable: true
+        debtName:
+          type: string
+          readOnly: true
+          nullable: true
+        scheduledFor:
+          type: string
+          format: date-time
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        isRead:
+          type: boolean
+          readOnly: true
+        typeDisplay:
+          type: string
+          readOnly: true
+        isReadDisplay:
           type: string
           readOnly: true
       required:
@@ -22487,6 +23215,23 @@ components:
           type: string
           format: date-time
           readOnly: true
+        isDefault:
+          type: boolean
+          readOnly: true
+        isDefaultDisplay:
+          type: string
+          readOnly: true
+        transactionCount:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - name
     PaymentMethodListResponse:
@@ -22553,6 +23298,24 @@ components:
         is_deleted:
           type: string
           readOnly: true
+        isDefault:
+          type: boolean
+          readOnly: true
+        isDefaultDisplay:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - name
     PaymentMethodSetDefaultRequest:
@@ -22603,6 +23366,25 @@ components:
           format: date-time
           readOnly: true
         updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        transactionCount:
+          type: integer
+          readOnly: true
+        totalAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,13}(?:\.\d{0,2})?$
+          readOnly: true
+        averageTransaction:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
           type: string
           format: date-time
           readOnly: true
@@ -22799,6 +23581,41 @@ components:
           type: string
           format: date-time
           readOnly: true
+        debtId:
+          type: integer
+          readOnly: true
+        debtName:
+          type: string
+          readOnly: true
+        borrowerName:
+          type: string
+          readOnly: true
+        methodId:
+          type: integer
+          readOnly: true
+          nullable: true
+        methodName:
+          type: string
+          readOnly: true
+          nullable: true
+        paymentDate:
+          type: string
+          format: date
+          readOnly: true
+        recordedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        amountDisplay:
+          type: string
+          readOnly: true
+        isVoid:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - amount
       - debt
@@ -22899,6 +23716,46 @@ components:
           nullable: true
         is_deleted:
           type: string
+          readOnly: true
+        debtId:
+          type: integer
+          readOnly: true
+        methodId:
+          type: integer
+          readOnly: true
+          nullable: true
+        paymentDate:
+          type: string
+          format: date
+          readOnly: true
+        recordedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        recordedBy:
+          type: integer
+          readOnly: true
+          nullable: true
+        amountDisplay:
+          type: string
+          readOnly: true
+        isVoid:
+          type: string
+          readOnly: true
+        paymentMethodName:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
           readOnly: true
       required:
       - amount
@@ -23116,6 +23973,32 @@ components:
           type: string
           format: date-time
           readOnly: true
+        debtId:
+          type: integer
+          readOnly: true
+        debtName:
+          type: string
+          readOnly: true
+        borrowerName:
+          type: string
+          readOnly: true
+        penaltyDate:
+          type: string
+          format: date
+          readOnly: true
+        isAuto:
+          type: boolean
+          readOnly: true
+        amountDisplay:
+          type: string
+          readOnly: true
+        isAutoDisplay:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - amount
       - debt
@@ -23193,6 +24076,37 @@ components:
           nullable: true
         is_deleted:
           type: string
+          readOnly: true
+        debtId:
+          type: integer
+          readOnly: true
+        penaltyDate:
+          type: string
+          format: date
+          readOnly: true
+        isAuto:
+          type: boolean
+          readOnly: true
+        amountDisplay:
+          type: string
+          readOnly: true
+        isVoid:
+          type: string
+          readOnly: true
+        isAutoDisplay:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
           readOnly: true
       required:
       - amount
@@ -23989,6 +24903,23 @@ components:
           type: string
           format: date-time
           readOnly: true
+        isPublic:
+          type: boolean
+          readOnly: true
+        settingType:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        settingTypeDisplay:
+          type: string
+          readOnly: true
       required:
       - key
       - setting_type
@@ -24090,6 +25021,42 @@ components:
           format: date-time
           nullable: true
         is_deleted:
+          type: string
+          readOnly: true
+        isPublic:
+          type: boolean
+          readOnly: true
+        settingType:
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        deletedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        settingTypeDisplay:
+          type: string
+          readOnly: true
+        valueParsed:
+          type: string
+          readOnly: true
+        valueAsBool:
+          type: string
+          readOnly: true
+        valueAsInt:
+          type: string
+          readOnly: true
+        valueAsFloat:
+          type: string
+          readOnly: true
+        valueAsJson:
           type: string
           readOnly: true
       required:

@@ -6,6 +6,7 @@ from django.utils import timezone
 from audit.utils.log import log_audit_event
 from loan_agreements.models.loan_agreement import LoanAgreement
 from debts.models.debt import Debt
+from utils.helpers import camel_to_snake
 from utils.pagination import paginate_queryset
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ class LoanAgreementService:
                 qs = LoanAgreement.objects.select_related('debt')
         
         # Apply sorting
+        sort_by = camel_to_snake(sort_by)
         if sort_order.lower() == 'asc':
             sort_by = sort_by
         else:

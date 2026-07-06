@@ -11,6 +11,7 @@ from audit.utils.log import log_audit_event
 from borrowers.models.borrower import Borrower
 from debts.models.debt import Debt
 from debts.services.debt import DebtService
+from utils.helpers import camel_to_snake
 from utils.pagination import paginate_queryset
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,9 @@ class BorrowerService:
     # ============================================================
 
     @staticmethod
-    def get_by_id(borrower_id: int, include_deleted: bool = False) -> Optional[Borrower]:
+    def get_by_id(
+        borrower_id: int, include_deleted: bool = False
+    ) -> Optional[Borrower]:
         """
         Get a single borrower by ID.
 
@@ -86,8 +89,8 @@ class BorrowerService:
         filters: Optional[Dict[str, Any]] = None,
         page: int = 1,
         limit: int = 20,
-        sort_by: str = 'name',
-        sort_order: str = 'asc'
+        sort_by: str = "name",
+        sort_order: str = "asc",
     ) -> Dict[str, Any]:
         """
         Get paginated list of borrowers with filters.
@@ -109,59 +112,72 @@ class BorrowerService:
 
         # Apply filters
         if filters:
-            if filters.get('search'):
-                search = filters['search']
+            if filters.get("search"):
+                search = filters["search"]
                 qs = qs.filter(
-                    Q(name__icontains=search) |
-                    Q(email__icontains=search) |
-                    Q(contact__icontains=search) |
-                    Q(address__icontains=search)
+                    Q(name__icontains=search)
+                    | Q(email__icontains=search)
+                    | Q(contact__icontains=search)
+                    | Q(address__icontains=search)
                 )
 
-            if filters.get('name'):
-                qs = qs.filter(name__icontains=filters['name'])
+            if filters.get("name"):
+                qs = qs.filter(name__icontains=filters["name"])
 
-            if filters.get('email'):
-                qs = qs.filter(email=filters['email'])
+            if filters.get("email"):
+                qs = qs.filter(email=filters["email"])
 
-            if filters.get('contact'):
-                qs = qs.filter(contact=filters['contact'])
+            if filters.get("contact"):
+                qs = qs.filter(contact=filters["contact"])
 
-            if filters.get('has_email') is not None:
-                if filters['has_email']:
+            if filters.get("has_email") is not None:
+                if filters["has_email"]:
                     qs = qs.filter(email__isnull=False)
                 else:
                     qs = qs.filter(email__isnull=True)
 
-            if filters.get('has_contact') is not None:
-                if filters['has_contact']:
+            if filters.get("has_contact") is not None:
+                if filters["has_contact"]:
                     qs = qs.filter(contact__isnull=False)
                 else:
                     qs = qs.filter(contact__isnull=True)
 
-            if filters.get('include_deleted'):
+            if filters.get("include_deleted"):
                 qs = Borrower.objects.all()
 
             # Filter by active debts count
-            if filters.get('min_debts') is not None:
+            if filters.get("min_debts") is not None:
                 from django.db.models import Count
-                qs = qs.annotate(active_debts=Count('debts', filter=Q(
-                    debts__deleted_at__isnull=True,
-                    debts__status__in=['active', 'overdue']
-                ))).filter(active_debts__gte=filters['min_debts'])
 
-            if filters.get('max_debts') is not None:
+                qs = qs.annotate(
+                    active_debts=Count(
+                        "debts",
+                        filter=Q(
+                            debts__deleted_at__isnull=True,
+                            debts__status__in=["active", "overdue"],
+                        ),
+                    )
+                ).filter(active_debts__gte=filters["min_debts"])
+
+            if filters.get("max_debts") is not None:
                 from django.db.models import Count
-                if filters.get('min_debts') is None:
-                    qs = qs.annotate(active_debts=Count('debts', filter=Q(
-                        debts__deleted_at__isnull=True,
-                        debts__status__in=['active', 'overdue']
-                    )))
-                qs = qs.filter(active_debts__lte=filters['max_debts'])
+
+                if filters.get("min_debts") is None:
+                    qs = qs.annotate(
+                        active_debts=Count(
+                            "debts",
+                            filter=Q(
+                                debts__deleted_at__isnull=True,
+                                debts__status__in=["active", "overdue"],
+                            ),
+                        )
+                    )
+                qs = qs.filter(active_debts__lte=filters["max_debts"])
 
         # Apply sorting
-        if sort_order.lower() == 'desc':
-            sort_by = f'-{sort_by}'
+        sort_by = camel_to_snake(sort_by)
+        if sort_order.lower() == "desc":
+            sort_by = f"-{sort_by}"
         qs = qs.order_by(sort_by)
 
         return paginate_queryset(qs, page, limit)
@@ -186,30 +202,40 @@ class BorrowerService:
 
         # With active debts
         from debts.models.debt import Debt
-        with_active_debts = Borrower.objects.filter(
-            deleted_at__isnull=True,
-            debts__deleted_at__isnull=True,
-            debts__status__in=[Debt.Status.ACTIVE, Debt.Status.OVERDUE]
-        ).distinct().count()
+
+        with_active_debts = (
+            Borrower.objects.filter(
+                deleted_at__isnull=True,
+                debts__deleted_at__isnull=True,
+                debts__status__in=[Debt.Status.ACTIVE, Debt.Status.OVERDUE],
+            )
+            .distinct()
+            .count()
+        )
 
         # Total debt across all borrowers
         from django.db.models import Sum
-        total_debt = Borrower.objects.filter(
-            deleted_at__isnull=True
-        ).aggregate(
-            total=Sum('debts__remaining_amount', filter=Q(
-                debts__deleted_at__isnull=True,
-                debts__status__in=[Debt.Status.ACTIVE, Debt.Status.OVERDUE]
-            ))
-        )['total'] or 0
+
+        total_debt = (
+            Borrower.objects.filter(deleted_at__isnull=True).aggregate(
+                total=Sum(
+                    "debts__remaining_amount",
+                    filter=Q(
+                        debts__deleted_at__isnull=True,
+                        debts__status__in=[Debt.Status.ACTIVE, Debt.Status.OVERDUE],
+                    ),
+                )
+            )["total"]
+            or 0
+        )
 
         return {
-            'total': total,
-            'with_email': with_email,
-            'with_contact': with_contact,
-            'recently_added': recently_added,
-            'with_active_debts': with_active_debts,
-            'total_outstanding_debt': total_debt,
+            "total": total,
+            "with_email": with_email,
+            "with_contact": with_contact,
+            "recently_added": recently_added,
+            "with_active_debts": with_active_debts,
+            "total_outstanding_debt": total_debt,
         }
 
     # ============================================================
@@ -234,27 +260,27 @@ class BorrowerService:
             ValidationError: If validation fails
         """
         # Validate name is required
-        if not data.get('name'):
-            raise ValidationError({'name': 'Name is required.'})
+        if not data.get("name"):
+            raise ValidationError({"name": "Name is required."})
 
         # Validate unique email
-        if data.get('email'):
-            if Borrower.objects.filter(email=data['email']).exists():
-                raise ValidationError({'email': 'Email already exists.'})
+        if data.get("email"):
+            if Borrower.objects.filter(email=data["email"]).exists():
+                raise ValidationError({"email": "Email already exists."})
 
         # Validate unique contact
-        if data.get('contact'):
-            if Borrower.objects.filter(contact=data['contact']).exists():
-                raise ValidationError({'contact': 'Contact already exists.'})
+        if data.get("contact"):
+            if Borrower.objects.filter(contact=data["contact"]).exists():
+                raise ValidationError({"contact": "Contact already exists."})
 
         # Create borrower
         borrower = Borrower.objects.create(
-            name=data['name'],
-            contact=data.get('contact'),
-            email=data.get('email'),
-            address=data.get('address'),
-            notes=data.get('notes'),
-            user=data.get('user')
+            name=data["name"],
+            contact=data.get("contact"),
+            email=data.get("email"),
+            address=data.get("address"),
+            notes=data.get("notes"),
+            user=data.get("user"),
         )
 
         # Audit log
@@ -262,10 +288,10 @@ class BorrowerService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='borrower_create',
-                model_name='Borrower',
+                action_type="borrower_create",
+                model_name="Borrower",
                 object_id=str(borrower.id),
-                changes={'data': data}
+                changes={"data": data},
             )
 
         logger.info(f"Borrower created: {borrower.id} - {borrower.name}")
@@ -273,7 +299,9 @@ class BorrowerService:
 
     @staticmethod
     @transaction.atomic
-    def update(borrower_id: int, data: Dict[str, Any], user=None, request=None) -> Borrower:
+    def update(
+        borrower_id: int, data: Dict[str, Any], user=None, request=None
+    ) -> Borrower:
         """
         Update an existing borrower.
 
@@ -291,27 +319,27 @@ class BorrowerService:
         """
         borrower = BorrowerService.get_by_id(borrower_id)
         if not borrower:
-            raise ValidationError({'id': 'Borrower not found.'})
+            raise ValidationError({"id": "Borrower not found."})
 
         # Check unique email (if changed)
-        if data.get('email') and data['email'] != borrower.email:
-            if Borrower.objects.filter(email=data['email']).exists():
-                raise ValidationError({'email': 'Email already exists.'})
+        if data.get("email") and data["email"] != borrower.email:
+            if Borrower.objects.filter(email=data["email"]).exists():
+                raise ValidationError({"email": "Email already exists."})
 
         # Check unique contact (if changed)
-        if data.get('contact') and data['contact'] != borrower.contact:
-            if Borrower.objects.filter(contact=data['contact']).exists():
-                raise ValidationError({'contact': 'Contact already exists.'})
+        if data.get("contact") and data["contact"] != borrower.contact:
+            if Borrower.objects.filter(contact=data["contact"]).exists():
+                raise ValidationError({"contact": "Contact already exists."})
 
         # Store old data for audit
         old_data = {
-            'name': borrower.name,
-            'email': borrower.email,
-            'contact': borrower.contact,
+            "name": borrower.name,
+            "email": borrower.email,
+            "contact": borrower.contact,
         }
 
         # Update fields
-        for field in ['name', 'contact', 'email', 'address', 'notes', 'user']:
+        for field in ["name", "contact", "email", "address", "notes", "user"]:
             if field in data:
                 setattr(borrower, field, data[field])
 
@@ -322,17 +350,17 @@ class BorrowerService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='borrower_update',
-                model_name='Borrower',
+                action_type="borrower_update",
+                model_name="Borrower",
                 object_id=str(borrower.id),
                 changes={
-                    'before': old_data,
-                    'after': {
-                        'name': borrower.name,
-                        'email': borrower.email,
-                        'contact': borrower.contact,
-                    }
-                }
+                    "before": old_data,
+                    "after": {
+                        "name": borrower.name,
+                        "email": borrower.email,
+                        "contact": borrower.contact,
+                    },
+                },
             )
 
         logger.info(f"Borrower updated: {borrower.id} - {borrower.name}")
@@ -357,23 +385,24 @@ class BorrowerService:
         """
         borrower = BorrowerService.get_by_id(borrower_id)
         if not borrower:
-            raise ValidationError({'id': 'Borrower not found.'})
+            raise ValidationError({"id": "Borrower not found."})
 
         if borrower.deleted_at:
-            raise ValidationError({'id': 'Borrower is already deleted.'})
+            raise ValidationError({"id": "Borrower is already deleted."})
 
         # Check if borrower has active debts
         from debts.models.debt import Debt
+
         active_debts = Debt.objects.filter(
-            borrower=borrower,
-            deleted_at__isnull=True,
-            remaining_amount__gt=0
+            borrower=borrower, deleted_at__isnull=True, remaining_amount__gt=0
         ).exists()
 
         if active_debts:
-            raise ValidationError({
-                'id': 'Cannot delete borrower with active debts. Settle all debts first.'
-            })
+            raise ValidationError(
+                {
+                    "id": "Cannot delete borrower with active debts. Settle all debts first."
+                }
+            )
 
         borrower.soft_delete()
 
@@ -382,10 +411,10 @@ class BorrowerService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='borrower_delete',
-                model_name='Borrower',
+                action_type="borrower_delete",
+                model_name="Borrower",
                 object_id=str(borrower.id),
-                changes={'deleted_at': borrower.deleted_at}
+                changes={"deleted_at": borrower.deleted_at},
             )
 
         logger.info(f"Borrower soft-deleted: {borrower.id} - {borrower.name}")
@@ -410,10 +439,10 @@ class BorrowerService:
         """
         borrower = Borrower.objects.filter(id=borrower_id).first()
         if not borrower:
-            raise ValidationError({'id': 'Borrower not found.'})
+            raise ValidationError({"id": "Borrower not found."})
 
         if not borrower.deleted_at:
-            raise ValidationError({'id': 'Borrower is not deleted.'})
+            raise ValidationError({"id": "Borrower is not deleted."})
 
         borrower.restore()
 
@@ -422,10 +451,10 @@ class BorrowerService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='borrower_restore',
-                model_name='Borrower',
+                action_type="borrower_restore",
+                model_name="Borrower",
                 object_id=str(borrower.id),
-                changes={'restored_at': timezone.now()}
+                changes={"restored_at": timezone.now()},
             )
 
         logger.info(f"Borrower restored: {borrower.id} - {borrower.name}")
@@ -447,24 +476,25 @@ class BorrowerService:
         """
         borrower = Borrower.objects.filter(id=borrower_id).first()
         if not borrower:
-            raise ValidationError({'id': 'Borrower not found.'})
+            raise ValidationError({"id": "Borrower not found."})
 
         # Check for related records
         from debts.models.debt import Debt
+
         if Debt.objects.filter(borrower=borrower).exists():
-            raise ValidationError({
-                'id': 'Cannot permanently delete borrower with existing debts.'
-            })
+            raise ValidationError(
+                {"id": "Cannot permanently delete borrower with existing debts."}
+            )
 
         # Audit log before deletion
         if user:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='borrower_permanent_delete',
-                model_name='Borrower',
+                action_type="borrower_permanent_delete",
+                model_name="Borrower",
                 object_id=str(borrower.id),
-                changes={'permanent': True}
+                changes={"permanent": True},
             )
 
         borrower.delete()
@@ -477,7 +507,9 @@ class BorrowerService:
 
     @staticmethod
     @transaction.atomic
-    def bulk_create(borrowers_data: List[Dict[str, Any]], user=None, request=None) -> Dict[str, Any]:
+    def bulk_create(
+        borrowers_data: List[Dict[str, Any]], user=None, request=None
+    ) -> Dict[str, Any]:
         """
         Create multiple borrowers in bulk.
 
@@ -492,27 +524,22 @@ class BorrowerService:
                 'errors': list of errors
             }
         """
-        results = {'created': [], 'errors': []}
+        results = {"created": [], "errors": []}
 
         for data in borrowers_data:
             try:
-                borrower = BorrowerService.create(
-                    data=data,
-                    user=user,
-                    request=request
-                )
-                results['created'].append(borrower)
+                borrower = BorrowerService.create(data=data, user=user, request=request)
+                results["created"].append(borrower)
             except Exception as e:
-                results['errors'].append({
-                    'data': data,
-                    'error': str(e)
-                })
+                results["errors"].append({"data": data, "error": str(e)})
 
         return results
 
     @staticmethod
     @transaction.atomic
-    def bulk_update(updates: List[Dict[str, Any]], user=None, request=None) -> Dict[str, Any]:
+    def bulk_update(
+        updates: List[Dict[str, Any]], user=None, request=None
+    ) -> Dict[str, Any]:
         """
         Update multiple borrowers in bulk.
 
@@ -527,27 +554,21 @@ class BorrowerService:
                 'errors': list of errors
             }
         """
-        results = {'updated': [], 'errors': []}
+        results = {"updated": [], "errors": []}
 
         for item in updates:
             try:
-                borrower_id = item.get('id')
-                data = item.get('data', {})
+                borrower_id = item.get("id")
+                data = item.get("data", {})
                 if not borrower_id:
-                    raise ValidationError({'id': 'Borrower ID is required.'})
+                    raise ValidationError({"id": "Borrower ID is required."})
 
                 updated = BorrowerService.update(
-                    borrower_id=borrower_id,
-                    data=data,
-                    user=user,
-                    request=request
+                    borrower_id=borrower_id, data=data, user=user, request=request
                 )
-                results['updated'].append(updated)
+                results["updated"].append(updated)
             except Exception as e:
-                results['errors'].append({
-                    'id': item.get('id'),
-                    'error': str(e)
-                })
+                results["errors"].append({"id": item.get("id"), "error": str(e)})
 
         return results
 
@@ -556,7 +577,9 @@ class BorrowerService:
     # ============================================================
 
     @staticmethod
-    def export_borrowers(filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def export_borrowers(
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Export borrowers data for reporting.
 
@@ -569,156 +592,175 @@ class BorrowerService:
         qs = Borrower.objects.filter(deleted_at__isnull=True)
 
         if filters:
-            if filters.get('search'):
-                search = filters['search']
+            if filters.get("search"):
+                search = filters["search"]
                 qs = qs.filter(
-                    Q(name__icontains=search) |
-                    Q(email__icontains=search) |
-                    Q(contact__icontains=search)
+                    Q(name__icontains=search)
+                    | Q(email__icontains=search)
+                    | Q(contact__icontains=search)
                 )
 
-        borrowers = qs.select_related('user').prefetch_related('debts')
+        borrowers = qs.select_related("user").prefetch_related("debts")
 
         export_data = []
         for borrower in borrowers:
             total_debt = sum(
-                d.remaining_amount for d in borrower.debts.filter(
-                    deleted_at__isnull=True,
-                    status__in=['active', 'overdue']
+                d.remaining_amount
+                for d in borrower.debts.filter(
+                    deleted_at__isnull=True, status__in=["active", "overdue"]
                 )
             )
 
-            export_data.append({
-                'id': borrower.id,
-                'name': borrower.name,
-                'email': borrower.email,
-                'contact': borrower.contact,
-                'address': borrower.address,
-                'created_at': borrower.created_at.isoformat(),
-                'total_outstanding_debt': float(total_debt),
-                'active_debt_count': borrower.active_debt_count,
-            })
+            export_data.append(
+                {
+                    "id": borrower.id,
+                    "name": borrower.name,
+                    "email": borrower.email,
+                    "contact": borrower.contact,
+                    "address": borrower.address,
+                    "created_at": borrower.created_at.isoformat(),
+                    "total_outstanding_debt": float(total_debt),
+                    "active_debt_count": borrower.active_debt_count,
+                }
+            )
 
         return export_data
-    
+
     @staticmethod
     def get_overdue_debts(page: int = 1, limit: int = 20) -> Dict[str, Any]:
         """Get all overdue debts (status = 'overdue')."""
         from debts.models.debt import Debt
-        
+
         qs = Debt.objects.filter(
-            status=Debt.Status.OVERDUE,
-            deleted_at__isnull=True
-        ).order_by('due_date')
-        
+            status=Debt.Status.OVERDUE, deleted_at__isnull=True
+        ).order_by("due_date")
+
         return paginate_queryset(qs, page, limit)
-    
+
     @staticmethod
     def get_by_borrower(borrower_id: int, include_deleted: bool = False) -> List[Debt]:
         """Get all debts for a specific borrower."""
         qs = Debt.objects.filter(borrower_id=borrower_id)
         if not include_deleted:
             qs = qs.filter(deleted_at__isnull=True)
-        return qs.order_by('due_date').all()
-    
+        return qs.order_by("due_date").all()
+
     @staticmethod
     def exists_for_borrower(borrower_id: int, debt_name: str) -> bool:
         """Check if a debt with given name exists for a borrower."""
         return Debt.objects.filter(
-            borrower_id=borrower_id,
-            name=debt_name,
-            deleted_at__isnull=True
+            borrower_id=borrower_id, name=debt_name, deleted_at__isnull=True
         ).exists()
-        
+
     @staticmethod
     @transaction.atomic
     def import_from_csv(file_path: str, user=None, request=None) -> Dict[str, Any]:
         """Import debts from CSV file."""
         import csv
         from decimal import Decimal
-        
-        results = {'imported': [], 'errors': []}
-        
-        with open(file_path, 'r') as f:
+
+        results = {"imported": [], "errors": []}
+
+        with open(file_path, "r") as f:
             reader = csv.DictReader(f)
             for row_num, row in enumerate(reader, start=2):
                 try:
                     # Validate and create debt
                     borrower = Borrower.objects.filter(
-                        name=row.get('borrower_name'),
-                        deleted_at__isnull=True
+                        name=row.get("borrower_name"), deleted_at__isnull=True
                     ).first()
-                    
+
                     if not borrower:
-                        raise ValidationError(f"Borrower '{row.get('borrower_name')}' not found")
-                    
+                        raise ValidationError(
+                            f"Borrower '{row.get('borrower_name')}' not found"
+                        )
+
                     debt_data = {
-                        'borrower': borrower,
-                        'name': row.get('name'),
-                        'total_amount': Decimal(row.get('total_amount', 0)),
-                        'due_date': datetime.strptime(row.get('due_date'), '%Y-%m-%d').date(),
-                        'interest_rate': Decimal(row.get('interest_rate', 0)) if row.get('interest_rate') else None,
-                        'penalty_rate': Decimal(row.get('penalty_rate', 0)) if row.get('penalty_rate') else None,
+                        "borrower": borrower,
+                        "name": row.get("name"),
+                        "total_amount": Decimal(row.get("total_amount", 0)),
+                        "due_date": datetime.strptime(
+                            row.get("due_date"), "%Y-%m-%d"
+                        ).date(),
+                        "interest_rate": (
+                            Decimal(row.get("interest_rate", 0))
+                            if row.get("interest_rate")
+                            else None
+                        ),
+                        "penalty_rate": (
+                            Decimal(row.get("penalty_rate", 0))
+                            if row.get("penalty_rate")
+                            else None
+                        ),
                     }
-                    
+
                     debt = DebtService.create(debt_data, user, request)
-                    results['imported'].append(debt)
-                    
+                    results["imported"].append(debt)
+
                 except Exception as e:
-                    results['errors'].append({
-                        'row': row_num,
-                        'data': row,
-                        'error': str(e)
-                    })
-        
+                    results["errors"].append(
+                        {"row": row_num, "data": row, "error": str(e)}
+                    )
+
         return results
-    
-    
+
     @staticmethod
-    def export_debts(filters: Optional[Dict[str, Any]] = None, format: str = 'json') -> Dict[str, Any]:
+    def export_debts(
+        filters: Optional[Dict[str, Any]] = None, format: str = "json"
+    ) -> Dict[str, Any]:
         """Export debts to JSON or CSV."""
         from debts.serializers.debt import DebtListSerializer
-        
+
         # Get debts with filters
         qs = Debt.objects.filter(deleted_at__isnull=True)
         if filters:
             # Apply filters similar to get_list
             pass
-        
-        debts = qs.select_related('borrower').all()
-        
-        if format == 'csv':
+
+        debts = qs.select_related("borrower").all()
+
+        if format == "csv":
             # Generate CSV
             import csv
             from io import StringIO
-            
+
             output = StringIO()
             writer = csv.writer(output)
-            writer.writerow(['ID', 'Name', 'Borrower', 'Total Amount', 'Remaining', 'Due Date', 'Status'])
-            
+            writer.writerow(
+                [
+                    "ID",
+                    "Name",
+                    "Borrower",
+                    "Total Amount",
+                    "Remaining",
+                    "Due Date",
+                    "Status",
+                ]
+            )
+
             for debt in debts:
-                writer.writerow([
-                    debt.id,
-                    debt.name,
-                    debt.borrower.name if debt.borrower else '',
-                    str(debt.total_amount),
-                    str(debt.remaining_amount),
-                    debt.due_date.isoformat(),
-                    debt.status
-                ])
-            
+                writer.writerow(
+                    [
+                        debt.id,
+                        debt.name,
+                        debt.borrower.name if debt.borrower else "",
+                        str(debt.total_amount),
+                        str(debt.remaining_amount),
+                        debt.due_date.isoformat(),
+                        debt.status,
+                    ]
+                )
+
             return {
-                'format': 'csv',
-                'data': output.getvalue(),
-                'filename': f'debts_export_{timezone.now().strftime("%Y%m%d")}.csv'
+                "format": "csv",
+                "data": output.getvalue(),
+                "filename": f'debts_export_{timezone.now().strftime("%Y%m%d")}.csv',
             }
         else:
             # Return JSON
             data = DebtListSerializer(debts, many=True).data
             return {
-                'format': 'json',
-                'data': data,
-                'filename': f'debts_export_{timezone.now().strftime("%Y%m%d")}.json'
+                "format": "json",
+                "data": data,
+                "filename": f'debts_export_{timezone.now().strftime("%Y%m%d")}.json',
             }
-        
-    
