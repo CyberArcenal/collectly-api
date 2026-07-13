@@ -4,21 +4,76 @@ from decimal import Decimal
 from debts.models.forgiveness_log import ForgivenessLog
 from debts.models.debt import Debt
 from borrowers.models.borrower import Borrower
+from debts.serializers.debt import DebtMinimalSerializer   # new minimal
+from borrowers.serializers.borrower import BorrowerMinimalSerializer
 
 
+# ---------- Minimal (used as nested relation) ----------
+class ForgivenessLogMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for forgiveness log references."""
+    class Meta:
+        model = ForgivenessLog
+        fields = ['id', 'amount_forgiven', 'status', 'created_at']
+        read_only_fields = ['__all__']
+
+
+# ---------- List (lightweight) ----------
+class ForgivenessLogListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+    # ✅ Overwrite relations with minimal serializers
+    debt = DebtMinimalSerializer(read_only=True)
+    borrower = BorrowerMinimalSerializer(read_only=True)
+
+    amount_display = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    # CamelCase aliases (only for fields not covered by nested objects)
+    amountForgiven = serializers.DecimalField(source='amount_forgiven', max_digits=12, decimal_places=2, read_only=True)
+    createdBy = serializers.CharField(source='created_by', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ForgivenessLog
+        fields = [
+            'id',
+            'debt',          # nested minimal
+            'borrower',      # nested minimal
+            'amount_forgiven',
+            'amount_display',
+            'reason',
+            'status',
+            'status_display',
+            'created_by',
+            'created_at',
+            # CamelCase aliases
+            'amountForgiven',
+            'createdBy',
+            'createdAt',
+            'amountDisplay',
+        ]
+        read_only_fields = ['__all__']
+
+    def get_amount_display(self, obj):
+        return obj.amount_display
+
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+
+# ---------- Read (full detail) ----------
 class ForgivenessLogReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for forgiveness log detail view.
-    """
-    
-    debt_name = serializers.CharField(source='debt.name', read_only=True)
-    debtor_name = serializers.CharField(source='borrower.name', read_only=True)
+    """Full read-only serializer with nested relations."""
+    # ✅ Overwrite relations with minimal serializers
+    debt = DebtMinimalSerializer(read_only=True)
+    borrower = BorrowerMinimalSerializer(read_only=True)
+
     amount_display = serializers.SerializerMethodField()
     is_approved = serializers.SerializerMethodField()
     is_pending = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
-    # ✅ CamelCase fields for frontend compatibility
+    # CamelCase aliases (only for fields not covered by nested objects)
     amountForgiven = serializers.DecimalField(source='amount_forgiven', max_digits=12, decimal_places=2, read_only=True)
     previousTotalAmount = serializers.DecimalField(source='previous_total_amount', max_digits=12, decimal_places=2, read_only=True)
     newTotalAmount = serializers.DecimalField(source='new_total_amount', max_digits=12, decimal_places=2, read_only=True)
@@ -31,17 +86,13 @@ class ForgivenessLogReadSerializer(serializers.ModelSerializer):
     amountDisplay = serializers.SerializerMethodField()
     isApproved = serializers.SerializerMethodField()
     isPending = serializers.SerializerMethodField()
-    debtName = serializers.CharField(source='debt.name', read_only=True)
-    debtorName = serializers.CharField(source='borrower.name', read_only=True)
 
     class Meta:
         model = ForgivenessLog
         fields = [
             'id',
             'debt',
-            'debt_name',
             'borrower',
-            'debtor_name',
             'amount_forgiven',
             'amount_display',
             'previous_total_amount',
@@ -58,7 +109,7 @@ class ForgivenessLogReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
-            # ✅ CamelCase aliases
+            # CamelCase aliases
             'amountForgiven',
             'previousTotalAmount',
             'newTotalAmount',
@@ -71,8 +122,6 @@ class ForgivenessLogReadSerializer(serializers.ModelSerializer):
             'amountDisplay',
             'isApproved',
             'isPending',
-            'debtName',
-            'debtorName',
         ]
         read_only_fields = ['__all__']
 
@@ -85,6 +134,7 @@ class ForgivenessLogReadSerializer(serializers.ModelSerializer):
     def get_is_pending(self, obj):
         return obj.is_pending
 
+    # CamelCase getters
     def get_amountDisplay(self, obj):
         return obj.amount_display
 
@@ -95,54 +145,7 @@ class ForgivenessLogReadSerializer(serializers.ModelSerializer):
         return obj.is_pending
 
 
-class ForgivenessLogListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for forgiveness log list views.
-    """
-    
-    debt_name = serializers.CharField(source='debt.name', read_only=True)
-    debtor_name = serializers.CharField(source='borrower.name', read_only=True)
-    amount_display = serializers.SerializerMethodField()
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-
-    # ✅ CamelCase fields for frontend compatibility
-    amountForgiven = serializers.DecimalField(source='amount_forgiven', max_digits=12, decimal_places=2, read_only=True)
-    createdBy = serializers.CharField(source='created_by', read_only=True)
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    amountDisplay = serializers.SerializerMethodField()
-    debtName = serializers.CharField(source='debt.name', read_only=True)
-    debtorName = serializers.CharField(source='borrower.name', read_only=True)
-
-    class Meta:
-        model = ForgivenessLog
-        fields = [
-            'id',
-            'debt',
-            'debt_name',
-            'borrower',
-            'debtor_name',
-            'amount_forgiven',
-            'amount_display',
-            'reason',
-            'status',
-            'status_display',
-            'created_by',
-            'created_at',
-            # ✅ CamelCase aliases
-            'amountForgiven',
-            'createdBy',
-            'createdAt',
-            'amountDisplay',
-            'debtName',
-            'debtorName',
-        ]
-        read_only_fields = ['__all__']
-
-    def get_amount_display(self, obj):
-        return obj.amount_display
-
-    def get_amountDisplay(self, obj):
-        return obj.amount_display
+# ---------- Create / Update (completely unchanged) ----------
 
 
 class ForgivenessLogCreateSerializer(serializers.ModelSerializer):

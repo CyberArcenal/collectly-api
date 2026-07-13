@@ -236,6 +236,8 @@ class BorrowerService:
             "recently_added": recently_added,
             "with_active_debts": with_active_debts,
             "total_outstanding_debt": total_debt,
+            "deleted": Borrower.objects.filter(deleted_at__isnull=False).count(),
+            "active": total - Borrower.objects.filter(deleted_at__isnull=False).count(),
         }
 
     # ============================================================

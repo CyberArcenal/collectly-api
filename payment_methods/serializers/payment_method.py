@@ -5,6 +5,24 @@ from payment_methods.models.payment_method import PaymentMethod
 from payment_methods.models.payment_method_stat import PaymentMethodStat
 
 
+# ---------- Minimal (used as nested relation) ----------
+class PaymentMethodMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for payment method references."""
+    class Meta:
+        model = PaymentMethod
+        fields = ['id', 'name', 'icon', 'is_default']
+        read_only_fields = ['__all__']
+
+
+class PaymentMethodStatMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for payment method stats references."""
+    class Meta:
+        model = PaymentMethodStat
+        fields = ['id', 'transaction_count', 'total_amount']
+        read_only_fields = ['__all__']
+
+
+# ---------- Stats (full) ----------
 class PaymentMethodStatsSerializer(serializers.ModelSerializer):
     """
     Serializer for payment method statistics.
@@ -44,52 +62,7 @@ class PaymentMethodStatsSerializer(serializers.ModelSerializer):
         return obj.average_transaction
 
 
-class PaymentMethodReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for payment method detail view.
-    Includes nested stats data.
-    """
-    
-    stats = PaymentMethodStatsSerializer(read_only=True)
-    is_default_display = serializers.SerializerMethodField()
-
-    # ✅ CamelCase fields for frontend compatibility
-    isDefault = serializers.BooleanField(source='is_default', read_only=True)
-    isDefaultDisplay = serializers.SerializerMethodField()
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
-    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
-
-    class Meta:
-        model = PaymentMethod
-        fields = [
-            'id',
-            'name',
-            'description',
-            'icon',
-            'is_default',
-            'is_default_display',
-            'stats',
-            'created_at',
-            'updated_at',
-            'deleted_at',
-            'is_deleted',
-            # ✅ CamelCase aliases
-            'isDefault',
-            'isDefaultDisplay',
-            'createdAt',
-            'updatedAt',
-            'deletedAt',
-        ]
-        read_only_fields = ['__all__']
-
-    def get_is_default_display(self, obj):
-        return "Yes" if obj.is_default else "No"
-
-    def get_isDefaultDisplay(self, obj):
-        return "Yes" if obj.is_default else "No"
-
-
+# ---------- List (lightweight) ----------
 class PaymentMethodListSerializer(serializers.ModelSerializer):
     """
     Lightweight read-only serializer for payment method list views.
@@ -142,6 +115,54 @@ class PaymentMethodListSerializer(serializers.ModelSerializer):
         return 0
 
 
+# ---------- Read (full detail) ----------
+class PaymentMethodReadSerializer(serializers.ModelSerializer):
+    """
+    Read-only serializer for payment method detail view.
+    Includes nested stats data.
+    """
+    
+    stats = PaymentMethodStatsSerializer(read_only=True)
+    is_default_display = serializers.SerializerMethodField()
+
+    # ✅ CamelCase fields for frontend compatibility
+    isDefault = serializers.BooleanField(source='is_default', read_only=True)
+    isDefaultDisplay = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+
+    class Meta:
+        model = PaymentMethod
+        fields = [
+            'id',
+            'name',
+            'description',
+            'icon',
+            'is_default',
+            'is_default_display',
+            'stats',
+            'created_at',
+            'updated_at',
+            'deleted_at',
+            'is_deleted',
+            # ✅ CamelCase aliases
+            'isDefault',
+            'isDefaultDisplay',
+            'createdAt',
+            'updatedAt',
+            'deletedAt',
+        ]
+        read_only_fields = ['__all__']
+
+    def get_is_default_display(self, obj):
+        return "Yes" if obj.is_default else "No"
+
+    def get_isDefaultDisplay(self, obj):
+        return "Yes" if obj.is_default else "No"
+
+
+# ---------- Create / Update / Set Default (completely unchanged) ----------
 class PaymentMethodCreateSerializer(serializers.ModelSerializer):
     """
     Write serializer for creating a new payment method.

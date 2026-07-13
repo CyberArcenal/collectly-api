@@ -7,18 +7,21 @@ from users.serializers.User.nested import UserMinimalSerializer
 User = get_user_model()
 
 
-class BorrowerReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for borrower detail view.
-    Includes computed properties and nested user data.
-    """
-    
-    full_contact = serializers.SerializerMethodField()
-    total_debt = serializers.SerializerMethodField()
-    active_debt_count = serializers.SerializerMethodField()
-    user_data = UserMinimalSerializer(source='user', read_only=True)
+# ---------- Minimal (used as nested relation) ----------
+class BorrowerMinimalSerializer(serializers.ModelSerializer):
+    """Lightweight nested serializer for borrower references."""
+    class Meta:
+        model = Borrower
+        fields = ['id', 'name', 'contact', 'email']
+        read_only_fields = ['__all__']
 
-    # ✅ CamelCase fields for frontend compatibility
+
+# ---------- List (lightweight) ----------
+class BorrowerListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+    full_contact = serializers.SerializerMethodField()
+
+    # CamelCase aliases (keep if frontend expects them)
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
@@ -26,26 +29,40 @@ class BorrowerReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Borrower
         fields = [
-            'id',
-            'name',
-            'contact',
-            'email',
-            'address',
-            'notes',
-            'user',
-            'credit_rating',
-            'user_data',
-            'full_contact',
-            'total_debt',
-            'active_debt_count',
-            'created_at',
-            'updated_at',
-            'deleted_at',
-            'is_deleted',
-            # ✅ Added camelCase aliases
-            'createdAt',
-            'updatedAt',
-            'deletedAt',
+            'id', 'name', 'contact', 'email', 'address',
+            'full_contact', 'credit_rating',
+            'created_at', 'updated_at',
+            'createdAt', 'updatedAt', 'deletedAt',
+        ]
+        read_only_fields = ['__all__']
+
+    def get_full_contact(self, obj):
+        return obj.full_contact
+
+
+# ---------- Read (full detail) ----------
+class BorrowerReadSerializer(serializers.ModelSerializer):
+    """Full read-only serializer with nested relations."""
+    full_contact = serializers.SerializerMethodField()
+    total_debt = serializers.SerializerMethodField()
+    active_debt_count = serializers.SerializerMethodField()
+
+    # ✅ Overwrite the 'user' field with a nested minimal serializer
+    user = UserMinimalSerializer(read_only=True)
+
+    # CamelCase aliases
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
+
+    class Meta:
+        model = Borrower
+        fields = [
+            'id', 'name', 'contact', 'email', 'address', 'notes',
+            'user', 'credit_rating',          # ← 'user' now returns minimal object
+            'full_contact', 'total_debt', 'active_debt_count',
+            'created_at', 'updated_at', 'deleted_at', 'is_deleted',
+            'createdAt', 'updatedAt', 'deletedAt',
         ]
         read_only_fields = ['__all__']
 
@@ -57,41 +74,6 @@ class BorrowerReadSerializer(serializers.ModelSerializer):
 
     def get_active_debt_count(self, obj):
         return obj.active_debt_count
-
-
-class BorrowerListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for borrower list views.
-    """
-    
-    full_contact = serializers.SerializerMethodField()
-
-    # ✅ CamelCase fields for frontend compatibility
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
-    deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
-
-    class Meta:
-        model = Borrower
-        fields = [
-            'id',
-            'name',
-            'contact',
-            'email',
-            'address',
-            'full_contact',
-            'credit_rating',
-            'created_at',
-            'updated_at',
-            # ✅ Added camelCase aliases
-            'createdAt',
-            'updatedAt',
-            'deletedAt',
-        ]
-        read_only_fields = ['__all__']
-
-    def get_full_contact(self, obj):
-        return obj.full_contact
 
 
 class BorrowerCreateSerializer(serializers.ModelSerializer):

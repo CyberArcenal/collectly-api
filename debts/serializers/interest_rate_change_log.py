@@ -2,19 +2,83 @@ from rest_framework import serializers
 
 from debts.models.interest_rate_change_log import InterestRateChangeLog
 from debts.models.debt import Debt
+from debts.serializers.debt import DebtMinimalSerializer
 
 
+# ---------- Minimal (used as nested relation) ----------
+class InterestRateChangeLogMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for interest rate change log references."""
+    class Meta:
+        model = InterestRateChangeLog
+        fields = ['id', 'setting_key', 'old_value', 'new_value', 'changed_at']
+        read_only_fields = ['__all__']
+
+
+# ---------- List (lightweight) ----------
+class InterestRateChangeLogListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+    # ✅ Overwrite loan field with minimal serializer
+    loan = DebtMinimalSerializer(read_only=True)
+
+    change_direction = serializers.SerializerMethodField()
+    is_system_change = serializers.SerializerMethodField()
+
+    # CamelCase aliases (only for fields not covered by nested objects)
+    settingKey = serializers.CharField(source='setting_key', read_only=True)
+    oldValue = serializers.DecimalField(source='old_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    newValue = serializers.DecimalField(source='new_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    changedBy = serializers.CharField(source='changed_by', read_only=True)
+    changedAt = serializers.DateTimeField(source='changed_at', read_only=True)
+    changeDirection = serializers.SerializerMethodField()
+    isSystemChange = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InterestRateChangeLog
+        fields = [
+            'id',
+            'setting_key',
+            'old_value',
+            'new_value',
+            'changed_by',
+            'changed_at',
+            'loan',          # nested minimal
+            'change_direction',
+            'is_system_change',
+            # CamelCase aliases
+            'settingKey',
+            'oldValue',
+            'newValue',
+            'changedBy',
+            'changedAt',
+            'changeDirection',
+            'isSystemChange',
+        ]
+        read_only_fields = ['__all__']
+
+    def get_change_direction(self, obj):
+        return obj.change_direction
+
+    def get_is_system_change(self, obj):
+        return obj.is_system_change
+
+    def get_changeDirection(self, obj):
+        return obj.change_direction
+
+    def get_isSystemChange(self, obj):
+        return obj.is_system_change
+
+
+# ---------- Read (full detail) ----------
 class InterestRateChangeLogReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for interest rate change log detail view.
-    """
-    
-    loan_name = serializers.CharField(source='loan.name', read_only=True, allow_null=True)
+    """Full read-only serializer with nested relations."""
+    # ✅ Overwrite loan field with minimal serializer
+    loan = DebtMinimalSerializer(read_only=True)
+
     change_direction = serializers.SerializerMethodField()
     is_system_change = serializers.SerializerMethodField()
     is_loan_change = serializers.SerializerMethodField()
 
-    # ✅ CamelCase fields for frontend compatibility
+    # CamelCase aliases (only for fields not covered by nested objects)
     settingKey = serializers.CharField(source='setting_key', read_only=True)
     oldValue = serializers.DecimalField(source='old_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
     newValue = serializers.DecimalField(source='new_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
@@ -23,8 +87,6 @@ class InterestRateChangeLogReadSerializer(serializers.ModelSerializer):
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     deletedAt = serializers.DateTimeField(source='deleted_at', read_only=True)
-    loanId = serializers.PrimaryKeyRelatedField(source='loan', read_only=True)
-    loanName = serializers.CharField(source='loan.name', read_only=True, allow_null=True)
     changeDirection = serializers.SerializerMethodField()
     isSystemChange = serializers.SerializerMethodField()
     isLoanChange = serializers.SerializerMethodField()
@@ -39,8 +101,7 @@ class InterestRateChangeLogReadSerializer(serializers.ModelSerializer):
             'changed_by',
             'reason',
             'changed_at',
-            'loan',
-            'loan_name',
+            'loan',          # nested minimal
             'change_direction',
             'is_system_change',
             'is_loan_change',
@@ -48,7 +109,7 @@ class InterestRateChangeLogReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
-            # ✅ CamelCase aliases
+            # CamelCase aliases
             'settingKey',
             'oldValue',
             'newValue',
@@ -57,8 +118,6 @@ class InterestRateChangeLogReadSerializer(serializers.ModelSerializer):
             'createdAt',
             'updatedAt',
             'deletedAt',
-            'loanId',
-            'loanName',
             'changeDirection',
             'isSystemChange',
             'isLoanChange',
@@ -74,6 +133,7 @@ class InterestRateChangeLogReadSerializer(serializers.ModelSerializer):
     def get_is_loan_change(self, obj):
         return obj.is_loan_change
 
+    # CamelCase getters
     def get_changeDirection(self, obj):
         return obj.change_direction
 
@@ -84,59 +144,7 @@ class InterestRateChangeLogReadSerializer(serializers.ModelSerializer):
         return obj.is_loan_change
 
 
-class InterestRateChangeLogListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for interest rate change log list views.
-    """
-    
-    change_direction = serializers.SerializerMethodField()
-    is_system_change = serializers.SerializerMethodField()
-
-    # ✅ CamelCase fields for frontend compatibility
-    settingKey = serializers.CharField(source='setting_key', read_only=True)
-    oldValue = serializers.DecimalField(source='old_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
-    newValue = serializers.DecimalField(source='new_value', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
-    changedBy = serializers.CharField(source='changed_by', read_only=True)
-    changedAt = serializers.DateTimeField(source='changed_at', read_only=True)
-    loanId = serializers.PrimaryKeyRelatedField(source='loan', read_only=True)
-    changeDirection = serializers.SerializerMethodField()
-    isSystemChange = serializers.SerializerMethodField()
-
-    class Meta:
-        model = InterestRateChangeLog
-        fields = [
-            'id',
-            'setting_key',
-            'old_value',
-            'new_value',
-            'changed_by',
-            'changed_at',
-            'loan',
-            'change_direction',
-            'is_system_change',
-            # ✅ CamelCase aliases
-            'settingKey',
-            'oldValue',
-            'newValue',
-            'changedBy',
-            'changedAt',
-            'loanId',
-            'changeDirection',
-            'isSystemChange',
-        ]
-        read_only_fields = ['__all__']
-
-    def get_change_direction(self, obj):
-        return obj.change_direction
-
-    def get_is_system_change(self, obj):
-        return obj.is_system_change
-
-    def get_changeDirection(self, obj):
-        return obj.change_direction
-
-    def get_isSystemChange(self, obj):
-        return obj.is_system_change
+# ---------- Create / Update (completely unchanged) ----------
 
 
 class InterestRateChangeLogCreateSerializer(serializers.ModelSerializer):

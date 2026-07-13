@@ -6,24 +6,60 @@ from borrowers.models.borrower import Borrower
 from borrowers.services.credit_check import CreditCheckService
 from users.models import User
 from users.serializers.User.nested import UserMinimalSerializer
+from rest_framework.exceptions import ValidationError
+
+# Import the minimal borrower serializer
+from borrowers.serializers.borrower import BorrowerMinimalSerializer
 
 
+# ---------- Minimal (used as nested relation) ----------
+class CreditCheckLogMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for credit check log references."""
+    class Meta:
+        model = CreditCheckLog
+        fields = ['id', 'score', 'risk_level', 'date_checked']
+        read_only_fields = ['__all__']
+
+
+# ---------- List (lightweight) ----------
+class CreditCheckLogListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+    # ✅ Replace separate debtor fields with nested minimal serializer
+    debtor = BorrowerMinimalSerializer(read_only=True)
+    risk_level_display = serializers.CharField(source='get_risk_level_display', read_only=True)
+
+    # CamelCase aliases for other fields
+    dateChecked = serializers.DateTimeField(source='date_checked', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
+    class Meta:
+        model = CreditCheckLog
+        fields = [
+            'id',
+            'debtor',                # ← nested minimal borrower
+            'score',
+            'risk_level',
+            'risk_level_display',
+            'date_checked',
+            'created_at',
+            'dateChecked',
+            'createdAt',
+        ]
+        read_only_fields = ['__all__']
+
+
+# ---------- Read (full detail) ----------
 class CreditCheckLogReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for credit check log detail view.
-    """
-    
-    debtor_name = serializers.CharField(source='debtor.name', read_only=True)
-    debtor_email = serializers.CharField(source='debtor.email', read_only=True)
+    """Full read-only serializer with nested relations."""
+    # ✅ Overwrite 'debtor' and 'performed_by' with nested minimal serializers
+    debtor = BorrowerMinimalSerializer(read_only=True)
+    performed_by = UserMinimalSerializer(read_only=True)
+
     risk_level_display = serializers.CharField(source='get_risk_level_display', read_only=True)
     is_passing = serializers.SerializerMethodField()
     is_excellent = serializers.SerializerMethodField()
-    performed_by_data = UserMinimalSerializer(source='performed_by', read_only=True)
 
-    # ✅ CamelCase fields for frontend compatibility
-    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
-    debtorName = serializers.CharField(source='debtor.name', read_only=True)
-    riskLevel = serializers.CharField(source='risk_level', read_only=True)
+    # CamelCase aliases for fields that aren't already covered
     dateChecked = serializers.DateTimeField(source='date_checked', read_only=True)
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -33,16 +69,13 @@ class CreditCheckLogReadSerializer(serializers.ModelSerializer):
         model = CreditCheckLog
         fields = [
             'id',
-            'debtor',
-            'debtor_name',
-            'debtor_email',
+            'debtor',                # ← nested minimal borrower
             'score',
             'risk_level',
             'risk_level_display',
             'remarks',
             'date_checked',
-            'performed_by',
-            'performed_by_data',
+            'performed_by',          # ← nested minimal user
             'external_reference',
             'is_passing',
             'is_excellent',
@@ -50,10 +83,6 @@ class CreditCheckLogReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
-            # ✅ Added camelCase aliases
-            'debtorId',
-            'debtorName',
-            'riskLevel',
             'dateChecked',
             'createdAt',
             'updatedAt',
@@ -66,42 +95,6 @@ class CreditCheckLogReadSerializer(serializers.ModelSerializer):
 
     def get_is_excellent(self, obj):
         return obj.is_excellent
-
-
-class CreditCheckLogListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for credit check log list views.
-    """
-    
-    debtor_name = serializers.CharField(source='debtor.name', read_only=True)
-    risk_level_display = serializers.CharField(source='get_risk_level_display', read_only=True)
-
-    # ✅ CamelCase fields for frontend compatibility
-    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
-    debtorName = serializers.CharField(source='debtor.name', read_only=True)
-    riskLevel = serializers.CharField(source='risk_level', read_only=True)
-    dateChecked = serializers.DateTimeField(source='date_checked', read_only=True)
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-
-    class Meta:
-        model = CreditCheckLog
-        fields = [
-            'id',
-            'debtor',
-            'debtor_name',
-            'score',
-            'risk_level',
-            'risk_level_display',
-            'date_checked',
-            'created_at',
-            # ✅ Added camelCase aliases
-            'debtorId',
-            'debtorName',
-            'riskLevel',
-            'dateChecked',
-            'createdAt',
-        ]
-        read_only_fields = ['__all__']
 
 
 class CreditCheckLogCreateSerializer(serializers.ModelSerializer):
@@ -141,7 +134,11 @@ class CreditCheckLogCreateSerializer(serializers.ModelSerializer):
         """If score not provided, compute it."""
         if 'score' not in data:
             # Compute using service
-            borrower_id = data['debtor'].id
+            debtor = data.get('debtor')
+            if not debtor:
+                raise ValidationError("No Debtor Provided")
+            
+            borrower_id = debtor.id
             computed = CreditCheckService.compute_score(borrower_id)
             data['score'] = computed['score']
             if 'risk_level' not in data:

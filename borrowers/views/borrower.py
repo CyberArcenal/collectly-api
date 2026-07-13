@@ -1124,6 +1124,8 @@ class BorrowerStatisticsView(APIView):
                     "recently_added": serializers.IntegerField(),
                     "with_active_debts": serializers.IntegerField(),
                     "total_outstanding_debt": serializers.FloatField(),
+                    "deleted": serializers.IntegerField(),
+                    "active": serializers.IntegerField(),
                 },
             ),
             401: ErrorResponseSerializer,

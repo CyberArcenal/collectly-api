@@ -17145,6 +17145,8 @@ components:
       - payment_apply
       - interest_accrual
       - payment_confirm
+      - debt_paid
+      - debt_status_auto_paid
       type: string
       description: |-
         * `create` - Create
@@ -17225,6 +17227,8 @@ components:
         * `payment_apply` - Payment Apply
         * `interest_accrual` - Interest Accrual
         * `payment_confirm` - Payment Confirm
+        * `debt_paid` - Debt Paid
+        * `debt_status_auto_paid` - Debt Status Auto Paid
     AgingSummaryResponse:
       type: object
       properties:
@@ -17620,6 +17624,8 @@ components:
             * `payment_apply` - Payment Apply
             * `interest_accrual` - Interest Accrual
             * `payment_confirm` - Payment Confirm
+            * `debt_paid` - Debt Paid
+            * `debt_status_auto_paid` - Debt Status Auto Paid
         model_name:
           type: string
           minLength: 1
@@ -17938,7 +17944,7 @@ components:
       - message
     BorrowerList:
       type: object
-      description: Lightweight read-only serializer for borrower list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
@@ -18016,11 +18022,33 @@ components:
       - data
       - message
       - pagination
+    BorrowerMinimal:
+      type: object
+      description: Lightweight nested serializer for borrower references.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Full name of the borrower
+          maxLength: 255
+        contact:
+          type: string
+          nullable: true
+          description: Phone number or contact details
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: Email address (must be unique)
+          maxLength: 254
+      required:
+      - name
     BorrowerRead:
       type: object
-      description: |-
-        Read-only serializer for borrower detail view.
-        Includes computed properties and nested user data.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
@@ -18049,9 +18077,9 @@ components:
           nullable: true
           description: Additional notes about the borrower
         user:
-          type: integer
-          nullable: true
-          description: Associated system user account (if borrower has login access)
+          allOf:
+          - $ref: '#/components/schemas/UserMinimal'
+          readOnly: true
         credit_rating:
           allOf:
           - $ref: '#/components/schemas/CreditRatingEnum'
@@ -18063,10 +18091,6 @@ components:
             * `Good` - Good
             * `Fair` - Fair
             * `Poor` - Poor
-        user_data:
-          allOf:
-          - $ref: '#/components/schemas/UserMinimal'
-          readOnly: true
         full_contact:
           type: string
           readOnly: true
@@ -18121,7 +18145,13 @@ components:
         total_outstanding_debt:
           type: number
           format: double
+        deleted:
+          type: integer
+        active:
+          type: integer
       required:
+      - active
+      - deleted
       - recently_added
       - total
       - total_outstanding_debt
@@ -18318,16 +18348,14 @@ components:
       - message
     CreditCheckLogList:
       type: object
-      description: Lightweight read-only serializer for credit check log list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
           readOnly: true
         debtor:
-          type: integer
-          description: Borrower being checked
-        debtor_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         score:
           type: integer
@@ -18355,15 +18383,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        debtorId:
-          type: integer
-          readOnly: true
-        debtorName:
-          type: string
-          readOnly: true
-        riskLevel:
-          type: string
-          readOnly: true
         dateChecked:
           type: string
           format: date-time
@@ -18373,7 +18392,6 @@ components:
           format: date-time
           readOnly: true
       required:
-      - debtor
       - risk_level
     CreditCheckLogListResponse:
       type: object
@@ -18395,19 +18413,14 @@ components:
       - pagination
     CreditCheckLogRead:
       type: object
-      description: Read-only serializer for credit check log detail view.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
           readOnly: true
         debtor:
-          type: integer
-          description: Borrower being checked
-        debtor_name:
-          type: string
-          readOnly: true
-        debtor_email:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         score:
           type: integer
@@ -18436,10 +18449,6 @@ components:
           readOnly: true
           description: When the credit check was performed
         performed_by:
-          type: integer
-          nullable: true
-          description: User who performed the credit check
-        performed_by_data:
           allOf:
           - $ref: '#/components/schemas/UserMinimal'
           readOnly: true
@@ -18469,15 +18478,6 @@ components:
         is_deleted:
           type: string
           readOnly: true
-        debtorId:
-          type: integer
-          readOnly: true
-        debtorName:
-          type: string
-          readOnly: true
-        riskLevel:
-          type: string
-          readOnly: true
         dateChecked:
           type: string
           format: date-time
@@ -18495,7 +18495,6 @@ components:
           format: date-time
           readOnly: true
       required:
-      - debtor
       - risk_level
     CreditCheckStatsResponse:
       type: object
@@ -18664,16 +18663,14 @@ components:
       - message
     DebtList:
       type: object
-      description: Lightweight read-only serializer for debt list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
           readOnly: true
         borrower:
-          type: integer
-          description: Borrower who owns this debt
-        borrower_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         name:
           type: string
@@ -18754,11 +18751,7 @@ components:
         isOverdue:
           type: string
           readOnly: true
-        borrowerName:
-          type: string
-          readOnly: true
       required:
-      - borrower
       - due_date
       - name
       - total_amount
@@ -18780,21 +18773,59 @@ components:
       - data
       - message
       - pagination
+    DebtMinimal:
+      type: object
+      description: Ultra‑lightweight serializer for debt references.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Name/description of the debt (e.g., 'Personal Loan')
+          maxLength: 255
+        total_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Total amount of the debt
+        remaining_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Remaining balance (auto-calculated)
+        due_date:
+          type: string
+          format: date
+          description: Due date of the debt
+        status:
+          allOf:
+          - $ref: '#/components/schemas/Status9bdEnum'
+          description: |-
+            Current status of the debt
+
+            * `active` - Active
+            * `paid` - Paid
+            * `overdue` - Overdue
+            * `defaulted` - Defaulted
+        borrower:
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
+          readOnly: true
+      required:
+      - due_date
+      - name
+      - total_amount
     DebtRead:
       type: object
-      description: |-
-        Read-only serializer for debt detail view.
-        Includes computed properties and nested borrower data.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
           readOnly: true
         borrower:
-          type: integer
-          description: Borrower who owns this debt
-        borrower_data:
           allOf:
-          - $ref: '#/components/schemas/BorrowerList'
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         name:
           type: string
@@ -18959,7 +18990,6 @@ components:
           type: string
           readOnly: true
       required:
-      - borrower
       - due_date
       - name
       - total_amount
@@ -19074,7 +19104,7 @@ components:
       - name
     DebtorGroupList:
       type: object
-      description: Lightweight read-only serializer for debtor group list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
@@ -19126,25 +19156,18 @@ components:
       - group_id
     DebtorGroupMemberList:
       type: object
-      description: Lightweight read-only serializer for debtor group member list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
           readOnly: true
         group:
-          type: integer
-          description: Group that the borrower belongs to
-        group_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/DebtorGroupMinimal'
           readOnly: true
         debtor:
-          type: integer
-          description: Borrower who is a member of the group
-        debtor_name:
-          type: string
-          readOnly: true
-        debtor_email:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         assigned_at:
           type: string
@@ -19155,21 +19178,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        groupId:
-          type: integer
-          readOnly: true
-        groupName:
-          type: string
-          readOnly: true
-        debtorId:
-          type: integer
-          readOnly: true
-        debtorName:
-          type: string
-          readOnly: true
-        debtorEmail:
-          type: string
-          readOnly: true
         assignedAt:
           type: string
           format: date-time
@@ -19178,37 +19186,20 @@ components:
           type: string
           format: date-time
           readOnly: true
-      required:
-      - debtor
-      - group
     DebtorGroupMemberRead:
       type: object
-      description: |-
-        Read-only serializer for debtor group member detail view.
-        Includes nested debtor and group data.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
           readOnly: true
         group:
-          type: integer
-          description: Group that the borrower belongs to
-        group_name:
-          type: string
-          readOnly: true
-        group_data:
           allOf:
-          - $ref: '#/components/schemas/DebtorGroupList'
+          - $ref: '#/components/schemas/DebtorGroupMinimal'
           readOnly: true
         debtor:
-          type: integer
-          description: Borrower who is a member of the group
-        debtor_name:
-          type: string
-          readOnly: true
-        debtor_data:
           allOf:
-          - $ref: '#/components/schemas/BorrowerList'
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         assigned_at:
           type: string
@@ -19233,18 +19224,6 @@ components:
         is_deleted:
           type: string
           readOnly: true
-        groupId:
-          type: integer
-          readOnly: true
-        groupName:
-          type: string
-          readOnly: true
-        debtorId:
-          type: integer
-          readOnly: true
-        debtorName:
-          type: string
-          readOnly: true
         assignedAt:
           type: string
           format: date-time
@@ -19264,14 +19243,26 @@ components:
         isActive:
           type: string
           readOnly: true
+    DebtorGroupMinimal:
+      type: object
+      description: Ultra‑lightweight serializer for debtor group references.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Name of the group (e.g., 'VIP', 'High-Risk')
+          maxLength: 255
+        color:
+          type: string
+          description: Hex color code for the group (e.g., '#3b82f6')
+          maxLength: 7
       required:
-      - debtor
-      - group
+      - name
     DebtorGroupRead:
       type: object
-      description: |-
-        Read-only serializer for debtor group detail view.
-        Includes computed properties and member statistics.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
@@ -19496,22 +19487,18 @@ components:
       - message
     ForgivenessLogList:
       type: object
-      description: Lightweight read-only serializer for forgiveness log list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          description: Debt being forgiven
-        debt_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
         borrower:
-          type: integer
-          description: Borrower who owns the debt (denormalized for faster queries)
-        debtor_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         amount_forgiven:
           type: string
@@ -19560,17 +19547,9 @@ components:
         amountDisplay:
           type: string
           readOnly: true
-        debtName:
-          type: string
-          readOnly: true
-        debtorName:
-          type: string
-          readOnly: true
       required:
       - amount_forgiven
-      - borrower
       - created_by
-      - debt
     ForgivenessLogListResponse:
       type: object
       properties:
@@ -19591,22 +19570,18 @@ components:
       - pagination
     ForgivenessLogRead:
       type: object
-      description: Read-only serializer for forgiveness log detail view.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          description: Debt being forgiven
-        debt_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
         borrower:
-          type: integer
-          description: Borrower who owns the debt (denormalized for faster queries)
-        debtor_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         amount_forgiven:
           type: string
@@ -19723,17 +19698,9 @@ components:
         isPending:
           type: string
           readOnly: true
-        debtName:
-          type: string
-          readOnly: true
-        debtorName:
-          type: string
-          readOnly: true
       required:
       - amount_forgiven
-      - borrower
       - created_by
-      - debt
       - new_total_amount
       - previous_total_amount
     FormatEnum:
@@ -20083,8 +20050,7 @@ components:
       - message
     InterestRateChangeLogList:
       type: object
-      description: Lightweight read-only serializer for interest rate change log list
-        views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
@@ -20115,9 +20081,9 @@ components:
           readOnly: true
           description: When the change was made
         loan:
-          type: integer
-          nullable: true
-          description: Specific loan this change applies to (null = system-wide)
+          allOf:
+          - $ref: '#/components/schemas/DebtMinimal'
+          readOnly: true
         change_direction:
           type: string
           readOnly: true
@@ -20145,9 +20111,6 @@ components:
         changedAt:
           type: string
           format: date-time
-          readOnly: true
-        loanId:
-          type: integer
           readOnly: true
         changeDirection:
           type: string
@@ -20177,7 +20140,7 @@ components:
       - pagination
     InterestRateChangeLogRead:
       type: object
-      description: Read-only serializer for interest rate change log detail view.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
@@ -20212,13 +20175,9 @@ components:
           readOnly: true
           description: When the change was made
         loan:
-          type: integer
-          nullable: true
-          description: Specific loan this change applies to (null = system-wide)
-        loan_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
-          nullable: true
         change_direction:
           type: string
           readOnly: true
@@ -20277,13 +20236,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        loanId:
-          type: integer
-          readOnly: true
-        loanName:
-          type: string
-          readOnly: true
-          nullable: true
         changeDirection:
           type: string
           readOnly: true
@@ -20415,19 +20367,18 @@ components:
       - message
     LoanAgreementList:
       type: object
-      description: Lightweight read-only serializer for loan agreement list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          description: Debt associated with this agreement
-        debt_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
-        borrower_name:
-          type: string
+        borrower:
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         status:
           allOf:
@@ -20445,6 +20396,12 @@ components:
           format: date
           nullable: true
           description: Date of the agreement
+        principal_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+          description: Principal amount at signing
         lender_name:
           type: string
           nullable: true
@@ -20470,18 +20427,14 @@ components:
           type: string
           format: date-time
           readOnly: true
-        debtId:
-          type: integer
-          readOnly: true
-        debtName:
-          type: string
-          readOnly: true
-        borrowerName:
-          type: string
-          readOnly: true
         agreementDate:
           type: string
           format: date
+          readOnly: true
+        principalAmount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
           readOnly: true
         lenderName:
           type: string
@@ -20503,8 +20456,6 @@ components:
         hasFile:
           type: string
           readOnly: true
-      required:
-      - debt
     LoanAgreementListResponse:
       type: object
       properties:
@@ -20525,25 +20476,18 @@ components:
       - pagination
     LoanAgreementRead:
       type: object
-      description: |-
-        Read-only serializer for loan agreement detail view.
-        Includes computed properties and nested debt data.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          description: Debt associated with this agreement
-        debt_name:
-          type: string
-          readOnly: true
-        borrower_name:
-          type: string
-          readOnly: true
-        debt_data:
           allOf:
-          - $ref: '#/components/schemas/DebtList'
+          - $ref: '#/components/schemas/DebtMinimal'
+          readOnly: true
+        borrower:
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         status:
           allOf:
@@ -20649,15 +20593,6 @@ components:
         is_deleted:
           type: string
           readOnly: true
-        debtId:
-          type: integer
-          readOnly: true
-        debtName:
-          type: string
-          readOnly: true
-        borrowerName:
-          type: string
-          readOnly: true
         agreementDate:
           type: string
           format: date
@@ -20722,8 +20657,6 @@ components:
         hasFile:
           type: string
           readOnly: true
-      required:
-      - debt
     LoanAgreementSignRequest:
       type: object
       description: Serializer for signing a loan agreement.
@@ -20991,15 +20924,15 @@ components:
       - message
     LoanApplicationList:
       type: object
-      description: Lightweight read-only serializer for loan application list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
           readOnly: true
         debtor:
-          type: integer
-          nullable: true
-          description: Existing borrower (if any)
+          allOf:
+          - $ref: '#/components/schemas/BorrowerMinimal'
+          readOnly: true
         debtor_name:
           type: string
           description: Borrower's full name (snapshot)
@@ -21042,15 +20975,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        debtorId:
-          type: integer
-          readOnly: true
-        debtorName:
-          type: string
-          readOnly: true
-        debtorEmail:
-          type: string
-          readOnly: true
         requestedAmount:
           type: string
           format: decimal
@@ -21092,20 +21016,14 @@ components:
       - pagination
     LoanApplicationRead:
       type: object
-      description: |-
-        Read-only serializer for loan application detail view.
-        Includes computed properties and nested debtor data.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
           readOnly: true
         debtor:
-          type: integer
-          nullable: true
-          description: Existing borrower (if any)
-        debtor_data:
           allOf:
-          - $ref: '#/components/schemas/BorrowerList'
+          - $ref: '#/components/schemas/BorrowerMinimal'
           readOnly: true
         debtor_name:
           type: string
@@ -21201,21 +21119,6 @@ components:
           format: date-time
           nullable: true
         is_deleted:
-          type: string
-          readOnly: true
-        debtorId:
-          type: integer
-          readOnly: true
-        debtorName:
-          type: string
-          readOnly: true
-        debtorContact:
-          type: string
-          readOnly: true
-        debtorEmail:
-          type: string
-          readOnly: true
-        debtorAddress:
           type: string
           readOnly: true
         requestedAmount:
@@ -21694,19 +21597,15 @@ components:
       - message
     NotificationList:
       type: object
-      description: Lightweight read-only serializer for notification list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          nullable: true
-          description: Related debt (if any)
-        debt_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
-          nullable: true
         title:
           type: string
           description: Notification title
@@ -21743,14 +21642,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        debtId:
-          type: integer
-          readOnly: true
-          nullable: true
-        debtName:
-          type: string
-          readOnly: true
-          nullable: true
         scheduledFor:
           type: string
           format: date-time
@@ -21835,7 +21726,7 @@ components:
       - message
     NotificationLogList:
       type: object
-      description: Lightweight read-only serializer for notification log list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
@@ -21918,7 +21809,7 @@ components:
       - pagination
     NotificationLogRead:
       type: object
-      description: Read-only serializer for notification log detail view.
+      description: Full read-only serializer for detail view.
       properties:
         id:
           type: integer
@@ -22091,24 +21982,14 @@ components:
       - message
     NotificationRead:
       type: object
-      description: |-
-        Read-only serializer for notification detail view.
-        Includes computed properties and nested debt data.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          nullable: true
-          description: Related debt (if any)
-        debt_name:
-          type: string
-          readOnly: true
-          nullable: true
-        debt_data:
           allOf:
-          - $ref: '#/components/schemas/DebtList'
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
         title:
           type: string
@@ -22157,14 +22038,6 @@ components:
         is_deleted:
           type: string
           readOnly: true
-        debtId:
-          type: integer
-          readOnly: true
-          nullable: true
-        debtName:
-          type: string
-          readOnly: true
-          nullable: true
         scheduledFor:
           type: string
           format: date-time
@@ -23269,6 +23142,26 @@ components:
       - data
       - message
       - pagination
+    PaymentMethodMinimal:
+      type: object
+      description: Ultra‑lightweight serializer for payment method references.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Name of payment method (e.g., 'Cash', 'Bank Transfer')
+          maxLength: 100
+        icon:
+          type: string
+          description: Icon name (for UI)
+          maxLength: 50
+        is_default:
+          type: boolean
+          description: Whether this is the default payment method
+      required:
+      - name
     PaymentMethodRead:
       type: object
       description: |-
@@ -23547,28 +23440,19 @@ components:
       - message
     PaymentTransactionList:
       type: object
-      description: Lightweight read-only serializer for payment transaction list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          description: Debt being paid
-        debt_name:
-          type: string
-          readOnly: true
-        borrower_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
         method:
-          type: integer
-          nullable: true
-          description: Payment method used (Cash, Bank Transfer, GCash, etc.)
-        method_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/PaymentMethodMinimal'
           readOnly: true
-          nullable: true
         amount:
           type: string
           format: decimal
@@ -23598,23 +23482,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        debtId:
-          type: integer
-          readOnly: true
-        debtName:
-          type: string
-          readOnly: true
-        borrowerName:
-          type: string
-          readOnly: true
-        methodId:
-          type: integer
-          readOnly: true
-          nullable: true
-        methodName:
-          type: string
-          readOnly: true
-          nullable: true
         paymentDate:
           type: string
           format: date
@@ -23635,7 +23502,6 @@ components:
           readOnly: true
       required:
       - amount
-      - debt
       - payment_date
     PaymentTransactionListResponse:
       type: object
@@ -23657,27 +23523,18 @@ components:
       - pagination
     PaymentTransactionRead:
       type: object
-      description: |-
-        Read-only serializer for payment transaction detail view.
-        Includes nested debt, method, and recorded_by data.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          description: Debt being paid
-        debt_data:
           allOf:
-          - $ref: '#/components/schemas/DebtList'
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
         method:
-          type: integer
-          nullable: true
-          description: Payment method used (Cash, Bank Transfer, GCash, etc.)
-        method_data:
           allOf:
-          - $ref: '#/components/schemas/PaymentMethodList'
+          - $ref: '#/components/schemas/PaymentMethodMinimal'
           readOnly: true
         payment_method_name:
           type: string
@@ -23709,10 +23566,6 @@ components:
           readOnly: true
           description: When the payment was recorded in the system
         recorded_by:
-          type: integer
-          nullable: true
-          description: User who recorded the payment
-        recorded_by_data:
           allOf:
           - $ref: '#/components/schemas/UserMinimal'
           readOnly: true
@@ -23734,13 +23587,6 @@ components:
         is_deleted:
           type: string
           readOnly: true
-        debtId:
-          type: integer
-          readOnly: true
-        methodId:
-          type: integer
-          readOnly: true
-          nullable: true
         paymentDate:
           type: string
           format: date
@@ -23749,10 +23595,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        recordedBy:
-          type: integer
-          readOnly: true
-          nullable: true
         amountDisplay:
           type: string
           readOnly: true
@@ -23776,7 +23618,6 @@ components:
           readOnly: true
       required:
       - amount
-      - debt
       - payment_date
     PaymentTransactionStatisticsResponse:
       type: object
@@ -23950,19 +23791,14 @@ components:
       - message
     PenaltyTransactionList:
       type: object
-      description: Lightweight read-only serializer for penalty transaction list views.
+      description: Lightweight read-only serializer for list views.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          description: Debt being penalized
-        debt_name:
-          type: string
-          readOnly: true
-        borrower_name:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
         amount:
           type: string
@@ -23990,15 +23826,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-        debtId:
-          type: integer
-          readOnly: true
-        debtName:
-          type: string
-          readOnly: true
-        borrowerName:
-          type: string
-          readOnly: true
         penaltyDate:
           type: string
           format: date
@@ -24018,7 +23845,6 @@ components:
           readOnly: true
       required:
       - amount
-      - debt
       - penalty_date
     PenaltyTransactionListResponse:
       type: object
@@ -24040,19 +23866,14 @@ components:
       - pagination
     PenaltyTransactionRead:
       type: object
-      description: |-
-        Read-only serializer for penalty transaction detail view.
-        Includes nested debt data and computed properties.
+      description: Full read-only serializer with nested relations.
       properties:
         id:
           type: integer
           readOnly: true
         debt:
-          type: integer
-          description: Debt being penalized
-        debt_data:
           allOf:
-          - $ref: '#/components/schemas/DebtList'
+          - $ref: '#/components/schemas/DebtMinimal'
           readOnly: true
         amount:
           type: string
@@ -24094,9 +23915,6 @@ components:
         is_deleted:
           type: string
           readOnly: true
-        debtId:
-          type: integer
-          readOnly: true
         penaltyDate:
           type: string
           format: date
@@ -24127,7 +23945,6 @@ components:
           readOnly: true
       required:
       - amount
-      - debt
       - penalty_date
     PenaltyTransactionStatisticsResponse:
       type: object

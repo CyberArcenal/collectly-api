@@ -4,22 +4,79 @@ from decimal import Decimal
 
 from payments.models.penalty_transaction import PenaltyTransaction
 from debts.models.debt import Debt
-from debts.serializers.debt import DebtListSerializer
+from debts.serializers.debt import DebtMinimalSerializer
 
 
+# ---------- Minimal (used as nested relation) ----------
+class PenaltyTransactionMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for penalty transaction references."""
+    class Meta:
+        model = PenaltyTransaction
+        fields = ['id', 'amount', 'penalty_date', 'is_auto']
+        read_only_fields = ['__all__']
+
+
+# ---------- List (lightweight) ----------
+class PenaltyTransactionListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+    # ✅ Overwrite debt field with minimal serializer
+    debt = DebtMinimalSerializer(read_only=True)
+
+    amount_display = serializers.SerializerMethodField()
+    is_auto_display = serializers.SerializerMethodField()
+
+    # CamelCase aliases for non‑relation fields
+    penaltyDate = serializers.DateField(source='penalty_date', read_only=True)
+    isAuto = serializers.BooleanField(source='is_auto', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+    isAutoDisplay = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
+    class Meta:
+        model = PenaltyTransaction
+        fields = [
+            'id',
+            'debt',          # nested minimal
+            'amount',
+            'amount_display',
+            'penalty_date',
+            'reason',
+            'is_auto',
+            'is_auto_display',
+            'created_at',
+            # CamelCase aliases
+            'penaltyDate',
+            'isAuto',
+            'amountDisplay',
+            'isAutoDisplay',
+            'createdAt',
+        ]
+        read_only_fields = ['__all__']
+
+    def get_amount_display(self, obj):
+        return obj.amount_display
+
+    def get_is_auto_display(self, obj):
+        return "Auto" if obj.is_auto else "Manual"
+
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+    def get_isAutoDisplay(self, obj):
+        return "Auto" if obj.is_auto else "Manual"
+
+
+# ---------- Read (full detail) ----------
 class PenaltyTransactionReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for penalty transaction detail view.
-    Includes nested debt data and computed properties.
-    """
-    
-    debt_data = DebtListSerializer(source='debt', read_only=True)
+    """Full read-only serializer with nested relations."""
+    # ✅ Overwrite debt field with minimal serializer
+    debt = DebtMinimalSerializer(read_only=True)
+
     amount_display = serializers.SerializerMethodField()
     is_void = serializers.SerializerMethodField()
     is_auto_display = serializers.SerializerMethodField()
 
-    # ✅ CamelCase fields for frontend compatibility
-    debtId = serializers.IntegerField(source='debt.id', read_only=True)
+    # CamelCase aliases for non‑relation fields
     penaltyDate = serializers.DateField(source='penalty_date', read_only=True)
     isAuto = serializers.BooleanField(source='is_auto', read_only=True)
     amountDisplay = serializers.SerializerMethodField()
@@ -34,7 +91,6 @@ class PenaltyTransactionReadSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'debt',
-            'debt_data',
             'amount',
             'amount_display',
             'penalty_date',
@@ -46,8 +102,7 @@ class PenaltyTransactionReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
-            # ✅ CamelCase aliases
-            'debtId',
+            # CamelCase aliases
             'penaltyDate',
             'isAuto',
             'amountDisplay',
@@ -78,65 +133,7 @@ class PenaltyTransactionReadSerializer(serializers.ModelSerializer):
         return "Auto" if obj.is_auto else "Manual"
 
 
-class PenaltyTransactionListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for penalty transaction list views.
-    """
-    
-    debt_name = serializers.CharField(source='debt.name', read_only=True)
-    borrower_name = serializers.CharField(source='debt.borrower.name', read_only=True)
-    amount_display = serializers.SerializerMethodField()
-    is_auto_display = serializers.SerializerMethodField()
-
-    # ✅ CamelCase fields for frontend compatibility
-    debtId = serializers.IntegerField(source='debt.id', read_only=True)
-    debtName = serializers.CharField(source='debt.name', read_only=True)
-    borrowerName = serializers.CharField(source='debt.borrower.name', read_only=True)
-    penaltyDate = serializers.DateField(source='penalty_date', read_only=True)
-    isAuto = serializers.BooleanField(source='is_auto', read_only=True)
-    amountDisplay = serializers.SerializerMethodField()
-    isAutoDisplay = serializers.SerializerMethodField()
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-
-    class Meta:
-        model = PenaltyTransaction
-        fields = [
-            'id',
-            'debt',
-            'debt_name',
-            'borrower_name',
-            'amount',
-            'amount_display',
-            'penalty_date',
-            'reason',
-            'is_auto',
-            'is_auto_display',
-            'created_at',
-            # ✅ CamelCase aliases
-            'debtId',
-            'debtName',
-            'borrowerName',
-            'penaltyDate',
-            'isAuto',
-            'amountDisplay',
-            'isAutoDisplay',
-            'createdAt',
-        ]
-        read_only_fields = ['__all__']
-
-    def get_amount_display(self, obj):
-        return obj.amount_display
-
-    def get_is_auto_display(self, obj):
-        return "Auto" if obj.is_auto else "Manual"
-
-    def get_amountDisplay(self, obj):
-        return obj.amount_display
-
-    def get_isAutoDisplay(self, obj):
-        return "Auto" if obj.is_auto else "Manual"
-
-
+# ---------- Create / Update (completely unchanged) ----------
 class PenaltyTransactionCreateSerializer(serializers.ModelSerializer):
     """
     Write serializer for creating a new penalty transaction.

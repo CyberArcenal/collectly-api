@@ -474,6 +474,7 @@ class DebtService:
         remaining_amount = qs.aggregate(total=Sum("remaining_amount"))[
             "total"
         ] or Decimal("0")
+        total_overdue_amount = qs.filter(status="overdue").aggregate(total=Sum("total_amount"))["total"] or Decimal("0")
 
         # Build status counts dictionary
         status_stats = {}
@@ -488,6 +489,7 @@ class DebtService:
             "total_defaulted": status_stats.get(Debt.Status.DEFAULTED, 0),
             "total_amount_owed": total_amount,
             "total_remaining_balance": remaining_amount,
+            "total_overdue_amount":  total_overdue_amount,
         }
 
     @staticmethod

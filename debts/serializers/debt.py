@@ -4,16 +4,94 @@ from decimal import Decimal
 
 from debts.models.debt import Debt
 from borrowers.models.borrower import Borrower
-from borrowers.serializers.borrower import BorrowerListSerializer
+from borrowers.serializers.borrower import BorrowerMinimalSerializer
 
 
+# ---------- Minimal (used as nested relation) ----------
+class DebtMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for debt references."""
+    borrower = BorrowerMinimalSerializer(read_only=True)
+    class Meta:
+        model = Debt
+        fields = ['id', 'name', 'total_amount', 'remaining_amount', 'due_date', 'status', 'borrower']
+        read_only_fields = ['__all__']
+
+
+# ---------- List (lightweight) ----------
+class DebtListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+    # ✅ Overwrite borrower with minimal serializer
+    borrower = BorrowerMinimalSerializer(read_only=True)
+
+    amount_display = serializers.SerializerMethodField()
+    remaining_display = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    is_overdue = serializers.SerializerMethodField()
+
+    # CamelCase aliases (keep if frontend needs them)
+    totalAmount = serializers.DecimalField(source='total_amount', max_digits=12, decimal_places=2, read_only=True)
+    remainingAmount = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
+    dueDate = serializers.DateField(source='due_date', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+    remainingDisplay = serializers.SerializerMethodField()
+    isOverdue = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Debt
+        fields = [
+            'id',
+            'borrower',          # nested minimal
+            'name',
+            'total_amount',
+            'remaining_amount',
+            'amount_display',
+            'remaining_display',
+            'due_date',
+            'status',
+            'status_display',
+            'is_overdue',
+            'created_at',
+            'updated_at',
+            # CamelCase aliases
+            'totalAmount',
+            'remainingAmount',
+            'dueDate',
+            'createdAt',
+            'updatedAt',
+            'amountDisplay',
+            'remainingDisplay',
+            'isOverdue',
+        ]
+        read_only_fields = ['__all__']
+
+    def get_amount_display(self, obj):
+        return obj.amount_display
+
+    def get_remaining_display(self, obj):
+        return obj.remaining_display
+
+    def get_is_overdue(self, obj):
+        return obj.is_overdue
+
+    # CamelCase getters
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+    def get_remainingDisplay(self, obj):
+        return obj.remaining_display
+
+    def get_isOverdue(self, obj):
+        return obj.is_overdue
+
+
+# ---------- Read (full detail) ----------
 class DebtReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for debt detail view.
-    Includes computed properties and nested borrower data.
-    """
-    
-    borrower_data = BorrowerListSerializer(source='borrower', read_only=True)
+    """Full read-only serializer with nested relations."""
+    # ✅ Overwrite borrower with minimal serializer
+    borrower = BorrowerMinimalSerializer(read_only=True)
+
     amount_display = serializers.SerializerMethodField()
     remaining_display = serializers.SerializerMethodField()
     paid_percentage = serializers.SerializerMethodField()
@@ -27,7 +105,7 @@ class DebtReadSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     interest_period_display = serializers.CharField(source='get_interest_calculation_period_display', read_only=True)
 
-    # ✅ CamelCase fields for frontend compatibility
+    # CamelCase aliases
     totalAmount = serializers.DecimalField(source='total_amount', max_digits=12, decimal_places=2, read_only=True)
     paidAmount = serializers.DecimalField(source='paid_amount', max_digits=12, decimal_places=2, read_only=True)
     remainingAmount = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
@@ -47,7 +125,6 @@ class DebtReadSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'borrower',
-            'borrower_data',
             'name',
             'total_amount',
             'paid_amount',
@@ -74,7 +151,7 @@ class DebtReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
-            # ✅ CamelCase aliases
+            # CamelCase aliases
             'totalAmount',
             'paidAmount',
             'remainingAmount',
@@ -121,7 +198,7 @@ class DebtReadSerializer(serializers.ModelSerializer):
     def get_total_penalty_amount(self, obj):
         return obj.total_penalty_amount
 
-    # CamelCase method fields
+    # CamelCase getters
     def get_amountDisplay(self, obj):
         return obj.amount_display
 
@@ -132,75 +209,7 @@ class DebtReadSerializer(serializers.ModelSerializer):
         return obj.is_overdue
 
 
-class DebtListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for debt list views.
-    """
-    
-    borrower_name = serializers.CharField(source='borrower.name', read_only=True)
-    amount_display = serializers.SerializerMethodField()
-    remaining_display = serializers.SerializerMethodField()
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    is_overdue = serializers.SerializerMethodField()
-
-    # ✅ CamelCase fields for frontend compatibility
-    totalAmount = serializers.DecimalField(source='total_amount', max_digits=12, decimal_places=2, read_only=True)
-    remainingAmount = serializers.DecimalField(source='remaining_amount', max_digits=12, decimal_places=2, read_only=True)
-    dueDate = serializers.DateField(source='due_date', read_only=True)
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
-    amountDisplay = serializers.SerializerMethodField()
-    remainingDisplay = serializers.SerializerMethodField()
-    isOverdue = serializers.SerializerMethodField()
-    borrowerName = serializers.CharField(source='borrower.name', read_only=True)
-
-    class Meta:
-        model = Debt
-        fields = [
-            'id',
-            'borrower',
-            'borrower_name',
-            'name',
-            'total_amount',
-            'remaining_amount',
-            'amount_display',
-            'remaining_display',
-            'due_date',
-            'status',
-            'status_display',
-            'is_overdue',
-            'created_at',
-            'updated_at',
-            # ✅ CamelCase aliases
-            'totalAmount',
-            'remainingAmount',
-            'dueDate',
-            'createdAt',
-            'updatedAt',
-            'amountDisplay',
-            'remainingDisplay',
-            'isOverdue',
-            'borrowerName',
-        ]
-        read_only_fields = ['__all__']
-
-    def get_amount_display(self, obj):
-        return obj.amount_display
-
-    def get_remaining_display(self, obj):
-        return obj.remaining_display
-
-    def get_is_overdue(self, obj):
-        return obj.is_overdue
-
-    def get_amountDisplay(self, obj):
-        return obj.amount_display
-
-    def get_remainingDisplay(self, obj):
-        return obj.remaining_display
-
-    def get_isOverdue(self, obj):
-        return obj.is_overdue
+# ---------- Create / Update (completely unchanged) ----------
 
 
 class DebtCreateSerializer(serializers.ModelSerializer):

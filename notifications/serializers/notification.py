@@ -3,23 +3,73 @@ from django.utils import timezone
 
 from notifications.models.notification import Notification
 from debts.models.debt import Debt
-from debts.serializers.debt import DebtListSerializer
+from debts.serializers.debt import DebtMinimalSerializer
 
 
-class NotificationReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for notification detail view.
-    Includes computed properties and nested debt data.
-    """
-    
-    debt_data = DebtListSerializer(source='debt', read_only=True)
-    debt_name = serializers.CharField(source='debt.name', read_only=True, allow_null=True)
+# ---------- Minimal (used as nested relation) ----------
+class NotificationMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for notification references."""
+    class Meta:
+        model = Notification
+        fields = ['id', 'title', 'type', 'is_read', 'created_at']
+        read_only_fields = ['__all__']
+
+
+# ---------- List (lightweight) ----------
+class NotificationListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+    # ✅ Overwrite debt field with minimal serializer
+    debt = DebtMinimalSerializer(read_only=True)
+
     type_display = serializers.CharField(source='get_type_display', read_only=True)
     is_read_display = serializers.SerializerMethodField()
 
-    # ✅ CamelCase fields for frontend compatibility
-    debtId = serializers.IntegerField(source='debt.id', read_only=True, allow_null=True)
-    debtName = serializers.CharField(source='debt.name', read_only=True, allow_null=True)
+    # CamelCase aliases for non‑relation fields
+    scheduledFor = serializers.DateTimeField(source='scheduled_for', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    isRead = serializers.BooleanField(source='is_read', read_only=True)
+    typeDisplay = serializers.CharField(source='get_type_display', read_only=True)
+    isReadDisplay = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Notification
+        fields = [
+            'id',
+            'debt',          # nested minimal
+            'title',
+            'message',
+            'type',
+            'type_display',
+            'is_read',
+            'is_read_display',
+            'scheduled_for',
+            'created_at',
+            # CamelCase aliases
+            'scheduledFor',
+            'createdAt',
+            'isRead',
+            'typeDisplay',
+            'isReadDisplay',
+        ]
+        read_only_fields = ['__all__']
+
+    def get_is_read_display(self, obj):
+        return "Read" if obj.is_read else "Unread"
+
+    def get_isReadDisplay(self, obj):
+        return "Read" if obj.is_read else "Unread"
+
+
+# ---------- Read (full detail) ----------
+class NotificationReadSerializer(serializers.ModelSerializer):
+    """Full read-only serializer with nested relations."""
+    # ✅ Overwrite debt field with minimal serializer
+    debt = DebtMinimalSerializer(read_only=True)
+
+    type_display = serializers.CharField(source='get_type_display', read_only=True)
+    is_read_display = serializers.SerializerMethodField()
+
+    # CamelCase aliases for non‑relation fields
     scheduledFor = serializers.DateTimeField(source='scheduled_for', read_only=True)
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -33,8 +83,6 @@ class NotificationReadSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'debt',
-            'debt_name',
-            'debt_data',
             'title',
             'message',
             'type',
@@ -46,9 +94,7 @@ class NotificationReadSerializer(serializers.ModelSerializer):
             'updated_at',
             'deleted_at',
             'is_deleted',
-            # ✅ CamelCase aliases
-            'debtId',
-            'debtName',
+            # CamelCase aliases
             'scheduledFor',
             'createdAt',
             'updatedAt',
@@ -66,56 +112,7 @@ class NotificationReadSerializer(serializers.ModelSerializer):
         return "Read" if obj.is_read else "Unread"
 
 
-class NotificationListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for notification list views.
-    """
-    
-    debt_name = serializers.CharField(source='debt.name', read_only=True, allow_null=True)
-    type_display = serializers.CharField(source='get_type_display', read_only=True)
-    is_read_display = serializers.SerializerMethodField()
-
-    # ✅ CamelCase fields for frontend compatibility
-    debtId = serializers.IntegerField(source='debt.id', read_only=True, allow_null=True)
-    debtName = serializers.CharField(source='debt.name', read_only=True, allow_null=True)
-    scheduledFor = serializers.DateTimeField(source='scheduled_for', read_only=True)
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    isRead = serializers.BooleanField(source='is_read', read_only=True)
-    typeDisplay = serializers.CharField(source='get_type_display', read_only=True)
-    isReadDisplay = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Notification
-        fields = [
-            'id',
-            'debt',
-            'debt_name',
-            'title',
-            'message',
-            'type',
-            'type_display',
-            'is_read',
-            'is_read_display',
-            'scheduled_for',
-            'created_at',
-            # ✅ CamelCase aliases
-            'debtId',
-            'debtName',
-            'scheduledFor',
-            'createdAt',
-            'isRead',
-            'typeDisplay',
-            'isReadDisplay',
-        ]
-        read_only_fields = ['__all__']
-
-    def get_is_read_display(self, obj):
-        return "Read" if obj.is_read else "Unread"
-
-    def get_isReadDisplay(self, obj):
-        return "Read" if obj.is_read else "Unread"
-
-
+# ---------- Create / Update / Mark Read (completely unchanged) ----------
 class NotificationCreateSerializer(serializers.ModelSerializer):
     """
     Write serializer for creating a new notification.

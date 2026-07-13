@@ -3,28 +3,80 @@ from django.utils import timezone
 
 from loan_applications.models.loan_application import LoanApplication
 from borrowers.models.borrower import Borrower
-from borrowers.serializers.borrower import BorrowerListSerializer
+from borrowers.serializers.borrower import BorrowerMinimalSerializer
 
 
+# ---------- Minimal (used as nested relation) ----------
+class LoanApplicationMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for loan application references."""
+
+    class Meta:
+        model = LoanApplication
+        fields = ["id", "debtor_name", "requested_amount", "status", "created_at"]
+        read_only_fields = ["__all__"]
+
+
+# ---------- List (lightweight) ----------
+class LoanApplicationListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+
+    # ✅ Overwrite debtor field with minimal serializer
+    debtor = BorrowerMinimalSerializer(read_only=True)
+
+    amount_display = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
+    # CamelCase aliases for non‑relation fields
+    requestedAmount = serializers.DecimalField(
+        source="requested_amount", max_digits=12, decimal_places=2, read_only=True
+    )
+    proposedDueDate = serializers.DateField(source="proposed_due_date", read_only=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LoanApplication
+        fields = [
+            "id",
+            "debtor",  # nested minimal borrower
+            "debtor_name",  # snapshot field (model field)
+            "debtor_email",  # snapshot field (model field)
+            "requested_amount",
+            "amount_display",
+            "purpose",
+            "proposed_due_date",
+            "status",
+            "status_display",
+            "created_at",
+            # CamelCase aliases
+            "requestedAmount",
+            "proposedDueDate",
+            "createdAt",
+            "amountDisplay",
+        ]
+        read_only_fields = ["__all__"]
+
+    def get_amount_display(self, obj):
+        return obj.amount_display
+
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+
+# ---------- Read (full detail) ----------
 class LoanApplicationReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for loan application detail view.
-    Includes computed properties and nested debtor data.
-    """
+    """Full read-only serializer with nested relations."""
 
-    debtor_data = BorrowerListSerializer(source="debtor", read_only=True)
+    # ✅ Overwrite debtor field with minimal serializer
+    debtor = BorrowerMinimalSerializer(read_only=True)
+
     is_pending = serializers.SerializerMethodField()
     is_approved = serializers.SerializerMethodField()
     is_rejected = serializers.SerializerMethodField()
     amount_display = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
 
-    # ✅ CamelCase fields for frontend compatibility
-    debtorId = serializers.IntegerField(source="debtor.id", read_only=True)
-    debtorName = serializers.CharField(source="debtor_name", read_only=True)
-    debtorContact = serializers.CharField(source="debtor_contact", read_only=True)
-    debtorEmail = serializers.CharField(source="debtor_email", read_only=True)
-    debtorAddress = serializers.CharField(source="debtor_address", read_only=True)
+    # CamelCase aliases for non‑relation fields
     requestedAmount = serializers.DecimalField(
         source="requested_amount", max_digits=12, decimal_places=2, read_only=True
     )
@@ -48,12 +100,11 @@ class LoanApplicationReadSerializer(serializers.ModelSerializer):
         model = LoanApplication
         fields = [
             "id",
-            "debtor",
-            "debtor_data",
-            "debtor_name",
-            "debtor_contact",
-            "debtor_email",
-            "debtor_address",
+            "debtor",  # nested minimal borrower
+            "debtor_name",  # snapshot field (model field)
+            "debtor_contact",  # snapshot field (model field)
+            "debtor_email",  # snapshot field (model field)
+            "debtor_address",  # snapshot field (model field)
             "requested_amount",
             "amount_display",
             "purpose",
@@ -72,12 +123,7 @@ class LoanApplicationReadSerializer(serializers.ModelSerializer):
             "updated_at",
             "deleted_at",
             "is_deleted",
-            # ✅ CamelCase aliases
-            "debtorId",
-            "debtorName",
-            "debtorContact",
-            "debtorEmail",
-            "debtorAddress",
+            # CamelCase aliases
             "requestedAmount",
             "proposedDueDate",
             "interestRate",
@@ -107,7 +153,7 @@ class LoanApplicationReadSerializer(serializers.ModelSerializer):
     def get_amount_display(self, obj):
         return obj.amount_display
 
-    # CamelCase method fields
+    # CamelCase getters
     def get_isPending(self, obj):
         return obj.is_pending
 
@@ -121,57 +167,7 @@ class LoanApplicationReadSerializer(serializers.ModelSerializer):
         return obj.amount_display
 
 
-class LoanApplicationListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for loan application list views.
-    """
-
-    amount_display = serializers.SerializerMethodField()
-    status_display = serializers.CharField(source="get_status_display", read_only=True)
-
-    # ✅ CamelCase fields for frontend compatibility
-    debtorId = serializers.IntegerField(source="debtor.id", read_only=True)
-    debtorName = serializers.CharField(source="debtor_name", read_only=True)
-    debtorEmail = serializers.CharField(source="debtor_email", read_only=True)
-    requestedAmount = serializers.DecimalField(
-        source="requested_amount", max_digits=12, decimal_places=2, read_only=True
-    )
-    proposedDueDate = serializers.DateField(source="proposed_due_date", read_only=True)
-    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
-    amountDisplay = serializers.SerializerMethodField()
-
-    class Meta:
-        model = LoanApplication
-        fields = [
-            "id",
-            "debtor",
-            "debtor_name",
-            "debtor_email",
-            "requested_amount",
-            "amount_display",
-            "purpose",
-            "proposed_due_date",
-            "status",
-            "status_display",
-            "created_at",
-            # ✅ CamelCase aliases
-            "debtorId",
-            "debtorName",
-            "debtorEmail",
-            "requestedAmount",
-            "proposedDueDate",
-            "createdAt",
-            "amountDisplay",
-        ]
-        read_only_fields = ["__all__"]
-
-    def get_amount_display(self, obj):
-        return obj.amount_display
-
-    def get_amountDisplay(self, obj):
-        return obj.amount_display
-
-
+# ---------- Create / Update / Approve / Reject (completely unchanged) ----------
 class LoanApplicationCreateSerializer(serializers.ModelSerializer):
     """
     Write serializer for creating a new loan application.
@@ -455,7 +451,9 @@ class LoanApplicationApproveSerializer(serializers.Serializer):
         # The application must have a debtor at this point
         if not instance.debtor:
             raise serializers.ValidationError(
-                {"detail": "Cannot approve: no debtor associated with this application."}
+                {
+                    "detail": "Cannot approve: no debtor associated with this application."
+                }
             )
 
         instance.status = LoanApplication.Status.APPROVED

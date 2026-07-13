@@ -4,32 +4,89 @@ from decimal import Decimal
 
 from payments.models.payment_transaction import PaymentTransaction
 from debts.models.debt import Debt
-from debts.serializers.debt import DebtListSerializer
+from debts.serializers.debt import DebtMinimalSerializer
 from payment_methods.models.payment_method import PaymentMethod
-from payment_methods.serializers.payment_method import PaymentMethodListSerializer
+from payment_methods.serializers.payment_method import PaymentMethodMinimalSerializer
 from users.models import User
-from users.serializers.User import UserMinimalSerializer
+from users.serializers.User.nested import UserMinimalSerializer
 
 
+# ---------- Minimal (used as nested relation) ----------
+class PaymentTransactionMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for payment transaction references."""
+    class Meta:
+        model = PaymentTransaction
+        fields = ['id', 'amount', 'payment_date', 'reference']
+        read_only_fields = ['__all__']
+
+
+# ---------- List (lightweight) ----------
+class PaymentTransactionListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+    # ✅ Overwrite foreign keys with minimal serializers
+    debt = DebtMinimalSerializer(read_only=True)
+    method = PaymentMethodMinimalSerializer(read_only=True)
+
+    amount_display = serializers.SerializerMethodField()
+    is_void = serializers.SerializerMethodField()
+
+    # CamelCase aliases for non‑relation fields
+    paymentDate = serializers.DateField(source='payment_date', read_only=True)
+    recordedAt = serializers.DateTimeField(source='recorded_at', read_only=True)
+    amountDisplay = serializers.SerializerMethodField()
+    isVoid = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
+    class Meta:
+        model = PaymentTransaction
+        fields = [
+            'id',
+            'debt',          # nested minimal
+            'method',        # nested minimal
+            'amount',
+            'amount_display',
+            'payment_date',
+            'reference',
+            'recorded_at',
+            'is_void',
+            'created_at',
+            # CamelCase aliases
+            'paymentDate',
+            'recordedAt',
+            'amountDisplay',
+            'isVoid',
+            'createdAt',
+        ]
+        read_only_fields = ['__all__']
+
+    def get_amount_display(self, obj):
+        return obj.amount_display
+
+    def get_is_void(self, obj):
+        return obj.is_void
+
+    def get_amountDisplay(self, obj):
+        return obj.amount_display
+
+    def get_isVoid(self, obj):
+        return obj.is_void
+
+
+# ---------- Read (full detail) ----------
 class PaymentTransactionReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for payment transaction detail view.
-    Includes nested debt, method, and recorded_by data.
-    """
-    
-    debt_data = DebtListSerializer(source='debt', read_only=True)
-    method_data = PaymentMethodListSerializer(source='method', read_only=True)
-    recorded_by_data = UserMinimalSerializer(source='recorded_by', read_only=True)
+    """Full read-only serializer with nested relations."""
+    # ✅ Overwrite foreign keys with minimal serializers
+    debt = DebtMinimalSerializer(read_only=True)
+    method = PaymentMethodMinimalSerializer(read_only=True)
+    recorded_by = UserMinimalSerializer(read_only=True)
+
     amount_display = serializers.SerializerMethodField()
     is_void = serializers.SerializerMethodField()
     payment_method_name = serializers.SerializerMethodField()
 
-    # ✅ CamelCase fields for frontend compatibility
-    debtId = serializers.IntegerField(source='debt.id', read_only=True)
-    methodId = serializers.IntegerField(source='method.id', read_only=True, allow_null=True)
+    # CamelCase aliases for non‑relation fields
     paymentDate = serializers.DateField(source='payment_date', read_only=True)
     recordedAt = serializers.DateTimeField(source='recorded_at', read_only=True)
-    recordedBy = serializers.IntegerField(source='recorded_by.id', read_only=True, allow_null=True)
     amountDisplay = serializers.SerializerMethodField()
     isVoid = serializers.SerializerMethodField()
     paymentMethodName = serializers.SerializerMethodField()
@@ -42,9 +99,7 @@ class PaymentTransactionReadSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'debt',
-            'debt_data',
             'method',
-            'method_data',
             'payment_method_name',
             'amount',
             'amount_display',
@@ -53,18 +108,14 @@ class PaymentTransactionReadSerializer(serializers.ModelSerializer):
             'notes',
             'recorded_at',
             'recorded_by',
-            'recorded_by_data',
             'is_void',
             'created_at',
             'updated_at',
             'deleted_at',
             'is_deleted',
-            # ✅ CamelCase aliases
-            'debtId',
-            'methodId',
+            # CamelCase aliases
             'paymentDate',
             'recordedAt',
-            'recordedBy',
             'amountDisplay',
             'isVoid',
             'paymentMethodName',
@@ -93,72 +144,7 @@ class PaymentTransactionReadSerializer(serializers.ModelSerializer):
         return obj.payment_method_name
 
 
-class PaymentTransactionListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for payment transaction list views.
-    """
-    
-    debt_name = serializers.CharField(source='debt.name', read_only=True)
-    borrower_name = serializers.CharField(source='debt.borrower.name', read_only=True)
-    method_name = serializers.CharField(source='method.name', read_only=True, allow_null=True)
-    amount_display = serializers.SerializerMethodField()
-    is_void = serializers.SerializerMethodField()
-
-    # ✅ CamelCase fields for frontend compatibility
-    debtId = serializers.IntegerField(source='debt.id', read_only=True)
-    debtName = serializers.CharField(source='debt.name', read_only=True)
-    borrowerName = serializers.CharField(source='debt.borrower.name', read_only=True)
-    methodId = serializers.IntegerField(source='method.id', read_only=True, allow_null=True)
-    methodName = serializers.CharField(source='method.name', read_only=True, allow_null=True)
-    paymentDate = serializers.DateField(source='payment_date', read_only=True)
-    recordedAt = serializers.DateTimeField(source='recorded_at', read_only=True)
-    amountDisplay = serializers.SerializerMethodField()
-    isVoid = serializers.SerializerMethodField()
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-
-    class Meta:
-        model = PaymentTransaction
-        fields = [
-            'id',
-            'debt',
-            'debt_name',
-            'borrower_name',
-            'method',
-            'method_name',
-            'amount',
-            'amount_display',
-            'payment_date',
-            'reference',
-            'recorded_at',
-            'is_void',
-            'created_at',
-            # ✅ CamelCase aliases
-            'debtId',
-            'debtName',
-            'borrowerName',
-            'methodId',
-            'methodName',
-            'paymentDate',
-            'recordedAt',
-            'amountDisplay',
-            'isVoid',
-            'createdAt',
-        ]
-        read_only_fields = ['__all__']
-
-    def get_amount_display(self, obj):
-        return obj.amount_display
-
-    def get_is_void(self, obj):
-        return obj.is_void
-
-    def get_amountDisplay(self, obj):
-        return obj.amount_display
-
-    def get_isVoid(self, obj):
-        return obj.is_void
-
-
+# ---------- Create / Update / Void (completely unchanged) ----------
 class PaymentTransactionCreateSerializer(serializers.ModelSerializer):
     """
     Write serializer for creating a new payment transaction.

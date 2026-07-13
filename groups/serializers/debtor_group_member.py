@@ -3,27 +3,54 @@ from rest_framework import serializers
 from groups.models.debtor_group_member import DebtorGroupMember
 from groups.models.debtor_group import DebtorGroup
 from borrowers.models.borrower import Borrower
-from borrowers.serializers.borrower import BorrowerListSerializer
-from groups.serializers.debtor_group import DebtorGroupListSerializer
+from borrowers.serializers.borrower import BorrowerMinimalSerializer
+from groups.serializers.debtor_group import DebtorGroupMinimalSerializer
 
 
+# ---------- Minimal (used as nested relation) ----------
+class DebtorGroupMemberMinimalSerializer(serializers.ModelSerializer):
+    """Ultra‑lightweight serializer for group member references."""
+    class Meta:
+        model = DebtorGroupMember
+        fields = ['id', 'assigned_at']
+        read_only_fields = ['__all__']
+
+
+# ---------- List (lightweight) ----------
+class DebtorGroupMemberListSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for list views."""
+    # ✅ Overwrite relations with minimal serializers
+    group = DebtorGroupMinimalSerializer(read_only=True)
+    debtor = BorrowerMinimalSerializer(read_only=True)
+
+    # CamelCase aliases for fields not covered by nested objects
+    assignedAt = serializers.DateTimeField(source='assigned_at', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
+    class Meta:
+        model = DebtorGroupMember
+        fields = [
+            'id',
+            'group',          # nested minimal
+            'debtor',         # nested minimal
+            'assigned_at',
+            'created_at',
+            'assignedAt',
+            'createdAt',
+        ]
+        read_only_fields = ['__all__']
+
+
+# ---------- Read (full detail) ----------
 class DebtorGroupMemberReadSerializer(serializers.ModelSerializer):
-    """
-    Read-only serializer for debtor group member detail view.
-    Includes nested debtor and group data.
-    """
-    
-    debtor_data = BorrowerListSerializer(source='debtor', read_only=True)
-    group_data = DebtorGroupListSerializer(source='group', read_only=True)
-    debtor_name = serializers.CharField(source='debtor.name', read_only=True)
-    group_name = serializers.CharField(source='group.name', read_only=True)
+    """Full read-only serializer with nested relations."""
+    # ✅ Overwrite relations with minimal serializers
+    group = DebtorGroupMinimalSerializer(read_only=True)
+    debtor = BorrowerMinimalSerializer(read_only=True)
+
     is_active = serializers.SerializerMethodField()
 
-    # ✅ CamelCase fields for frontend compatibility
-    groupId = serializers.IntegerField(source='group.id', read_only=True)
-    groupName = serializers.CharField(source='group.name', read_only=True)
-    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
-    debtorName = serializers.CharField(source='debtor.name', read_only=True)
+    # CamelCase aliases for fields not covered by nested objects
     assignedAt = serializers.DateTimeField(source='assigned_at', read_only=True)
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
@@ -35,22 +62,13 @@ class DebtorGroupMemberReadSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'group',
-            'group_name',
-            'group_data',
             'debtor',
-            'debtor_name',
-            'debtor_data',
             'assigned_at',
             'is_active',
             'created_at',
             'updated_at',
             'deleted_at',
             'is_deleted',
-            # ✅ CamelCase aliases
-            'groupId',
-            'groupName',
-            'debtorId',
-            'debtorName',
             'assignedAt',
             'createdAt',
             'updatedAt',
@@ -66,45 +84,8 @@ class DebtorGroupMemberReadSerializer(serializers.ModelSerializer):
         return obj.is_active
 
 
-class DebtorGroupMemberListSerializer(serializers.ModelSerializer):
-    """
-    Lightweight read-only serializer for debtor group member list views.
-    """
-    
-    debtor_name = serializers.CharField(source='debtor.name', read_only=True)
-    debtor_email = serializers.CharField(source='debtor.email', read_only=True)
-    group_name = serializers.CharField(source='group.name', read_only=True)
+# ---------- Create / Delete (completely unchanged) ----------
 
-    # ✅ CamelCase fields for frontend compatibility
-    groupId = serializers.IntegerField(source='group.id', read_only=True)
-    groupName = serializers.CharField(source='group.name', read_only=True)
-    debtorId = serializers.IntegerField(source='debtor.id', read_only=True)
-    debtorName = serializers.CharField(source='debtor.name', read_only=True)
-    debtorEmail = serializers.CharField(source='debtor.email', read_only=True)
-    assignedAt = serializers.DateTimeField(source='assigned_at', read_only=True)
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-
-    class Meta:
-        model = DebtorGroupMember
-        fields = [
-            'id',
-            'group',
-            'group_name',
-            'debtor',
-            'debtor_name',
-            'debtor_email',
-            'assigned_at',
-            'created_at',
-            # ✅ CamelCase aliases
-            'groupId',
-            'groupName',
-            'debtorId',
-            'debtorName',
-            'debtorEmail',
-            'assignedAt',
-            'createdAt',
-        ]
-        read_only_fields = ['__all__']
 
 
 class DebtorGroupMemberCreateSerializer(serializers.ModelSerializer):

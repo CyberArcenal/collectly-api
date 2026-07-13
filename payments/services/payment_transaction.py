@@ -299,7 +299,7 @@ class PaymentTransactionService:
         logger.debug(f"Payment data: {data}")
         
         # Validate debt exists
-        debt = data['debt']
+        debt = data.get('debt', None)
         
         if not debt:
             debt = Debt.objects.filter(id=data.get("debt_id")).first()

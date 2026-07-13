@@ -8,6 +8,7 @@ from audit.utils.log import log_audit_event
 from notifications.models.notification import Notification
 from debts.models.debt import Debt
 from users.services.notification_recipients import get_admin_and_staff_users
+from utils.helpers import camel_to_snake
 from utils.pagination import paginate_queryset
 
 logger = logging.getLogger(__name__)
@@ -150,6 +151,7 @@ class NotificationService:
                 qs = Notification.objects.all()
         
         # Apply sorting
+        sort_by = camel_to_snake(sort_by)
         if sort_order.lower() == 'asc':
             sort_by = sort_by
         else:
