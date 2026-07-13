@@ -1,11 +1,11 @@
-from datetime import datetime
+import datetime
 import logging
 from decimal import Decimal
-from django.db import transaction
-from django.db.models import Q, Max, Sum, Count, OuterRef, Subquery
+from django.db import connection, transaction
+from django.db.models import F, Q, Avg, Max, Sum, Count, OuterRef, Subquery
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-
+from django.db.models.functions import Now
 from audit.utils.log import log_audit_event
 
 from debts.models.debt import Debt
@@ -197,7 +197,7 @@ class DebtService:
         """
         if not data.get("borrower_id"):
             raise ValidationError({"borrower_id": "Borrower ID is required."})
-        
+
         logger.debug(f"Creating debt with data: {data}")
         # Validate borrower exists
         borrower = Borrower.objects.filter(id=data.get("borrower_id")).first()
@@ -460,36 +460,67 @@ class DebtService:
 
     @staticmethod
     def get_statistics():
-        """
-        Get comprehensive debt statistics.
-
-        Returns:
-            dict: Statistics including counts by status and total amounts
-        """
+        today = datetime.date.today()
         qs = Debt.objects.filter(deleted_at__isnull=True)
 
+        # ✅ Only include debts that are truly overdue (due_date < today)
+        truly_overdue = qs.filter(status=Debt.Status.OVERDUE, due_date__lt=today)
+
+        # Counts and amounts
         total_debts = qs.count()
         status_counts = qs.values("status").annotate(count=Count("id"))
         total_amount = qs.aggregate(total=Sum("total_amount"))["total"] or Decimal("0")
         remaining_amount = qs.aggregate(total=Sum("remaining_amount"))[
             "total"
         ] or Decimal("0")
-        total_overdue_amount = qs.filter(status="overdue").aggregate(total=Sum("total_amount"))["total"] or Decimal("0")
+        total_overdue_amount = truly_overdue.aggregate(total=Sum("total_amount"))[
+            "total"
+        ] or Decimal("0")
 
-        # Build status counts dictionary
-        status_stats = {}
-        for item in status_counts:
-            status_stats[item["status"]] = item["count"]
+        # ✅ Compute average days overdue (clamped to zero)
+        avg_days_overdue = 0
+        if truly_overdue.exists():
+            if connection.vendor == "sqlite":
+                table_name = Debt._meta.db_table
+                with connection.cursor() as cursor:
+                    cursor.execute(f"""
+                        SELECT AVG(
+                            CAST(julianday('now') - julianday(due_date) AS NUMERIC)
+                        )
+                        FROM {table_name}
+                        WHERE status = 'overdue' AND due_date < date('now') AND deleted_at IS NULL
+                    """)
+                    row = cursor.fetchone()
+                    if row and row[0] is not None:
+                        avg_days_overdue = max(
+                            0, round(float(row[0]), 2)
+                        )  # ✅ Clamp to zero
+            else:
+                from django.db.models import F, Avg, ExpressionWrapper, fields
+                from django.db.models.functions import Now
+
+                expr = ExpressionWrapper(
+                    Now() - F("due_date"), output_field=fields.DurationField()
+                )
+                result = truly_overdue.aggregate(avg=Avg(expr))
+                avg_duration = result["avg"]
+                if avg_duration:
+                    avg_days_overdue = max(
+                        0, round(avg_duration.total_seconds() / (24 * 3600), 2)
+                    )  # ✅ Clamp
+
+        status_stats = {item["status"]: item["count"] for item in status_counts}
 
         return {
             "total_debts": total_debts,
             "total_active": status_stats.get(Debt.Status.ACTIVE, 0),
             "total_paid": status_stats.get(Debt.Status.PAID, 0),
-            "total_overdue": status_stats.get(Debt.Status.OVERDUE, 0),
+            "total_overdue": truly_overdue.count(),  # ✅ Use truly_overdue count
             "total_defaulted": status_stats.get(Debt.Status.DEFAULTED, 0),
             "total_amount_owed": total_amount,
             "total_remaining_balance": remaining_amount,
-            "total_overdue_amount":  total_overdue_amount,
+            "total_overdue_amount": total_overdue_amount,
+            "avg_days_overdue": avg_days_overdue,  # ✅ Guaranteed non‑negative
         }
 
     @staticmethod
@@ -584,7 +615,7 @@ class DebtService:
             try:
                 # datetime may be imported as the datetime class; use fromisoformat
                 # and get the date portion to support both module and class imports
-                as_of_date = datetime.fromisoformat(as_of_date).date()
+                as_of_date = datetime.datetime.fromisoformat(as_of_date).date()
             except ValueError:
                 # If parsing fails, fallback to today
                 as_of_date = timezone.now().date()
