@@ -17097,6 +17097,9 @@ components:
       - notification_error
       - notification_update
       - notification_delete
+      - notification_create
+      - notification_send
+      - notification_read
       - activation_error
       - activation_create
       - activation_update
@@ -17122,6 +17125,7 @@ components:
       - loan_application_create
       - loan_application_approved
       - loan_application_rejected
+      - loan_application_submit
       - group_create
       - group_update
       - group_delete
@@ -17137,6 +17141,10 @@ components:
       - print_receipt
       - export_data
       - import_data
+      - debt_create_from_application
+      - payment_apply
+      - interest_accrual
+      - payment_confirm
       type: string
       description: |-
         * `create` - Create
@@ -17169,6 +17177,9 @@ components:
         * `notification_error` - Notification Error
         * `notification_update` - Notification Update
         * `notification_delete` - Notification Delete
+        * `notification_create` - Notification Create
+        * `notification_send` - Notification Send
+        * `notification_read` - Notification Read
         * `activation_error` - Activation Error
         * `activation_create` - Activation Create
         * `activation_update` - Activation Update
@@ -17194,6 +17205,7 @@ components:
         * `loan_application_create` - Loan Application Create
         * `loan_application_approved` - Loan Application Approved
         * `loan_application_rejected` - Loan Application Rejected
+        * `loan_application_submit` - Loan Application Submit
         * `group_create` - Group Create
         * `group_update` - Group Update
         * `group_delete` - Group Delete
@@ -17209,6 +17221,10 @@ components:
         * `print_receipt` - Print Receipt
         * `export_data` - Export Data
         * `import_data` - Import Data
+        * `debt_create_from_application` - Debt Create From Application
+        * `payment_apply` - Payment Apply
+        * `interest_accrual` - Interest Accrual
+        * `payment_confirm` - Payment Confirm
     AgingSummaryResponse:
       type: object
       properties:
@@ -17556,6 +17572,9 @@ components:
             * `notification_error` - Notification Error
             * `notification_update` - Notification Update
             * `notification_delete` - Notification Delete
+            * `notification_create` - Notification Create
+            * `notification_send` - Notification Send
+            * `notification_read` - Notification Read
             * `activation_error` - Activation Error
             * `activation_create` - Activation Create
             * `activation_update` - Activation Update
@@ -17581,6 +17600,7 @@ components:
             * `loan_application_create` - Loan Application Create
             * `loan_application_approved` - Loan Application Approved
             * `loan_application_rejected` - Loan Application Rejected
+            * `loan_application_submit` - Loan Application Submit
             * `group_create` - Group Create
             * `group_update` - Group Update
             * `group_delete` - Group Delete
@@ -17596,6 +17616,10 @@ components:
             * `print_receipt` - Print Receipt
             * `export_data` - Export Data
             * `import_data` - Import Data
+            * `debt_create_from_application` - Debt Create From Application
+            * `payment_apply` - Payment Apply
+            * `interest_accrual` - Interest Accrual
+            * `payment_confirm` - Payment Confirm
         model_name:
           type: string
           minLength: 1
@@ -18248,21 +18272,19 @@ components:
       - status
     CreditCheckLogCreateRequest:
       type: object
-      description: Write serializer for creating a new credit check log.
       properties:
         debtor_id:
           type: integer
-          description: ID of the borrower being checked
         score:
           type: integer
-          description: Credit score (300-850 range)
+          description: Credit score (auto-computed if not provided)
           minimum: 300
           maximum: 850
         risk_level:
           allOf:
           - $ref: '#/components/schemas/RiskLevelEnum'
           description: |-
-            Risk level (auto-calculated if not provided)
+            Risk level (auto-computed if not provided)
 
             * `Low` - Low
             * `Medium` - Medium
@@ -18274,7 +18296,6 @@ components:
         performed_by:
           type: integer
           nullable: true
-          description: User who performed the credit check
         external_reference:
           type: string
           nullable: true
@@ -18282,7 +18303,6 @@ components:
           maxLength: 255
       required:
       - debtor_id
-      - score
     CreditCheckLogDetailResponse:
       type: object
       properties:
@@ -21300,7 +21320,6 @@ components:
       properties:
         debtor:
           type: integer
-          nullable: true
           description: ID of the debtor
         debtor_name:
           type: string
@@ -21585,8 +21604,7 @@ components:
         payments:
           type: array
           items:
-            type: object
-            additionalProperties: {}
+            $ref: '#/components/schemas/PaymentTransactionRead'
         count:
           type: integer
       required:
@@ -22784,7 +22802,6 @@ components:
       properties:
         debtor:
           type: integer
-          nullable: true
           description: ID of the debtor
         debtor_name:
           type: string

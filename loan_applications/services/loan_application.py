@@ -263,15 +263,37 @@ class LoanApplicationService:
         Raises:
             ValidationError: If validation fails
         """
-        debtor_id = data.get('debtor_id')
+        debtor = data.get('debtor')          # from serializer (Borrower instance)
+        debtor_id = data.get('debtor_id')    # fallback for raw input
         debtor_name = data.get('debtor_name')
-
-        # If debtor_id is provided, validate it exists
-        if debtor_id:
+        
+        
+        if debtor:
+            # Already a Borrower instance
+            debtor_id = debtor.id
+            if not debtor_name:
+                debtor_name = debtor.name
+        elif debtor_id:
+            # Legacy: debtor_id passed directly
             debtor = BorrowerService.get_by_id(debtor_id)
             if not debtor:
                 raise ValidationError({'debtor_id': 'Borrower not found.'})
-            debtor_name = debtor.name
+            if not debtor_name:
+                debtor_name = debtor.name
+        else:
+            # If new_debtor is provided, create a new borrower
+            if data.get('new_debtor'):
+                new_debtor_data = data['new_debtor']
+                debtor = BorrowerService.create(
+                    data=new_debtor_data,
+                    user=user,
+                    request=request
+                )
+                debtor_id = debtor.id
+                debtor_name = debtor.name
+            else:
+                # At this point we must have a debtor
+                raise ValidationError({'debtor': 'Debtor information is required.'})
 
         # If new debtor data is provided, create debtor first
         if data.get('new_debtor'):
@@ -644,6 +666,8 @@ class LoanApplicationService:
             raise ValidationError({'id': 'Loan application is not deleted.'})
 
         application.restore()
+        
+        logger.debug(f"Application data: {application.__dict__}")
 
         # Audit log
         if user:

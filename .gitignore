@@ -4,3 +4,4 @@
 /core/settings/staticfiles
 manage.py
 TODO
+/.venv

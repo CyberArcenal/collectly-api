@@ -772,3 +772,84 @@ class DebtStateTransitionService:
                 )
 
         logger.info(f"[DebtTransition] Forgiveness applied to debt #{debt.id}: {amount_forgiven}")
+        
+    @staticmethod
+    @transaction.atomic
+    def recalculate_balance(debt, user="system", request=None, update_status=True):
+        """
+        Recalculate remaining amount based on total_amount and paid_amount.
+        Optionally update status to PAID if remaining <= 0.
+        
+        Args:
+            debt: Debt instance
+            user: User performing the action (for audit)
+            request: HTTP request object (for audit)
+            update_status: If True, automatically mark as PAID when fully paid
+        
+        Returns:
+            Debt: The updated debt instance
+        """
+        logger.info(f"[DebtTransition] recalculate_balance: debt_id={debt.id}, user={user}")
+        
+        # Reload from DB to ensure latest values
+        debt.refresh_from_db()
+        
+        old_remaining = debt.remaining_amount
+        new_remaining = debt.total_amount - debt.paid_amount
+        if new_remaining < 0:
+            new_remaining = Decimal('0')
+        
+        # Update if changed
+        if new_remaining != debt.remaining_amount:
+            debt.remaining_amount = new_remaining
+            debt.updated_at = timezone.now()
+            debt.save(update_fields=['remaining_amount', 'updated_at'])
+            
+            logger.info(
+                f"[DebtTransition] Debt #{debt.id} remaining updated: "
+                f"{old_remaining:.2f} → {new_remaining:.2f}"
+            )
+            
+            # Audit log for balance change
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='debt_balance_recalc',
+                model_name='Debt',
+                object_id=str(debt.id),
+                changes={
+                    'before': {'remaining_amount': float(old_remaining)},
+                    'after': {'remaining_amount': float(new_remaining)},
+                    'recalculated_by': str(user) if user else 'system',
+                }
+            )
+        
+        # If fully paid and update_status is True, mark as PAID
+        if update_status and new_remaining <= Decimal('0.01') and debt.status != Debt.Status.PAID:
+            logger.info(f"[DebtTransition] Debt #{debt.id} fully paid, updating status to PAID")
+            old_status = debt.status
+            debt.status = Debt.Status.PAID
+            debt.updated_at = timezone.now()
+            debt.save(update_fields=['status', 'updated_at'])
+            
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type='debt_status_update',
+                model_name='Debt',
+                object_id=str(debt.id),
+                changes={
+                    'before': {'status': old_status},
+                    'after': {'status': Debt.Status.PAID},
+                    'reason': 'fully paid',
+                }
+            )
+            
+            # Trigger on_paid for notifications, etc.
+            # But careful not to loop - we can call on_paid directly or rely on signal
+            # Since on_paid is already called by the signal when status changes, we can let that handle it.
+            # However, we might want to explicitly send notifications here, but the signal will catch it.
+            # For simplicity, we can call the signal method or just let the post_save signal handle it.
+            # We'll just update the status and let the signal's post_save trigger the transition.
+        
+        return debt

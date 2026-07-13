@@ -1,4 +1,5 @@
 from django.db import models
+from prompt_toolkit.validation import ValidationError
 from borrowers.models.borrower import Borrower
 from core.models.baseModel import BaseModel
 from django.utils import timezone
@@ -110,6 +111,28 @@ class LoanApplication(BaseModel):
 
     def __str__(self):
         return f"Application #{self.id} - {self.debtor_name} ({self.status})"
+    
+    def clean(self):
+        # Ensure that if the application is approved, it has an approved_by and approved_at
+        if not self.debtor:
+            raise ValidationError("Debtor information is required.")
+        
+        if not self.debtor_name:
+            self.debtor_name = self.debtor.name if self.debtor else "Unknown"
+        
+        if not self.debtor_contact:
+            self.debtor_contact = self.debtor.contact if self.debtor else None
+            
+        if not self.debtor_email:
+            self.debtor_email = self.debtor.email if self.debtor else None
+        
+        if not self.debtor_address:
+            self.debtor_address = self.debtor.address if self.debtor else None
+            
+        if self.status == self.Status.APPROVED:
+            if not self.approved_by or not self.approved_at:
+                raise ValidationError("Approved applications must have an approver and approval date.")
+        return super().clean()
 
     @property
     def is_pending(self):

@@ -1,8 +1,11 @@
+import datetime
+import decimal
 import ipaddress
 import logging
 import threading
 import queue
 import time
+import traceback
 from typing import Optional, Dict, Any
 
 from django.db import OperationalError
@@ -47,6 +50,7 @@ class AuditLogQueue:
             try:
                 self._save_with_retry(log_data)
             except Exception as e:
+                traceback.print_exc()
                 logger.error(f"AuditLog worker failed to save: {e}")
             finally:
                 self.queue.task_done()
@@ -85,6 +89,21 @@ def _sanitize_ip(ip: str | None) -> str | None:
         return ip
     except ValueError:
         return None
+
+def _serialize_for_json(obj):
+    """I-convert ang non-JSON-serializable objects sa JSON-safe types."""
+    if isinstance(obj, dict):
+        return {k: _serialize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_serialize_for_json(item) for item in obj]
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    if hasattr(obj, '__dict__') and not isinstance(obj, (str, int, float, bool, type(None))):
+        # fallback: convert to string representation para sa mga unknown objects
+        return str(obj)
+    return obj
 
 def log_audit_event(
     *,
@@ -126,7 +145,7 @@ def log_audit_event(
         "action_type": action_type,
         "model_name": model_name,
         "object_id": object_id,
-        "changes": changes or {},
+        "changes": _serialize_for_json(changes or {}),
         "is_suspicious": is_suspicious,
         "suspicious_reason": suspicious_reason,
         "ip_address": clean_ip,

@@ -195,6 +195,10 @@ class DebtService:
         Raises:
             ValidationError: If validation fails
         """
+        if not data.get("borrower_id"):
+            raise ValidationError({"borrower_id": "Borrower ID is required."})
+        
+        logger.debug(f"Creating debt with data: {data}")
         # Validate borrower exists
         borrower = Borrower.objects.filter(id=data.get("borrower_id")).first()
         if not borrower:
@@ -993,11 +997,17 @@ class DebtService:
         try:
             schedule = DebtService.get_collection_schedule(period_type, payment_date)
             debtor_schedule = next(
-                (d for d in schedule.get("debtors", []) if d["borrower_id"] == borrower_id),
+                (
+                    d
+                    for d in schedule.get("debtors", [])
+                    if d["borrower_id"] == borrower_id
+                ),
                 None,
             )
         except Exception as e:
-            logger.warning(f"[MarkPeriodPaid] Schedule generation failed: {e}, falling back to manual")
+            logger.warning(
+                f"[MarkPeriodPaid] Schedule generation failed: {e}, falling back to manual"
+            )
             debtor_schedule = None
 
         # If no schedule found for this debtor, create payments for all active debts using fallback

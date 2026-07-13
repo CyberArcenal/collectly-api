@@ -47,6 +47,10 @@ class AuditLog(models.Model):
         ("notification_error", "Notification Error"),
         ("notification_update", "Notification Update"),
         ("notification_delete", "Notification Delete"),
+        ("notification_create", "Notification Create"),
+        ("notification_send", "Notification Send"),
+        ("notification_read", "Notification Read"),
+        
         ("activation_error", "Activation Error"),
         ("activation_create", "Activation Create"),
         ("activation_update", "Activation Update"),
@@ -74,6 +78,7 @@ class AuditLog(models.Model):
         ("loan_application_create", "Loan Application Create"),
         ("loan_application_approved", "Loan Application Approved"),
         ("loan_application_rejected", "Loan Application Rejected"),
+        ("loan_application_submit", "Loan Application Submit"),
         ("group_create", "Group Create"),
         ("group_update", "Group Update"),
         ("group_delete", "Group Delete"),
@@ -89,6 +94,17 @@ class AuditLog(models.Model):
         ("print_receipt", "Print Receipt"),
         ("export_data", "Export Data"),
         ("import_data", "Import Data"),
+        
+        ("debt_create_from_application", "Debt Create From Application"),
+        
+        ("payment_apply", "Payment Apply"),
+        
+        ("interest_accrual", "Interest Accrual"),
+        
+        ("payment_confirm", "Payment Confirm"),
+        
+        ("debt_paid", "Debt Paid"),
+        ("debt_status_auto_paid", "Debt Status Auto Paid")
     )
 
     event_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)

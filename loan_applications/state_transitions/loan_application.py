@@ -58,10 +58,16 @@ class LoanApplicationStateTransitionService:
             dict: Company name, branch address, contact email, and phone
         """
         return {
-            'company_name': get_system_setting('company_name', 'Collectly'),
-            'branch_address': get_system_setting('branch_location', 'Manila, Philippines'),
-            'contact_email': get_system_setting('smtp_from_email', 'support@collectly.ph'),
-            'contact_phone': get_system_setting('twilio_phone_number', '+63 (2) 8123-4567'),
+            "company_name": get_system_setting("company_name", "Collectly"),
+            "branch_address": get_system_setting(
+                "branch_location", "Manila, Philippines"
+            ),
+            "contact_email": get_system_setting(
+                "smtp_from_email", "support@collectly.ph"
+            ),
+            "contact_phone": get_system_setting(
+                "twilio_phone_number", "+63 (2) 8123-4567"
+            ),
         }
 
     @staticmethod
@@ -78,7 +84,7 @@ class LoanApplicationStateTransitionService:
         """
         if text is None and html:
             # Strip HTML tags to get plain text
-            text = re.sub(r'<[^>]+>', '', html)
+            text = re.sub(r"<[^>]+>", "", html)
 
         try:
             send_email_task.delay(
@@ -122,13 +128,13 @@ class LoanApplicationStateTransitionService:
         try:
             NotificationService.create(
                 data={
-                    'title': title,
-                    'message': message,
-                    'type': 'info',
-                    'metadata': metadata or {},
+                    "title": title,
+                    "message": message,
+                    "type": "info",
+                    "metadata": metadata or {},
                 },
                 user=user,
-                request=None
+                request=None,
             )
             return True
         except Exception as e:
@@ -149,35 +155,38 @@ class LoanApplicationStateTransitionService:
         Raises:
             ValidationError: If application not found
         """
-        application = LoanApplication.objects.select_related('debtor').filter(
-            id=application_id,
-            deleted_at__isnull=True
-        ).first()
-
+        application = (
+            LoanApplication.objects.select_related("debtor")
+            .filter(id=application_id, deleted_at__isnull=True)
+            .first()
+        )
+        logger.debug(f"Appication data: {application.__dict__ if application else 'None'}")
         if not application:
-            raise ValidationError({'detail': f'Application #{application_id} not found'})
+            raise ValidationError(
+                {"detail": f"Application #{application_id} not found"}
+            )
 
         return application
 
     @staticmethod
     def _get_company_name():
         """Get company name from system settings."""
-        return get_system_setting('company_name', 'Collectly')
+        return get_system_setting("company_name", "Collectly")
 
     @staticmethod
     def _get_contact_email():
         """Get contact email from system settings."""
-        return get_system_setting('smtp_from_email', 'support@collectly.ph')
+        return get_system_setting("smtp_from_email", "support@collectly.ph")
 
     @staticmethod
     def _get_contact_phone():
         """Get contact phone from system settings."""
-        return get_system_setting('twilio_phone_number', '+63 (2) 8123-4567')
+        return get_system_setting("twilio_phone_number", "+63 (2) 8123-4567")
 
     @staticmethod
     def _get_branch_address():
         """Get branch address from system settings."""
-        return get_system_setting('branch_location', 'Manila, Philippines')
+        return get_system_setting("branch_location", "Manila, Philippines")
 
     # ============================================================
     # STATE TRANSITION METHODS
@@ -204,26 +213,30 @@ class LoanApplicationStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='loan_application_submit',
-            model_name='LoanApplication',
+            action_type="loan_application_submit",
+            model_name="LoanApplication",
             object_id=str(application.id),
             changes={
-                'debtor_name': application.debtor_name,
-                'requested_amount': float(application.requested_amount),
-                'purpose': application.purpose,
-                'proposed_due_date': application.proposed_due_date.isoformat() if application.proposed_due_date else None,
-            }
+                "debtor_name": application.debtor_name,
+                "requested_amount": float(application.requested_amount),
+                "purpose": application.purpose,
+                "proposed_due_date": (
+                    application.proposed_due_date.isoformat()
+                    if application.proposed_due_date
+                    else None
+                ),
+            },
         )
 
         # In-app notification to loan officer
         LoanApplicationStateTransitionService._send_in_app_notification(
             title="📋 New Loan Application Submitted",
             message=f'Application #{application.id} from "{application.debtor_name}" '
-                    f'for ₱{application.requested_amount:,.2f} has been submitted.',
+            f"for ₱{application.requested_amount:,.2f} has been submitted.",
             metadata={
-                'application_id': application.id,
-                'debtor_name': application.debtor_name,
-                'amount': float(application.requested_amount),
+                "application_id": application.id,
+                "debtor_name": application.debtor_name,
+                "amount": float(application.requested_amount),
             },
             user=user,
         )
@@ -231,13 +244,15 @@ class LoanApplicationStateTransitionService:
         # Send confirmation email to applicant
         if email_enabled() and application.debtor_email:
             email_data = LoanApplicationStateTransitionService._get_email_data()
-            html = generate_submitted_email({
-                'applicant_name': application.debtor_name,
-                'application_id': application.id,
-                'purpose': application.purpose,
-                'amount': application.requested_amount,
-                **email_data,
-            })
+            html = generate_submitted_email(
+                {
+                    "applicant_name": application.debtor_name,
+                    "application_id": application.id,
+                    "purpose": application.purpose,
+                    "amount": application.requested_amount,
+                    **email_data,
+                }
+            )
             LoanApplicationStateTransitionService._send_email(
                 recipient=application.debtor_email,
                 subject="📋 Loan Application Received - Thank You",
@@ -249,9 +264,9 @@ class LoanApplicationStateTransitionService:
         if enforce_credit_check() and application.debtor_id:
             try:
                 CreditCheckService.perform_credit_check(
-                    data={'debtor_id': application.debtor_id},
+                    data={"debtor_id": application.debtor_id},
                     user=user,
-                    request=request
+                    request=request,
                 )
                 logger.info(
                     f"[LoanApplicationTransition] Credit check triggered "
@@ -262,7 +277,9 @@ class LoanApplicationStateTransitionService:
                     f"[LoanApplicationTransition] Failed to trigger credit check: {e}"
                 )
 
-        logger.info(f"[LoanApplicationTransition] Application #{application.id} submitted")
+        logger.info(
+            f"[LoanApplicationTransition] Application #{application.id} submitted"
+        )
 
     @staticmethod
     @transaction.atomic
@@ -290,7 +307,11 @@ class LoanApplicationStateTransitionService:
         )
 
         # Reload application with debtor
-        app = LoanApplicationStateTransitionService._get_application_with_debtor(application.id)
+        app: LoanApplication = (
+            LoanApplicationStateTransitionService._get_application_with_debtor(
+                application.id
+            )
+        )
 
         # 1. Create active debt
         # Determine due date
@@ -304,22 +325,18 @@ class LoanApplicationStateTransitionService:
 
         # Prepare debt data
         debt_data = {
-            'borrower_id': app.debtor_id,
-            'name': f'Loan: {app.purpose}',
-            'total_amount': app.requested_amount,
-            'paid_amount': Decimal('0'),
-            'due_date': due_date,
-            'status': Debt.Status.ACTIVE,
-            'interest_rate': app.interest_rate,
-            'penalty_rate': penalty_rate,
+            "borrower_id": app.debtor_id,
+            "name": f"Loan: {app.purpose}",
+            "total_amount": app.requested_amount,
+            "paid_amount": Decimal("0"),
+            "due_date": due_date,
+            "status": Debt.Status.ACTIVE,
+            "interest_rate": app.interest_rate,
+            "penalty_rate": penalty_rate,
         }
 
         # Create debt using DebtService
-        debt = DebtService.create(
-            data=debt_data,
-            user=user,
-            request=request
-        )
+        debt = DebtService.create(data=debt_data, user=user, request=request)
 
         logger.info(
             f"[LoanApplicationTransition] Created debt #{debt.id} "
@@ -330,11 +347,11 @@ class LoanApplicationStateTransitionService:
         # In-app notification to debtor
         LoanApplicationStateTransitionService._send_in_app_notification(
             title="🎉 Loan Approved!",
-            message=f'Your loan application #{app.id} for ₱{app.requested_amount:,.2f} has been approved.',
+            message=f"Your loan application #{app.id} for ₱{app.requested_amount:,.2f} has been approved.",
             metadata={
-                'application_id': app.id,
-                'debt_id': debt.id,
-                'amount': float(app.requested_amount),
+                "application_id": app.id,
+                "debt_id": debt.id,
+                "amount": float(app.requested_amount),
             },
             user=user,
         )
@@ -345,18 +362,20 @@ class LoanApplicationStateTransitionService:
             term_months = default_loan_term_months()
             interest_period = default_interest_calculation_period()
 
-            html = generate_approved_email({
-                'applicant_name': app.debtor_name,
-                'application_id': app.id,
-                'debt_id': debt.id,
-                'purpose': app.purpose,
-                'amount': app.requested_amount,
-                'interest_rate': app.interest_rate,
-                'interest_period': interest_period,
-                'due_date': debt.due_date,
-                'term_months': term_months,
-                **email_data,
-            })
+            html = generate_approved_email(
+                {
+                    "applicant_name": app.debtor_name,
+                    "application_id": app.id,
+                    "debt_id": debt.id,
+                    "purpose": app.purpose,
+                    "amount": app.requested_amount,
+                    "interest_rate": app.interest_rate,
+                    "interest_period": interest_period,
+                    "due_date": debt.due_date,
+                    "term_months": term_months,
+                    **email_data,
+                }
+            )
             LoanApplicationStateTransitionService._send_email(
                 recipient=app.debtor_email,
                 subject="🎉 Loan Approved - Congratulations!",
@@ -381,11 +400,10 @@ class LoanApplicationStateTransitionService:
         agreement = None
         if require_loan_agreement():
             try:
-                agreement = LoanApplicationStateTransitionService._generate_loan_agreement(
-                    application=app,
-                    debt=debt,
-                    user=user,
-                    request=request
+                agreement = (
+                    LoanApplicationStateTransitionService._generate_loan_agreement(
+                        application=app, debt=debt, user=user, request=request
+                    )
                 )
                 logger.info(
                     f"[LoanApplicationTransition] Loan agreement generated "
@@ -401,14 +419,16 @@ class LoanApplicationStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='debt_create_from_application',
-            model_name='Debt',
+            action_type="debt_create_from_application",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'application_id': app.id,
-                'amount': float(app.requested_amount),
-                'interest_rate': float(app.interest_rate) if app.interest_rate else None,
-            }
+                "application_id": app.id,
+                "amount": float(app.requested_amount),
+                "interest_rate": (
+                    float(app.interest_rate) if app.interest_rate else None
+                ),
+            },
         )
 
         logger.info(
@@ -417,9 +437,9 @@ class LoanApplicationStateTransitionService:
         )
 
         return {
-            'application': app,
-            'debt': debt,
-            'agreement': agreement,
+            "application": app,
+            "debt": debt,
+            "agreement": agreement,
         }
 
     @staticmethod
@@ -440,29 +460,31 @@ class LoanApplicationStateTransitionService:
         )
 
         # Reload application
-        app = LoanApplicationStateTransitionService._get_application_with_debtor(application.id)
+        app = LoanApplicationStateTransitionService._get_application_with_debtor(
+            application.id
+        )
 
         # Audit log
         log_audit_event(
             request=request,
             user=user,
-            action_type='loan_application_reject',
-            model_name='LoanApplication',
+            action_type="loan_application_reject",
+            model_name="LoanApplication",
             object_id=str(app.id),
             changes={
-                'reason': reason,
-                'status': LoanApplication.Status.REJECTED,
-            }
+                "reason": reason,
+                "status": LoanApplication.Status.REJECTED,
+            },
         )
 
         # In-app notification to debtor
         LoanApplicationStateTransitionService._send_in_app_notification(
             title="📋 Loan Application Update",
-            message=f'Your loan application #{app.id} has been reviewed. '
-                    f'Please check your email for details.',
+            message=f"Your loan application #{app.id} has been reviewed. "
+            f"Please check your email for details.",
             metadata={
-                'application_id': app.id,
-                'status': LoanApplication.Status.REJECTED,
+                "application_id": app.id,
+                "status": LoanApplication.Status.REJECTED,
             },
             user=user,
         )
@@ -470,14 +492,17 @@ class LoanApplicationStateTransitionService:
         # Email notification
         if email_enabled() and app.debtor_email:
             email_data = LoanApplicationStateTransitionService._get_email_data()
-            html = generate_rejected_email({
-                'applicant_name': app.debtor_name,
-                'application_id': app.id,
-                'amount': app.requested_amount,
-                'purpose': app.purpose,
-                'rejection_reason': reason or "Application did not meet our lending criteria.",
-                **email_data,
-            })
+            html = generate_rejected_email(
+                {
+                    "applicant_name": app.debtor_name,
+                    "application_id": app.id,
+                    "amount": app.requested_amount,
+                    "purpose": app.purpose,
+                    "rejection_reason": reason
+                    or "Application did not meet our lending criteria.",
+                    **email_data,
+                }
+            )
             LoanApplicationStateTransitionService._send_email(
                 recipient=app.debtor_email,
                 subject="📋 Loan Application Update",
@@ -516,19 +541,21 @@ class LoanApplicationStateTransitionService:
         )
 
         # Reload application
-        app = LoanApplicationStateTransitionService._get_application_with_debtor(application.id)
+        app = LoanApplicationStateTransitionService._get_application_with_debtor(
+            application.id
+        )
 
         # Audit log
         log_audit_event(
             request=request,
             user=user,
-            action_type='loan_application_reopen',
-            model_name='LoanApplication',
+            action_type="loan_application_reopen",
+            model_name="LoanApplication",
             object_id=str(app.id),
             changes={
-                'before': {'status': LoanApplication.Status.REJECTED},
-                'after': {'status': LoanApplication.Status.PENDING},
-            }
+                "before": {"status": LoanApplication.Status.REJECTED},
+                "after": {"status": LoanApplication.Status.PENDING},
+            },
         )
 
         # In-app notification to loan officer
@@ -536,8 +563,8 @@ class LoanApplicationStateTransitionService:
             title="🔄 Loan Application Reopened",
             message=f'Application #{app.id} from "{app.debtor_name}" has been reopened for review.',
             metadata={
-                'application_id': app.id,
-                'debtor_name': app.debtor_name,
+                "application_id": app.id,
+                "debtor_name": app.debtor_name,
             },
             user=user,
         )
@@ -568,22 +595,24 @@ class LoanApplicationStateTransitionService:
 
             # Prepare agreement data
             agreement_data = {
-                'agreement_id': f'LA-{debt.id}',
-                'agreement_date': timezone.now().date().strftime('%B %d, %Y'),
-                'lender_name': LoanApplicationStateTransitionService._get_company_name(),
-                'borrower_name': application.debtor_name,
-                'borrower_email': application.debtor_email or '',
-                'borrower_contact': application.debtor_contact or '',
-                'borrower_address': application.debtor_address or '',
-                'currency': '₱',
-                'principal_amount': f'{application.requested_amount:,.2f}',
-                'interest_rate': application.interest_rate or 0,
-                'penalty_rate': default_penalty_rate(),
-                'due_date': debt.due_date.strftime('%B %d, %Y') if debt.due_date else '',
-                'purpose': application.purpose,
-                'loan_start_date': debt.created_at.strftime('%B %d, %Y'),
-                'anniversary_day': debt.created_at.day,
-                'signature_date': timezone.now().date().strftime('%B %d, %Y'),
+                "agreement_id": f"LA-{debt.id}",
+                "agreement_date": timezone.now().date().strftime("%B %d, %Y"),
+                "lender_name": LoanApplicationStateTransitionService._get_company_name(),
+                "borrower_name": application.debtor_name,
+                "borrower_email": application.debtor_email or "",
+                "borrower_contact": application.debtor_contact or "",
+                "borrower_address": application.debtor_address or "",
+                "currency": "₱",
+                "principal_amount": f"{application.requested_amount:,.2f}",
+                "interest_rate": application.interest_rate or 0,
+                "penalty_rate": default_penalty_rate(),
+                "due_date": (
+                    debt.due_date.strftime("%B %d, %Y") if debt.due_date else ""
+                ),
+                "purpose": application.purpose,
+                "loan_start_date": debt.created_at.strftime("%B %d, %Y"),
+                "anniversary_day": debt.created_at.day,
+                "signature_date": timezone.now().date().strftime("%B %d, %Y"),
             }
 
             # Generate PDF
@@ -599,7 +628,7 @@ class LoanApplicationStateTransitionService:
                 debt=debt,
                 status=LoanAgreement.Status.DRAFT,
                 agreement_date=timezone.now().date(),
-                lender_name=agreement_data['lender_name'],
+                lender_name=agreement_data["lender_name"],
                 terms_text="Standard loan agreement with monthly interest accrual.",
                 # file=pdf_content,  # Uncomment when PDF generation is implemented
                 principal_amount=application.requested_amount,
@@ -611,7 +640,9 @@ class LoanApplicationStateTransitionService:
                 anniversary_day=debt.created_at.day,
             )
 
-            logger.info(f"[LoanApplicationTransition] Loan agreement #{agreement.id} created")
+            logger.info(
+                f"[LoanApplicationTransition] Loan agreement #{agreement.id} created"
+            )
 
             # Optionally sign immediately
             # agreement.status = LoanAgreement.Status.SIGNED
@@ -622,5 +653,7 @@ class LoanApplicationStateTransitionService:
             return agreement
 
         except Exception as e:
-            logger.error(f"[LoanApplicationTransition] Failed to generate loan agreement: {e}")
+            logger.error(
+                f"[LoanApplicationTransition] Failed to generate loan agreement: {e}"
+            )
             return None

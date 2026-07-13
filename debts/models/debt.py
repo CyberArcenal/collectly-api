@@ -112,10 +112,6 @@ class Debt(BaseModel):
         return f"{self.name} - {self.borrower.name} ({self.amount_display})"
 
     def save(self, *args, **kwargs):
-        """Auto-calculate remaining amount before saving."""
-        self.remaining_amount = self.total_amount - self.paid_amount
-        if self.remaining_amount < 0:
-            self.remaining_amount = Decimal('0.00')
         super().save(*args, **kwargs)
 
     @property

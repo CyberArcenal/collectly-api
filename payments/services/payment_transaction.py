@@ -296,8 +296,14 @@ class PaymentTransactionService:
         Raises:
             ValidationError: If validation fails
         """
+        logger.debug(f"Payment data: {data}")
+        
         # Validate debt exists
-        debt = Debt.objects.filter(id=data.get("debt_id")).first()
+        debt = data['debt']
+        
+        if not debt:
+            debt = Debt.objects.filter(id=data.get("debt_id")).first()
+            
         if not debt:
             raise ValidationError({"debt_id": "Debt not found."})
 
@@ -362,13 +368,19 @@ class PaymentTransactionService:
             recorded_by=data.get("recorded_by"),
             recorded_at=timezone.now(),
         )
+        
+        # debt.refresh_from_db()
 
-        # Update debt balances
-        debt.paid_amount += payment.amount
-        debt.remaining_amount = debt.total_amount - debt.paid_amount
-        if debt.remaining_amount < 0:
-            debt.remaining_amount = Decimal("0")
-        debt.save()
+        # # Update debt balances
+        # debt.paid_amount += payment.amount
+        # debt.remaining_amount = debt.total_amount - debt.paid_amount
+        # if debt.remaining_amount < 0:
+        #     debt.remaining_amount = Decimal("0")
+        # debt.save()
+        
+        # # Confirm the payment
+        # payment.confirmed = True
+        # payment.save(update_fields=['confirmed', 'updated_at'])
 
         # Update payment method stats
         if method:

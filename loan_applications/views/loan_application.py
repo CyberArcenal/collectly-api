@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # Response serializers for documentation
 # ----------------------------------------------------------------------
 
+
 class LoanApplicationListResponseSerializer(serializers.Serializer):
     status = serializers.BooleanField(default=True)
     message = serializers.CharField()
@@ -93,10 +94,12 @@ class ErrorResponseSerializer(serializers.Serializer):
 # View
 # ----------------------------------------------------------------------
 
+
 class LoanApplicationCRUDView(APIView):
     """
     CRUD operations for loan applications.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
     pagination_class = CustomPagination
 
@@ -107,14 +110,45 @@ class LoanApplicationCRUDView(APIView):
     @extend_schema(
         tags=["Loan Applications"],
         parameters=[
-            OpenApiParameter(name="page", type=int, description="Page number", required=False),
-            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
-            OpenApiParameter(name="status", type=str, description="Filter by status (pending, approved, rejected)", required=False),
-            OpenApiParameter(name="debtor_id", type=int, description="Filter by debtor ID", required=False),
-            OpenApiParameter(name="search", type=str, description="Search by debtor name or purpose", required=False),
-            OpenApiParameter(name="from_date", type=str, description="Filter from date", required=False),
-            OpenApiParameter(name="to_date", type=str, description="Filter to date", required=False),
-            OpenApiParameter(name="include_deleted", type=bool, description="Include soft-deleted", required=False),
+            OpenApiParameter(
+                name="page", type=int, description="Page number", required=False
+            ),
+            OpenApiParameter(
+                name="page_size", type=int, description="Items per page", required=False
+            ),
+            OpenApiParameter(
+                name="status",
+                type=str,
+                description="Filter by status (pending, approved, rejected)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="debtor_id",
+                type=int,
+                description="Filter by debtor ID",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="search",
+                type=str,
+                description="Search by debtor name or purpose",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="from_date",
+                type=str,
+                description="Filter from date",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="to_date", type=str, description="Filter to date", required=False
+            ),
+            OpenApiParameter(
+                name="include_deleted",
+                type=bool,
+                description="Include soft-deleted",
+                required=False,
+            ),
         ],
         responses={
             200: LoanApplicationListResponseSerializer,
@@ -122,7 +156,7 @@ class LoanApplicationCRUDView(APIView):
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Retrieve a single loan application (if id provided) or a paginated list."
+        description="Retrieve a single loan application (if id provided) or a paginated list.",
     )
     def get(self, request, id=None):
         """Retrieve single loan application or list all."""
@@ -132,14 +166,19 @@ class LoanApplicationCRUDView(APIView):
 
         if not can_read(user):
             return _error(
-                data={"detail": "You do not have permission to view loan applications."},
+                data={
+                    "detail": "You do not have permission to view loan applications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         try:
             if id:
-                include_deleted = request.query_params.get('include_deleted', 'false').lower() == 'true'
+                include_deleted = (
+                    request.query_params.get("include_deleted", "false").lower()
+                    == "true"
+                )
                 application = LoanApplicationService.get_by_id(id, include_deleted)
                 if not application:
                     return _error(
@@ -148,7 +187,9 @@ class LoanApplicationCRUDView(APIView):
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
-                serializer = LoanApplicationReadSerializer(application, context={"request": request})
+                serializer = LoanApplicationReadSerializer(
+                    application, context={"request": request}
+                )
 
                 log_audit_event(
                     request=request,
@@ -168,39 +209,40 @@ class LoanApplicationCRUDView(APIView):
 
             # List with filters
             filters = {
-                'status': request.query_params.get('status'),
-                'debtor_id': request.query_params.get('debtor_id'),
-                'search': request.query_params.get('search'),
-                'from_date': request.query_params.get('from_date'),
-                'to_date': request.query_params.get('to_date'),
-                'include_deleted': request.query_params.get('include_deleted', 'false').lower() == 'true',
+                "status": request.query_params.get("status"),
+                "debtor_id": request.query_params.get("debtor_id"),
+                "search": request.query_params.get("search"),
+                "from_date": request.query_params.get("from_date"),
+                "to_date": request.query_params.get("to_date"),
+                "include_deleted": request.query_params.get(
+                    "include_deleted", "false"
+                ).lower()
+                == "true",
             }
             filters = filter_cleaner(filters)
 
-            page = int(request.query_params.get('page', 1))
-            limit = int(request.query_params.get('page_size', 20))
-            sort_by = request.query_params.get('sort_by', 'created_at')
-            sort_order = request.query_params.get('sort_order', 'desc')
+            page = int(request.query_params.get("page", 1))
+            limit = int(request.query_params.get("page_size", 20))
+            sort_by = request.query_params.get("sort_by", "created_at")
+            sort_order = request.query_params.get("sort_order", "desc")
 
             result = LoanApplicationService.get_list(
                 filters=filters,
                 page=page,
                 limit=limit,
                 sort_by=sort_by,
-                sort_order=sort_order
+                sort_order=sort_order,
             )
 
             paginator = self.pagination_class()
             serialized_data = LoanApplicationListSerializer(
-                result['data'],
-                many=True,
-                context={'request': request}
+                result["data"], many=True, context={"request": request}
             ).data
 
             response = paginator.get_paginated_response(
                 data=serialized_data,
                 message="Loan applications retrieved successfully.",
-                pagination=result['pagination']
+                pagination=result["pagination"],
             )
 
             log_audit_event(
@@ -209,7 +251,7 @@ class LoanApplicationCRUDView(APIView):
                 action_type="read",
                 model_name="LoanApplication",
                 object_id="list",
-                changes={"count": result['pagination']['total']},
+                changes={"count": result["pagination"]["total"]},
                 ip_address=client_ip,
                 user_agent=user_agent,
             )
@@ -239,7 +281,7 @@ class LoanApplicationCRUDView(APIView):
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Create a new loan application. Admin/Staff only."
+        description="Create a new loan application. Admin/Staff only.",
     )
     @transaction.atomic
     def post(self, request):
@@ -247,17 +289,22 @@ class LoanApplicationCRUDView(APIView):
         user = request.user
         client_ip = get_client_ip(request)
         user_agent = request.META.get("HTTP_USER_AGENT", "")
+        logger.debug(
+            f"User {user.username} is attempting to create a loan application with data: {request.data}"
+        )
 
         if not can_edit(user):
             return _error(
-                data={"detail": "You do not have permission to create loan applications."},
+                data={
+                    "detail": "You do not have permission to create loan applications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         serializer = LoanApplicationCreateSerializer(data=request.data)
 
-        if not serializer.is_valid():
+        if not serializer.is_valid(raise_exception=True):
             transaction.set_rollback(True)
             log_audit_event(
                 request=request,
@@ -277,12 +324,12 @@ class LoanApplicationCRUDView(APIView):
 
         try:
             application = LoanApplicationService.create(
-                data=serializer.validated_data,
-                user=user,
-                request=request
+                data=serializer.validated_data, user=user, request=request
             )
 
-            read_serializer = LoanApplicationReadSerializer(application, context={"request": request})
+            read_serializer = LoanApplicationReadSerializer(
+                application, context={"request": request}
+            )
 
             return _success(
                 data=read_serializer.data,
@@ -315,7 +362,7 @@ class LoanApplicationCRUDView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Full update of an existing loan application. Admin/Staff only. Only pending applications can be updated."
+        description="Full update of an existing loan application. Admin/Staff only. Only pending applications can be updated.",
     )
     @transaction.atomic
     def put(self, request, id):
@@ -326,7 +373,9 @@ class LoanApplicationCRUDView(APIView):
 
         if not can_edit(user):
             return _error(
-                data={"detail": "You do not have permission to update loan applications."},
+                data={
+                    "detail": "You do not have permission to update loan applications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -340,9 +389,7 @@ class LoanApplicationCRUDView(APIView):
             )
 
         serializer = LoanApplicationUpdateSerializer(
-            application,
-            data=request.data,
-            context={"request": request}
+            application, data=request.data, context={"request": request}
         )
 
         if not serializer.is_valid():
@@ -358,10 +405,12 @@ class LoanApplicationCRUDView(APIView):
                 application_id=id,
                 data=serializer.validated_data,
                 user=user,
-                request=request
+                request=request,
             )
 
-            read_serializer = LoanApplicationReadSerializer(updated, context={"request": request})
+            read_serializer = LoanApplicationReadSerializer(
+                updated, context={"request": request}
+            )
 
             return _success(
                 data=read_serializer.data,
@@ -394,7 +443,7 @@ class LoanApplicationCRUDView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Partial update of an existing loan application. Admin/Staff only. Only pending applications can be updated."
+        description="Partial update of an existing loan application. Admin/Staff only. Only pending applications can be updated.",
     )
     @transaction.atomic
     def patch(self, request, id):
@@ -405,7 +454,9 @@ class LoanApplicationCRUDView(APIView):
 
         if not can_edit(user):
             return _error(
-                data={"detail": "You do not have permission to update loan applications."},
+                data={
+                    "detail": "You do not have permission to update loan applications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -419,10 +470,7 @@ class LoanApplicationCRUDView(APIView):
             )
 
         serializer = LoanApplicationUpdateSerializer(
-            application,
-            data=request.data,
-            partial=True,
-            context={"request": request}
+            application, data=request.data, partial=True, context={"request": request}
         )
 
         if not serializer.is_valid():
@@ -438,10 +486,12 @@ class LoanApplicationCRUDView(APIView):
                 application_id=id,
                 data=serializer.validated_data,
                 user=user,
-                request=request
+                request=request,
             )
 
-            read_serializer = LoanApplicationReadSerializer(updated, context={"request": request})
+            read_serializer = LoanApplicationReadSerializer(
+                updated, context={"request": request}
+            )
 
             return _success(
                 data=read_serializer.data,
@@ -472,7 +522,7 @@ class LoanApplicationCRUDView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Soft delete a loan application. Admin/Staff only. Only pending applications can be deleted."
+        description="Soft delete a loan application. Admin/Staff only. Only pending applications can be deleted.",
     )
     @transaction.atomic
     def delete(self, request, id):
@@ -483,7 +533,9 @@ class LoanApplicationCRUDView(APIView):
 
         if not can_edit(user):
             return _error(
-                data={"detail": "You do not have permission to delete loan applications."},
+                data={
+                    "detail": "You do not have permission to delete loan applications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -497,11 +549,7 @@ class LoanApplicationCRUDView(APIView):
             )
 
         try:
-            LoanApplicationService.delete(
-                application_id=id,
-                user=user,
-                request=request
-            )
+            LoanApplicationService.delete(application_id=id, user=user, request=request)
 
             return _success(
                 data=None,
@@ -523,10 +571,12 @@ class LoanApplicationCRUDView(APIView):
 # Loan Application Approve View
 # ----------------------------------------------------------------------
 
+
 class LoanApplicationApproveView(APIView):
     """
     Approve a loan application.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -540,7 +590,7 @@ class LoanApplicationApproveView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Approve a pending loan application. Admin/Manager only."
+        description="Approve a pending loan application. Admin/Manager only.",
     )
     @transaction.atomic
     def post(self, request, id):
@@ -551,7 +601,9 @@ class LoanApplicationApproveView(APIView):
 
         if not can_edit(user):
             return _error(
-                data={"detail": "You do not have permission to approve loan applications."},
+                data={
+                    "detail": "You do not have permission to approve loan applications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -565,8 +617,7 @@ class LoanApplicationApproveView(APIView):
             )
 
         serializer = LoanApplicationApproveSerializer(
-            data=request.data,
-            context={"request": request, "user": user}
+            data=request.data, context={"request": request, "user": user}
         )
         serializer.instance = application
 
@@ -591,7 +642,9 @@ class LoanApplicationApproveView(APIView):
         try:
             approved = serializer.save()
 
-            read_serializer = LoanApplicationReadSerializer(approved, context={"request": request})
+            read_serializer = LoanApplicationReadSerializer(
+                approved, context={"request": request}
+            )
 
             log_audit_event(
                 request=request,
@@ -599,7 +652,11 @@ class LoanApplicationApproveView(APIView):
                 action_type="loan_application_approved",
                 model_name="LoanApplication",
                 object_id=str(id),
-                changes={"approved_by": serializer.validated_data.get('approved_by', user.username)},
+                changes={
+                    "approved_by": serializer.validated_data.get(
+                        "approved_by", user.username
+                    )
+                },
                 ip_address=client_ip,
                 user_agent=user_agent,
             )
@@ -624,10 +681,12 @@ class LoanApplicationApproveView(APIView):
 # Loan Application Reject View
 # ----------------------------------------------------------------------
 
+
 class LoanApplicationRejectView(APIView):
     """
     Reject a loan application.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -641,7 +700,7 @@ class LoanApplicationRejectView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Reject a pending loan application. Admin/Staff only."
+        description="Reject a pending loan application. Admin/Staff only.",
     )
     @transaction.atomic
     def post(self, request, id):
@@ -652,7 +711,9 @@ class LoanApplicationRejectView(APIView):
 
         if not can_edit(user):
             return _error(
-                data={"detail": "You do not have permission to reject loan applications."},
+                data={
+                    "detail": "You do not have permission to reject loan applications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -666,8 +727,7 @@ class LoanApplicationRejectView(APIView):
             )
 
         serializer = LoanApplicationRejectSerializer(
-            data=request.data,
-            context={"request": request}
+            data=request.data, context={"request": request}
         )
         serializer.instance = application
 
@@ -692,7 +752,9 @@ class LoanApplicationRejectView(APIView):
         try:
             rejected = serializer.save()
 
-            read_serializer = LoanApplicationReadSerializer(rejected, context={"request": request})
+            read_serializer = LoanApplicationReadSerializer(
+                rejected, context={"request": request}
+            )
 
             log_audit_event(
                 request=request,
@@ -700,7 +762,11 @@ class LoanApplicationRejectView(APIView):
                 action_type="loan_application_rejected",
                 model_name="LoanApplication",
                 object_id=str(id),
-                changes={"rejection_reason": serializer.validated_data.get('rejection_reason')},
+                changes={
+                    "rejection_reason": serializer.validated_data.get(
+                        "rejection_reason"
+                    )
+                },
                 ip_address=client_ip,
                 user_agent=user_agent,
             )
@@ -725,10 +791,12 @@ class LoanApplicationRejectView(APIView):
 # Loan Application Statistics View
 # ----------------------------------------------------------------------
 
+
 class LoanApplicationStatisticsView(APIView):
     """
     Get loan application statistics.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -739,7 +807,7 @@ class LoanApplicationStatisticsView(APIView):
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Get loan application statistics including counts by status and total amounts."
+        description="Get loan application statistics including counts by status and total amounts.",
     )
     def get(self, request):
         """Get loan application statistics."""
@@ -749,7 +817,9 @@ class LoanApplicationStatisticsView(APIView):
 
         if not can_read(user):
             return _error(
-                data={"detail": "You do not have permission to view loan application statistics."},
+                data={
+                    "detail": "You do not have permission to view loan application statistics."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
@@ -780,7 +850,8 @@ class LoanApplicationStatisticsView(APIView):
                 message="Failed to retrieve loan application statistics.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-            
+
+
 from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
 from rest_framework import serializers
 from django.core.exceptions import ValidationError
@@ -789,10 +860,12 @@ from django.core.exceptions import ValidationError
 # LOAN APPLICATION RESTORE VIEW
 # ===================================================================
 
+
 class LoanApplicationRestoreView(APIView):
     """
     Restore a soft-deleted loan application. Admin only.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -805,7 +878,7 @@ class LoanApplicationRestoreView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Restore a soft-deleted loan application. Admin only."
+        description="Restore a soft-deleted loan application. Admin only.",
     )
     @transaction.atomic
     def post(self, request, id):
@@ -816,19 +889,21 @@ class LoanApplicationRestoreView(APIView):
 
         if not is_admin(user):
             return _error(
-                data={"detail": "You do not have permission to restore loan applications."},
+                data={
+                    "detail": "You do not have permission to restore loan applications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         try:
             application = LoanApplicationService.restore(
-                application_id=id,
-                user=user,
-                request=request
+                application_id=id, user=user, request=request
             )
 
-            serializer = LoanApplicationReadSerializer(application, context={"request": request})
+            serializer = LoanApplicationReadSerializer(
+                application, context={"request": request}
+            )
 
             log_audit_event(
                 request=request,
@@ -866,10 +941,12 @@ class LoanApplicationRestoreView(APIView):
 # LOAN APPLICATION PERMANENT DELETE VIEW
 # ===================================================================
 
+
 class LoanApplicationPermanentDeleteView(APIView):
     """
     Permanently delete a loan application (hard delete). Admin only.
     """
+
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
@@ -882,7 +959,7 @@ class LoanApplicationPermanentDeleteView(APIView):
             404: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Permanently delete a loan application (hard delete). Admin only. Only pending applications can be permanently deleted."
+        description="Permanently delete a loan application (hard delete). Admin only. Only pending applications can be permanently deleted.",
     )
     @transaction.atomic
     def delete(self, request, id):
@@ -893,16 +970,16 @@ class LoanApplicationPermanentDeleteView(APIView):
 
         if not is_admin(user):
             return _error(
-                data={"detail": "You do not have permission to permanently delete loan applications."},
+                data={
+                    "detail": "You do not have permission to permanently delete loan applications."
+                },
                 message="Permission denied.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         try:
             LoanApplicationService.permanent_delete(
-                application_id=id,
-                user=user,
-                request=request
+                application_id=id, user=user, request=request
             )
 
             log_audit_event(

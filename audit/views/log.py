@@ -677,6 +677,7 @@ class AuditLogStatsView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+
 from drf_spectacular.utils import extend_schema, OpenApiParameter, inline_serializer
 from rest_framework import serializers
 from django.core.exceptions import ValidationError
@@ -692,6 +693,7 @@ class AuditLogByEntityView(APIView):
     """
 
     permission_classes = [IsAuthenticated, IsAccountActive]
+    pagination_class = CustomPagination
 
     @extend_schema(
         tags=["Audit Logs"],
@@ -752,8 +754,11 @@ class AuditLogByEntityView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialize_data = AuditLogListSerializer(
+                result["data"], many=True, context={"request": request}
+            ).data
             response = paginator.get_paginated_response(
-                data=result["data"],
+                data=serialize_data,
                 message="Audit logs by entity retrieved successfully.",
                 pagination=result["pagination"],
             )
@@ -780,6 +785,7 @@ class AuditLogByUserView(APIView):
     """
 
     permission_classes = [IsAuthenticated, IsAccountActive]
+    pagination_class = CustomPagination
 
     @extend_schema(
         tags=["Audit Logs"],
@@ -833,8 +839,11 @@ class AuditLogByUserView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialize_data = AuditLogListSerializer(
+                result["data"], many=True, context={"request": request}
+            ).data
             response = paginator.get_paginated_response(
-                data=result["data"],
+                data=serialize_data,
                 message="Audit logs by user retrieved successfully.",
                 pagination=result["pagination"],
             )
@@ -861,6 +870,7 @@ class AuditLogByActionView(APIView):
     """
 
     permission_classes = [IsAuthenticated, IsAccountActive]
+    pagination_class = CustomPagination
 
     @extend_schema(
         tags=["Audit Logs"],
@@ -914,8 +924,11 @@ class AuditLogByActionView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialize_data = AuditLogListSerializer(
+                result["data"], many=True, context={"request": request}
+            ).data
             response = paginator.get_paginated_response(
-                data=result["data"],
+                data=serialize_data,
                 message="Audit logs by action retrieved successfully.",
                 pagination=result["pagination"],
             )
@@ -942,6 +955,7 @@ class AuditLogByDateRangeView(APIView):
     """
 
     permission_classes = [IsAuthenticated, IsAccountActive]
+    pagination_class = CustomPagination
 
     @extend_schema(
         tags=["Audit Logs"],
@@ -1003,8 +1017,11 @@ class AuditLogByDateRangeView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialize_data = AuditLogListSerializer(
+                result["data"], many=True, context={"request": request}
+            ).data
             response = paginator.get_paginated_response(
-                data=result["data"],
+                data=serialize_data,
                 message="Audit logs by date range retrieved successfully.",
                 pagination=result["pagination"],
             )
@@ -1031,6 +1048,7 @@ class AuditLogSearchView(APIView):
     """
 
     permission_classes = [IsAuthenticated, IsAccountActive]
+    pagination_class = CustomPagination
 
     @extend_schema(
         tags=["Audit Logs"],
@@ -1084,8 +1102,11 @@ class AuditLogSearchView(APIView):
             )
 
             paginator = self.pagination_class()
+            serialize_data = AuditLogListSerializer(
+                result["data"], many=True, context={"request": request}
+            ).data
             response = paginator.get_paginated_response(
-                data=result["data"],
+                data=serialize_data,
                 message="Search completed successfully.",
                 pagination=result["pagination"],
             )

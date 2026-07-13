@@ -2,7 +2,7 @@
 import logging
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
-from audit.handlers.policy import AuditPolicyStatusHandler
+
 from audit.models import AuditPolicy
 from audit.utils.log import log_audit_event
 
@@ -25,6 +25,7 @@ def capture_old_status(sender, instance, **kwargs):
 
 @receiver(post_save, sender=AuditPolicy)
 def handle_status_change(sender, instance: AuditPolicy, created, **kwargs):
+    from audit.handlers.policy import AuditPolicyStatusHandler
     """Handle audit policy status changes with audit logging"""
     old_status = getattr(instance, "_old_status", None)
     new_status = instance.status

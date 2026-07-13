@@ -61,10 +61,8 @@ def payment_transaction_post_save(sender, instance, created, **kwargs):
             if old_deleted_at is None and instance.deleted_at is not None:
                 service.on_void(instance, "system")
             
-            # Check for refund
-            old_refund_amount = getattr(instance, '_old_refund_amount', 0)
-            if old_refund_amount != instance.refund_amount and instance.refund_amount > 0:
-                service.on_refund(instance, instance.refund_amount, "system")
+            # Refund logic removed – not implemented in this version
+            # If needed later, add the field and uncomment.
     except Exception as e:
         logger.error(f"[PaymentTransactionSignal] after_save error: {e}")
         raise

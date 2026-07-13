@@ -59,6 +59,7 @@ class PaymentTransaction(BaseModel):
         related_name='payments_recorded',
         help_text="User who recorded the payment"
     )
+    confirmed = models.BooleanField(default=False)
     
     class Meta:
         db_table = 'payment_transactions'
@@ -91,11 +92,5 @@ class PaymentTransaction(BaseModel):
         return self.method.name if self.method else "Unknown"
 
     def save(self, *args, **kwargs):
-        """Auto-update debt paid_amount and remaining_amount on save."""
         super().save(*args, **kwargs)
-        # Update debt amounts
-        if self.debt:
-            self.debt.paid_amount = sum(
-                p.amount for p in self.debt.payments.filter(deleted_at__isnull=True)
-            )
-            self.debt.save()
+        # No automatic debt updates here
