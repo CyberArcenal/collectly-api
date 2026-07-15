@@ -26,6 +26,7 @@ def capture_old_status(sender, instance, **kwargs):
 @receiver(post_save, sender=AuditPolicy)
 def handle_status_change(sender, instance: AuditPolicy, created, **kwargs):
     from audit.handlers.policy import AuditPolicyStatusHandler
+
     """Handle audit policy status changes with audit logging"""
     old_status = getattr(instance, "_old_status", None)
     new_status = instance.status
@@ -44,19 +45,18 @@ def handle_status_change(sender, instance: AuditPolicy, created, **kwargs):
         log_audit_event(
             request=None,  # signals don't have request context
             user=getattr(instance, "proceed_by", None),
-            action_type="status_change",   # <-- aligned
-            model_name="AuditPolicy",      # <-- aligned
-            object_id=str(instance.id),    # <-- aligned
-            changes={                      # <-- aligned
+            action_type="status_change",  # <-- aligned
+            model_name="AuditPolicy",  # <-- aligned
+            object_id=str(instance.id),  # <-- aligned
+            changes={
                 "old_status": old_status,
                 "new_status": new_status,
-                "policy_name": instance.name,
-                "description": instance.description,
+                "policy_name": f"AuditPolicy #{instance.id}",  # use ID as name
+                "description": f"Retention: {instance.retention_years} years, Immutable: {instance.immutable}",
             },
-            ip_address=None,               # <-- aligned
-            user_agent=None,               # <-- aligned
+            ip_address=None,  # <-- aligned
+            user_agent=None,  # <-- aligned
         )
-
 
 
 @receiver(post_save, sender=AuditPolicy)

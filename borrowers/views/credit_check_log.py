@@ -12,6 +12,7 @@ from borrowers.serializers.credit_check_log import (
     CreditCheckLogCreateSerializer,
     CreditCheckLogUpdateSerializer,
 )
+from django.db.models import Avg, Count
 from borrowers.services.credit_check import CreditCheckService
 from borrowers.services.borrower import BorrowerService
 from users.permissions.base import IsAccountActive, can_read, can_edit
@@ -247,7 +248,6 @@ class CreditCheckLogCRUDView(APIView):
         },
         description="Create a new credit check log. Admin/Staff only.",
     )
-    
     @transaction.atomic
     def post(self, request):
         user = request.user
@@ -412,13 +412,19 @@ class CreditCheckLogCRUDView(APIView):
 
 
 # ----------------------------------------------------------------------
-# Credit Check Statistics View
+# Credit Check Statistics View (UPDATED)
 # ----------------------------------------------------------------------
 
 
 class CreditCheckStatsView(APIView):
     """
     Get credit check statistics.
+
+    Returns statistics matching the Electron offline implementation:
+    - total_checks: Total number of credit checks
+    - average_score: Average credit score
+    - risk_level_distribution: Counts per risk level (Low, Medium, High)
+    - last_check_date: Date of the most recent credit check (ISO format)
     """
 
     permission_classes = [IsAuthenticated, IsAccountActive]
@@ -432,6 +438,18 @@ class CreditCheckStatsView(APIView):
                 description="Filter by debtor ID (optional)",
                 required=False,
             ),
+            OpenApiParameter(
+                name="start_date",
+                type=str,
+                description="Filter checks from this date (YYYY-MM-DD)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=str,
+                description="Filter checks up to this date (YYYY-MM-DD)",
+                required=False,
+            ),
         ],
         responses={
             200: inline_serializer(
@@ -439,19 +457,99 @@ class CreditCheckStatsView(APIView):
                 fields={
                     "status": serializers.BooleanField(),
                     "message": serializers.CharField(),
-                    "data": serializers.DictField(),
+                    "data": inline_serializer(
+                        name="CreditCheckStatsData",
+                        fields={
+                            "total_checks": serializers.IntegerField(),
+                            "average_score": serializers.FloatField(),
+                            "risk_level_distribution": serializers.DictField(
+                                child=serializers.IntegerField()
+                            ),
+                            "last_check_date": serializers.CharField(allow_null=True),
+                            "excellent_count": serializers.IntegerField(),
+                            "good_count": serializers.IntegerField(),
+                            "fair_count": serializers.IntegerField(),
+                            "poor_count": serializers.IntegerField(),
+                            "passing_count": serializers.IntegerField(),
+                            "score_range": {
+                                "min": serializers.IntegerField(),
+                                "max": serializers.IntegerField(),
+                            },
+                            "risk_distribution": serializers.ListField(),
+                        },
+                    ),
                 },
             ),
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Get credit check statistics.",
+        description="Get credit check statistics. Filters are optional.",
     )
     def get(self, request):
         try:
+            # Get optional filters
             debtor_id = request.query_params.get("debtor_id")
+            start_date = request.query_params.get("start_date")
+            end_date = request.query_params.get("end_date")
+
+            # If debtor_id is provided, filter by that debtor
+            # Also supports date filters for more granular stats
+            qs = CreditCheckLog.objects.filter(deleted_at__isnull=True)
+
+            if debtor_id:
+                debtor = BorrowerService.get_by_id(debtor_id)
+                if not debtor:
+                    return _error(
+                        data={"detail": "Debtor not found."},
+                        message="Debtor not found.",
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+                qs = qs.filter(debtor_id=debtor_id)
+
+            if start_date:
+                qs = qs.filter(date_checked__gte=start_date)
+
+            if end_date:
+                qs = qs.filter(date_checked__lte=end_date)
+
+            # Compute statistics (using the updated service method)
             stats = CreditCheckService.get_statistics(debtor_id)
+
+            # If date filters are applied and we have a specific debtor,
+            # we need to recalculate because the service method doesn't accept date filters
+            # Actually, the service method already handles the filtered qs
+            # but we need to ensure the stats are computed from the filtered queryset
+
+            # For simplicity, we'll use the filtered queryset directly
+            total_checks = qs.count()
+            if total_checks > 0:
+                avg_score = qs.aggregate(avg=Avg("score"))["avg"] or 0
+
+                # Risk distribution from filtered queryset
+                risk_dist_raw = qs.values("risk_level").annotate(count=Count("id"))
+                risk_level_distribution = {"Low": 0, "Medium": 0, "High": 0}
+                for item in risk_dist_raw:
+                    level = item["risk_level"]
+                    if level in risk_level_distribution:
+                        risk_level_distribution[level] = item["count"]
+
+                latest = qs.order_by("-date_checked").first()
+                last_check_date = latest.date_checked.isoformat() if latest else None
+
+                stats = {
+                    "total_checks": total_checks,
+                    "average_score": round(float(avg_score), 2),
+                    "risk_level_distribution": risk_level_distribution,
+                    "last_check_date": last_check_date,
+                }
+            else:
+                stats = {
+                    "total_checks": 0,
+                    "average_score": 0,
+                    "risk_level_distribution": {"Low": 0, "Medium": 0, "High": 0},
+                    "last_check_date": None,
+                }
 
             return _success(
                 data=stats,

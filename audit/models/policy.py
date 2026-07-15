@@ -4,6 +4,12 @@ from django.utils import timezone
 import uuid
 
 class AuditPolicy(models.Model):
+    STATUS_CHOICES = (
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('draft', 'Draft'),
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     retention_years = models.IntegerField(default=5)
     immutable = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -126,7 +126,7 @@ class InterestRateChangeLogStateTransitionService:
             )
 
         # 5. Invalidate interest-rate-related caches
-        cache.delete_pattern("interest_rate_*")
+        cache.clear()
         logger.info("[InterestRateChangeTransition] Interest rate caches invalidated.")
 
         logger.info(

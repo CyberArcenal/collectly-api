@@ -598,9 +598,11 @@ class AuditLogCRUD(APIView):
 # ----------------------------------------------------------------------
 
 
+
+
 class AuditLogStatsView(APIView):
     """
-    Get audit log statistics.
+    Get enhanced audit log statistics for dashboard.
     """
 
     permission_classes = [IsAuthenticated, IsAccountActive]
@@ -617,51 +619,49 @@ class AuditLogStatsView(APIView):
             ),
         ],
         responses={
-            200: AuditLogStatsResponseSerializer,
-            401: AuditLogErrorResponseSerializer,
-            403: AuditLogErrorResponseSerializer,
-            500: AuditLogErrorResponseSerializer,
-        },
-        description=(
-            "Get audit log statistics including total counts, suspicious count, "
-            "action distribution, model distribution, and top users."
-        ),
-        examples=[
-            OpenApiExample(
-                "Stats response",
-                value={
-                    "status": True,
-                    "message": "Success",
-                    "data": {
-                        "total_logs": 1000,
-                        "suspicious_count": 5,
-                        "days": 7,
-                        "action_distribution": [
-                            {"action_type": "login", "count": 500},
-                            {"action_type": "read", "count": 300},
-                            {"action_type": "update", "count": 200},
-                        ],
-                        "model_distribution": [
-                            {"model_name": "User", "count": 400},
-                            {"model_name": "License", "count": 300},
-                            {"model_name": "Activation", "count": 300},
-                        ],
-                        "top_users": [
-                            {"user__username": "admin", "count": 200},
-                            {"user__username": "johndoe", "count": 150},
-                        ],
-                    },
+            200: inline_serializer(
+                name="AuditLogStatsResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": inline_serializer(
+                        name="AuditLogStatsData",
+                        fields={
+                            "total": serializers.IntegerField(),
+                            "totalToday": serializers.IntegerField(),
+                            "uniqueUsers": serializers.IntegerField(),
+                            "avgPerDay": serializers.FloatField(),
+                            "mostActiveDay": serializers.DictField(
+                                allow_null=True,
+                                child=serializers.DictField()
+                            ),
+                            "dateRange": serializers.DictField(
+                                allow_null=True,
+                                child=serializers.CharField()
+                            ),
+                            "byAction": serializers.ListField(
+                                child=serializers.DictField()
+                            ),
+                            "byEntity": serializers.ListField(
+                                child=serializers.DictField()
+                            ),
+                            "byUser": serializers.ListField(
+                                child=serializers.DictField()
+                            ),
+                        }
+                    ),
                 },
-                response_only=True,
-                status_codes=["200"],
             ),
-        ],
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get enhanced audit log statistics including totals, unique users, and averages.",
     )
     def get(self, request):
         try:
             days = int(request.query_params.get("days", 7))
-
-            stats = AuditLogService.get_log_statistics(days)
+            stats = AuditLogService.get_enhanced_statistics(days)
 
             return _success(
                 data=stats,

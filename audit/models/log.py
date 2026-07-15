@@ -104,7 +104,13 @@ class AuditLog(models.Model):
         ("payment_confirm", "Payment Confirm"),
         
         ("debt_paid", "Debt Paid"),
-        ("debt_status_auto_paid", "Debt Status Auto Paid")
+        ("debt_status_auto_paid", "Debt Status Auto Paid"),
+        ("sync_process_queue", "Sync Process Queue"),
+        ("sync_queue_process_all", "Syn Queue Process All"),
+        ("sync_receive", "Sync Receive"),
+        ("sync_update", "Sync Update"),
+        ("sync_status_updated", "Synce Status Updated"),
+        ("sync_create", "Synce Create"),
     )
 
     event_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)

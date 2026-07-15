@@ -150,6 +150,9 @@ class PaymentMethodStateTransitionService:
             f"method_id={new_method.id}, name={new_method.name}, "
             f"is_default={new_method.is_default}, user={user}"
         )
+        if not old_method:
+            return new_method
+        
 
         # Enforce single default if this method is now default
         if new_method.is_default and not old_method.is_default:

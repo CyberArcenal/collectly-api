@@ -269,7 +269,7 @@ class DashboardService:
         for log in audit_logs:
             activities.append(
                 {
-                    "id": f"audit_{log.id}",
+                    "id":log.id,
                     "action": log.action_type.upper(),
                     "entity": log.model_name,
                     "entityId": (
@@ -297,7 +297,7 @@ class DashboardService:
                 datetime.combine(payment.payment_date, datetime.min.time())
             )
             activities.append({
-                'id': f"payment_{payment.id}",
+                'id': payment.id,
                 'action': 'PAYMENT',
                 'entity': 'PaymentTransaction',
                 'entityId': payment.id,

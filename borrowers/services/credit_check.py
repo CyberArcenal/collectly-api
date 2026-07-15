@@ -45,7 +45,9 @@ class CreditCheckService:
             return None
 
     @staticmethod
-    def get_by_borrower(borrower_id: int, page: int = 1, limit: int = 20) -> Dict[str, Any]:
+    def get_by_borrower(
+        borrower_id: int, page: int = 1, limit: int = 20
+    ) -> Dict[str, Any]:
         """
         Get paginated credit check history for a borrower.
 
@@ -58,9 +60,8 @@ class CreditCheckService:
             dict: Paginated list of credit checks
         """
         qs = CreditCheckLog.objects.filter(
-            debtor_id=borrower_id,
-            deleted_at__isnull=True
-        ).order_by('-date_checked')
+            debtor_id=borrower_id, deleted_at__isnull=True
+        ).order_by("-date_checked")
 
         return paginate_queryset(qs, page, limit)
 
@@ -75,13 +76,18 @@ class CreditCheckService:
         Returns:
             CreditCheckLog instance or None if not found
         """
-        return CreditCheckLog.objects.filter(
-            debtor_id=borrower_id,
-            deleted_at__isnull=True
-        ).order_by('-date_checked').first()
+        return (
+            CreditCheckLog.objects.filter(
+                debtor_id=borrower_id, deleted_at__isnull=True
+            )
+            .order_by("-date_checked")
+            .first()
+        )
 
     @staticmethod
-    def get_latest_valid(borrower_id: int, validity_days: int = 30) -> Optional[CreditCheckLog]:
+    def get_latest_valid(
+        borrower_id: int, validity_days: int = 30
+    ) -> Optional[CreditCheckLog]:
         """
         Get the most recent valid credit check for a borrower.
 
@@ -94,79 +100,15 @@ class CreditCheckService:
         """
         cutoff_date = timezone.now() - timedelta(days=validity_days)
 
-        return CreditCheckLog.objects.filter(
-            debtor_id=borrower_id,
-            deleted_at__isnull=True,
-            date_checked__gte=cutoff_date
-        ).order_by('-date_checked').first()
-
-    @staticmethod
-    def get_statistics(borrower_id: Optional[int] = None) -> Dict[str, Any]:
-        """
-        Get credit check statistics.
-
-        Args:
-            borrower_id: Optional borrower ID to filter by
-
-        Returns:
-            dict: Statistics including average score and risk distribution
-        """
-        qs = CreditCheckLog.objects.filter(deleted_at__isnull=True)
-        if borrower_id:
-            qs = qs.filter(debtor_id=borrower_id)
-
-        total = qs.count()
-
-        if total == 0:
-            return {
-                'total': 0,
-                'average_score': 0,
-                'excellent_count': 0,
-                'passing_count': 0,
-                'risk_distribution': [],
-                'score_range': {'min': 0, 'max': 0},
-            }
-
-        # Average score
-        avg_score = qs.aggregate(avg=Avg('score'))['avg'] or 0
-
-        # Score range
-        score_range = qs.aggregate(min=Min('score'), max=Max('score'))
-
-        # Risk level distribution
-        risk_distribution = qs.values('risk_level').annotate(
-            count=Count('id')
-        ).order_by('risk_level')
-
-        # Excellent scores (>= 750)
-        excellent = qs.filter(score__gte=750).count()
-
-        # Passing scores (>= 600)
-        passing = qs.filter(score__gte=600).count()
-
-        # Good scores (>= 700)
-        good = qs.filter(score__gte=700, score__lt=750).count()
-
-        # Fair scores (500-699)
-        fair = qs.filter(score__gte=500, score__lt=700).count()
-
-        # Poor scores (< 500)
-        poor = qs.filter(score__lt=500).count()
-
-        return {
-            'total': total,
-            'average_score': round(avg_score, 2),
-            'excellent_count': excellent,
-            'good_count': good,
-            'fair_count': fair,
-            'poor_count': poor,
-            'passing_count': passing,
-            'score_range': {
-                'min': score_range['min'] or 0,
-                'max': score_range['max'] or 0,
-            },
-            'risk_distribution': list(risk_distribution),
-        }
+        return (
+            CreditCheckLog.objects.filter(
+                debtor_id=borrower_id,
+                deleted_at__isnull=True,
+                date_checked__gte=cutoff_date,
+            )
+            .order_by("-date_checked")
+            .first()
+        )
 
     @staticmethod
     def get_borrower_credit_summary(borrower_id: int) -> Dict[str, Any]:
@@ -181,26 +123,30 @@ class CreditCheckService:
         """
         borrower = Borrower.objects.filter(id=borrower_id).first()
         if not borrower:
-            raise ValidationError({'borrower_id': 'Borrower not found.'})
+            raise ValidationError({"borrower_id": "Borrower not found."})
 
         latest = CreditCheckService.get_latest(borrower_id)
         stats = CreditCheckService.get_statistics(borrower_id)
 
         return {
-            'borrower_id': borrower_id,
-            'borrower_name': borrower.name,
-            'latest_credit_check': {
-                'score': latest.score if latest else None,
-                'risk_level': latest.risk_level if latest else None,
-                'date_checked': latest.date_checked.isoformat() if latest else None,
-            } if latest else None,
-            'total_checks': stats['total'],
-            'average_score': stats['average_score'],
-            'highest_score': stats['score_range']['max'],
-            'lowest_score': stats['score_range']['min'],
-            'risk_distribution': stats['risk_distribution'],
-            'is_passing': latest and latest.is_passing,
-            'is_excellent': latest and latest.is_excellent,
+            "borrower_id": borrower_id,
+            "borrower_name": borrower.name,
+            "latest_credit_check": (
+                {
+                    "score": latest.score if latest else None,
+                    "risk_level": latest.risk_level if latest else None,
+                    "date_checked": latest.date_checked.isoformat() if latest else None,
+                }
+                if latest
+                else None
+            ),
+            "total_checks": stats["total_checks"],
+            "average_score": stats["average_score"],
+            "highest_score": stats["score_range"]["max"],
+            "lowest_score": stats["score_range"]["min"],
+            "risk_distribution": stats["risk_distribution"],
+            "is_passing": latest and latest.is_passing,
+            "is_excellent": latest and latest.is_excellent,
         }
 
     # ============================================================
@@ -224,21 +170,21 @@ class CreditCheckService:
         Raises:
             ValidationError: If validation fails
         """
-        debtor_id = data.get('debtor_id')
+        debtor_id = data.get("debtor_id")
         if not debtor_id:
-            raise ValidationError({'debtor_id': 'Debtor ID is required.'})
+            raise ValidationError({"debtor_id": "Debtor ID is required."})
 
         debtor = Borrower.objects.filter(id=debtor_id).first()
         if not debtor:
-            raise ValidationError({'debtor_id': 'Borrower not found.'})
+            raise ValidationError({"debtor_id": "Borrower not found."})
 
         # Get score and validate
-        score = data.get('score', 0)
+        score = data.get("score", 0)
         if not (300 <= score <= 850):
-            raise ValidationError({'score': 'Score must be between 300 and 850.'})
+            raise ValidationError({"score": "Score must be between 300 and 850."})
 
         # Auto-calculate risk level based on score
-        risk_level = data.get('risk_level')
+        risk_level = data.get("risk_level")
         if not risk_level:
             if score >= 700:
                 risk_level = CreditCheckLog.RiskLevel.LOW
@@ -250,23 +196,23 @@ class CreditCheckService:
         # Check if there's already a check today (optional guardrail)
         today = timezone.now().date()
         existing_today = CreditCheckLog.objects.filter(
-            debtor=debtor,
-            date_checked__date=today,
-            deleted_at__isnull=True
+            debtor=debtor, date_checked__date=today, deleted_at__isnull=True
         ).exists()
 
         if existing_today:
-            logger.warning(f"Credit check already performed for borrower {debtor_id} today")
+            logger.warning(
+                f"Credit check already performed for borrower {debtor_id} today"
+            )
 
         # Create log entry
         log_entry = CreditCheckLog.objects.create(
             debtor=debtor,
             score=score,
             risk_level=risk_level,
-            remarks=data.get('remarks'),
-            performed_by=data.get('performed_by'),
-            external_reference=data.get('external_reference'),
-            date_checked=timezone.now()
+            remarks=data.get("remarks"),
+            performed_by=data.get("performed_by"),
+            external_reference=data.get("external_reference"),
+            date_checked=timezone.now(),
         )
 
         # Audit log
@@ -274,14 +220,14 @@ class CreditCheckService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='credit_check_performed',
-                model_name='CreditCheckLog',
+                action_type="credit_check_performed",
+                model_name="CreditCheckLog",
                 object_id=str(log_entry.id),
                 changes={
-                    'debtor_id': debtor.id,
-                    'score': score,
-                    'risk_level': risk_level,
-                }
+                    "debtor_id": debtor.id,
+                    "score": score,
+                    "risk_level": risk_level,
+                },
             )
 
         logger.info(f"Credit check performed for borrower {debtor.id}: score={score}")
@@ -306,10 +252,10 @@ class CreditCheckService:
         """
         log_entry = CreditCheckService.get_by_id(log_id)
         if not log_entry:
-            raise ValidationError({'id': 'Credit check log not found.'})
+            raise ValidationError({"id": "Credit check log not found."})
 
         if log_entry.deleted_at:
-            raise ValidationError({'id': 'Credit check log is already deleted.'})
+            raise ValidationError({"id": "Credit check log is already deleted."})
 
         log_entry.soft_delete()
 
@@ -318,10 +264,10 @@ class CreditCheckService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='credit_check_delete',
-                model_name='CreditCheckLog',
+                action_type="credit_check_delete",
+                model_name="CreditCheckLog",
                 object_id=str(log_entry.id),
-                changes={'deleted_at': log_entry.deleted_at}
+                changes={"deleted_at": log_entry.deleted_at},
             )
 
         logger.info(f"Credit check log deleted: {log_id}")
@@ -346,10 +292,10 @@ class CreditCheckService:
         """
         log_entry = CreditCheckLog.objects.filter(id=log_id).first()
         if not log_entry:
-            raise ValidationError({'id': 'Credit check log not found.'})
+            raise ValidationError({"id": "Credit check log not found."})
 
         if not log_entry.deleted_at:
-            raise ValidationError({'id': 'Credit check log is not deleted.'})
+            raise ValidationError({"id": "Credit check log is not deleted."})
 
         log_entry.restore()
 
@@ -358,10 +304,10 @@ class CreditCheckService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='credit_check_restore',
-                model_name='CreditCheckLog',
+                action_type="credit_check_restore",
+                model_name="CreditCheckLog",
                 object_id=str(log_entry.id),
-                changes={'restored_at': timezone.now()}
+                changes={"restored_at": timezone.now()},
             )
 
         logger.info(f"Credit check log restored: {log_id}")
@@ -411,7 +357,7 @@ class CreditCheckService:
         Returns:
             dict: {'min': 300, 'max': 850}
         """
-        return {'min': 300, 'max': 850}
+        return {"min": 300, "max": 850}
 
     @staticmethod
     def validate_score(score: int) -> bool:
@@ -435,50 +381,48 @@ class CreditCheckService:
         from django.db.models import Sum, Count, Q, Avg
         from django.utils import timezone
         from debts.models import Debt
-        
+
         # Get all active debts for this borrower
         debts = Debt.objects.filter(
-            borrower_id=borrower_id,
-            deleted_at__isnull=True
-        ).prefetch_related('payments')
-        
+            borrower_id=borrower_id, deleted_at__isnull=True
+        ).prefetch_related("payments")
+
         if not debts.exists():
             return {
-                'score': 700,
-                'risk_level': 'Medium',
-                'remarks': 'No debt history. Default score.',
+                "score": 700,
+                "risk_level": "Medium",
+                "remarks": "No debt history. Default score.",
             }
-        
-        total_debt = debts.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
-        total_paid = debts.aggregate(Sum('paid_amount'))['paid_amount__sum'] or 0
+
+        total_debt = debts.aggregate(Sum("total_amount"))["total_amount__sum"] or 0
+        total_paid = debts.aggregate(Sum("paid_amount"))["paid_amount__sum"] or 0
         total_transactions = PaymentTransaction.objects.filter(
             debt__borrower_id=borrower_id
         ).count()
-        
+
         # Overdue count
         now = timezone.now()
         overdue_count = debts.filter(
-            due_date__lt=now,
-            status__in=['active', 'overdue']
+            due_date__lt=now, status__in=["active", "overdue"]
         ).count()
-        
+
         # Average payment delay
         payments = PaymentTransaction.objects.filter(
             debt__borrower_id=borrower_id
-        ).select_related('debt')
-        
+        ).select_related("debt")
+
         delays = []
         for payment in payments:
             debt = payment.debt
             if payment.payment_date > debt.due_date:
                 delay = (payment.payment_date - debt.due_date).days
                 delays.append(delay)
-        
+
         avg_delay = sum(delays) / len(delays) if delays else 0
-        
+
         # ===== SCORING ALGORITHM (300-850 range) =====
         score = 700
-        
+
         # Debt amount penalties
         if total_debt > 100000:
             score -= 50
@@ -486,47 +430,148 @@ class CreditCheckService:
             score -= 30
         elif total_debt > 10000:
             score -= 15
-        
+
         # Overdue penalties
         if overdue_count > 0:
             score -= min(100, overdue_count * 20)
-        
+
         # Payment ratio bonus
         paid_ratio = total_paid / total_debt if total_debt > 0 else 1
         if paid_ratio > 0.8:
             score += 20
         elif paid_ratio > 0.5:
             score += 10
-        
+
         # Transaction history bonus
         if total_transactions > 5:
             score += 10
-        
+
         # Delay penalties
         if avg_delay > 30:
             score -= 25
         elif avg_delay > 15:
             score -= 10
-        
+
         # Clamp
         score = max(300, min(850, score))
-        
+
         # Risk level
         if score >= 700:
-            risk_level = 'Low'
-            remarks = 'Good credit history. Low risk.'
+            risk_level = "Low"
+            remarks = "Good credit history. Low risk."
         elif score >= 500:
-            risk_level = 'Medium'
-            remarks = 'Moderate risk. Monitor payments.'
+            risk_level = "Medium"
+            remarks = "Moderate risk. Monitor payments."
         else:
-            risk_level = 'High'
-            remarks = 'High risk. Overdue debts detected.'
-        
+            risk_level = "High"
+            remarks = "High risk. Overdue debts detected."
+
         if overdue_count > 0:
-            remarks += f' Has {overdue_count} overdue debt(s).'
-        
+            remarks += f" Has {overdue_count} overdue debt(s)."
+
         return {
-            'score': score,
-            'risk_level': risk_level,
-            'remarks': remarks,
+            "score": score,
+            "risk_level": risk_level,
+            "remarks": remarks,
+        }
+
+    @staticmethod
+    def get_statistics(borrower_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Get credit check statistics.
+
+        Returns structure compatible with Electron offline implementation:
+        - total_checks
+        - average_score
+        - risk_level_distribution (Low, Medium, High counts)
+        - last_check_date
+
+        Args:
+            borrower_id: Optional borrower ID to filter by
+
+        Returns:
+            dict: Statistics matching the offline structure
+        """
+        qs = CreditCheckLog.objects.filter(deleted_at__isnull=True)
+        if borrower_id:
+            qs = qs.filter(debtor_id=borrower_id)
+
+        total_checks = qs.count()
+
+        if total_checks == 0:
+            return {
+                "total_checks": 0,
+                "average_score": 0,
+                "risk_level_distribution": 0,
+                "last_check_date": None,
+                "excellent_count": 0,
+                "good_count": 0,
+                "fair_count": 0,
+                "poor_count": 0,
+                "passing_count": 0,
+                "score_range": {
+                    "min": 0,
+                    "max": 0,
+                },
+                "risk_distribution": [],
+            }
+
+        # Risk level distribution (Low, Medium, High)
+        risk_distribution_raw = qs.values("risk_level").annotate(count=Count("id"))
+
+        risk_level_distribution = {
+            "Low": 0,
+            "Medium": 0,
+            "High": 0,
+        }
+        for item in risk_distribution_raw:
+            risk_level = item["risk_level"]
+            if risk_level in risk_level_distribution:
+                risk_level_distribution[risk_level] = item["count"]
+
+        # Latest check date
+        latest = qs.order_by("-date_checked").first()
+        last_check_date = latest.date_checked.isoformat() if latest else None
+
+        # Average score
+        avg_score = qs.aggregate(avg=Avg("score"))["avg"] or 0
+
+        # Score range
+        score_range = qs.aggregate(min=Min("score"), max=Max("score"))
+
+        # Risk level distribution
+        risk_distribution = (
+            qs.values("risk_level").annotate(count=Count("id")).order_by("risk_level")
+        )
+
+        # Excellent scores (>= 750)
+        excellent = qs.filter(score__gte=750).count()
+
+        # Passing scores (>= 600)
+        passing = qs.filter(score__gte=600).count()
+
+        # Good scores (>= 700)
+        good = qs.filter(score__gte=700, score__lt=750).count()
+
+        # Fair scores (500-699)
+        fair = qs.filter(score__gte=500, score__lt=700).count()
+
+        # Poor scores (< 500)
+        poor = qs.filter(score__lt=500).count()
+
+        return {
+            "total_checks": total_checks,
+            "average_score": round(float(avg_score), 2),
+            "risk_level_distribution": risk_level_distribution,
+            "last_check_date": last_check_date,
+            "excellent_count": excellent,
+            "good_count": good,
+            "fair_count": fair,
+            "poor_count": poor,
+            "passing_count": passing,
+            "score_range": {
+                "min": score_range["min"] or 0,
+                "max": score_range["max"] or 0,
+            },
+            "risk_distribution": list(risk_distribution),
         }

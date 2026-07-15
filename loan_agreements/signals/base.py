@@ -82,7 +82,7 @@ def loan_agreement_post_delete(sender, instance, **kwargs):
     try:
         logger.info(f"[LoanAgreementSignal] after_delete: id={instance.id}")
         service = LoanAgreementStateTransitionService()
-        service.on_after_delete({"id": instance.id}, "system")
+        service.on_after_delete(instance, "system")
     except Exception as e:
         logger.error(f"[LoanAgreementSignal] after_delete error: {e}")
         raise

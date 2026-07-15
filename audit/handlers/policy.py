@@ -1,6 +1,7 @@
 # audit/handlers.py
 import logging
-from audit.services.base import AuditPolicyService
+
+from audit.services.policy import AuditPolicyService
 
 logger = logging.getLogger(__name__)
 

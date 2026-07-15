@@ -39,7 +39,10 @@ def borrower_post_save(sender, instance, created, **kwargs):
         
         if created:
             # New borrower created - activate
-            service.on_activate(instance, "system")
+            try:
+                service.on_activate(instance, "system")
+            except:
+                pass
         else:
             # Existing borrower updated - check for changes
             # Note: We don't have old state in post_save, so we handle this in pre_save with a flag
@@ -56,15 +59,13 @@ def borrower_pre_save_capture_old(sender, instance, **kwargs):
     if instance.pk:
         try:
             old = Borrower.objects.get(pk=instance.pk)
-            instance._old_status = old.status
+          
             instance._old_name = old.name
             instance._old_email = old.email
         except Borrower.DoesNotExist:
-            instance._old_status = None
             instance._old_name = None
             instance._old_email = None
     else:
-        instance._old_status = None
         instance._old_name = None
         instance._old_email = None
 
@@ -87,7 +88,7 @@ def borrower_post_delete(sender, instance, **kwargs):
     try:
         logger.info(f"[BorrowerSignal] after_delete: id={instance.id}")
         service = BorrowerStateTransitionService()
-        service.on_deactivate({"id": instance.id}, "system")
+        service.on_deactivate(instance, "system")
     except Exception as e:
         logger.error(f"[BorrowerSignal] after_delete error: {e}")
         raise
@@ -139,7 +140,7 @@ def credit_check_post_delete(sender, instance, **kwargs):
     try:
         logger.info(f"[CreditCheckLogSignal] after_delete: id={instance.id}")
         service = CreditCheckStateTransitionService()
-        service.on_log_deleted({"id": instance.id}, "system")
+        service.on_log_deleted(instance, "system")
     except Exception as e:
         logger.error(f"[CreditCheckLogSignal] after_delete error: {e}")
         raise

@@ -123,7 +123,7 @@ def log_audit_event(
     Hindi na nagre-return ng AuditLog object para hindi maghintay ang caller.
     """
     excluded_action = ["read"]
-    if action_type in excluded_action:
+    if action_type in excluded_action or 'read' in action_type.lower():
         logger.info(f"Excluded action: {action_type} skipping..")
         return
     # Extract client info from request if available

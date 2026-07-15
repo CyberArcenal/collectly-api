@@ -55,6 +55,8 @@ class DebtService:
         except Debt.DoesNotExist:
             return None
 
+
+
     @staticmethod
     def get_list(filters=None, page=1, limit=20, sort_by="due_date", sort_order="asc"):
         """
@@ -108,11 +110,44 @@ class DebtService:
             if filters.get("max_total_amount"):
                 qs = qs.filter(total_amount__lte=filters["max_total_amount"])
 
-        # Apply sorting
-        sort_by = camel_to_snake(sort_by)
+        # ✅ Sorting with field mapping
+        # Map frontend sort fields to Django ORM field paths
+        sort_field_map = {
+            "borrowerName": "borrower__name",      # ✅ sort by borrower name
+            "borrower": "borrower__name",          # ✅ fallback
+            "createdAt": "created_at",
+            "updatedAt": "updated_at",
+            "dueDate": "due_date",
+            "name": "name",
+            "totalAmount": "total_amount",
+            "paidAmount": "paid_amount",
+            "remainingAmount": "remaining_amount",
+            "status": "status",
+            "id": "id",
+        }
+
+        # Convert from camelCase to snake_case for lookup
+        sort_by_snake = camel_to_snake(sort_by)
+        
+        # Use mapped field if available, otherwise use the snake_case version
+        # but ensure it's a valid field on Debt or related model
+        order_by_field = sort_field_map.get(sort_by, None)
+        
+        # If not in map, try to use the snake_case version directly (risky)
+        if not order_by_field:
+            # Check if it's a valid field on Debt model
+            valid_fields = [f.name for f in Debt._meta.get_fields()]
+            if sort_by_snake in valid_fields:
+                order_by_field = sort_by_snake
+            else:
+                # Fallback to due_date
+                order_by_field = "due_date"
+
+        # Apply sort order
         if sort_order.lower() == "desc":
-            sort_by = f"-{sort_by}"
-        qs = qs.order_by(sort_by)
+            order_by_field = f"-{order_by_field}"
+        
+        qs = qs.order_by(order_by_field)
 
         # Paginate
         result = paginate_queryset(qs, page, limit)
@@ -460,27 +495,83 @@ class DebtService:
 
     @staticmethod
     def get_statistics():
-        today = datetime.date.today()
+        """
+        Get accurate debt statistics with proper overdue handling.
+        
+        Rules:
+        - Overdue = status='overdue', due_date < today, remaining_amount > 0.01
+        - Active = status='active', remaining_amount > 0.01
+        - Paid = status='paid' (regardless of remaining)
+        
+        Returns:
+            dict: Comprehensive debt statistics
+        """
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        today = timezone.now().date()
+        
+        # Base queryset: all non-deleted debts
         qs = Debt.objects.filter(deleted_at__isnull=True)
-
-        # ✅ Only include debts that are truly overdue (due_date < today)
-        truly_overdue = qs.filter(status=Debt.Status.OVERDUE, due_date__lt=today)
-
-        # Counts and amounts
+        
+        # =========================================================
+        # 1️⃣ COUNTS BY STATUS (with remaining_amount validation)
+        # =========================================================
+        
+        # Total active debts (must have remaining balance)
+        total_active = qs.filter(
+            status=Debt.Status.ACTIVE,
+            remaining_amount__gt=Decimal('0.01')
+        ).count()
+        
+        # Total paid debts (status is 'paid')
+        total_paid = qs.filter(status=Debt.Status.PAID).count()
+        
+        # Total overdue debts (true overdue: status + past due + balance)
+        true_overdue = qs.filter(
+            status=Debt.Status.OVERDUE,
+            due_date__lt=today,
+            remaining_amount__gt=Decimal('0.01')
+        )
+        total_overdue = true_overdue.count()
+        
+        # Total defaulted debts
+        total_defaulted = qs.filter(status=Debt.Status.DEFAULTED).count()
+        
+        # Total debts (all non-deleted)
         total_debts = qs.count()
-        status_counts = qs.values("status").annotate(count=Count("id"))
-        total_amount = qs.aggregate(total=Sum("total_amount"))["total"] or Decimal("0")
-        remaining_amount = qs.aggregate(total=Sum("remaining_amount"))[
-            "total"
-        ] or Decimal("0")
-        total_overdue_amount = truly_overdue.aggregate(total=Sum("total_amount"))[
-            "total"
-        ] or Decimal("0")
-
-        # ✅ Compute average days overdue (clamped to zero)
+        
+        # =========================================================
+        # 2️⃣ AMOUNTS
+        # =========================================================
+        
+        # Total amount owed (sum of total_amount for all debts)
+        total_amount_owed = qs.aggregate(
+            total=Sum('total_amount')
+        )['total'] or Decimal('0')
+        
+        # Total remaining balance (sum of remaining_amount for debts with balance > 0)
+        total_remaining_balance = qs.filter(
+            remaining_amount__gt=Decimal('0.01')
+        ).aggregate(
+            total=Sum('remaining_amount')
+        )['total'] or Decimal('0')
+        
+        # Total overdue amount (only for true overdue debts)
+        total_overdue_amount = true_overdue.aggregate(
+            total=Sum('remaining_amount')
+        )['total'] or Decimal('0')
+        
+        # =========================================================
+        # 3️⃣ AVERAGE DAYS OVERDUE (SAFE CALCULATION)
+        # =========================================================
+        
         avg_days_overdue = 0
-        if truly_overdue.exists():
-            if connection.vendor == "sqlite":
+        
+        # Only compute if there are true overdue debts
+        if true_overdue.exists():
+            if connection.vendor == 'sqlite':
+                # SQLite uses julianday
                 table_name = Debt._meta.db_table
                 with connection.cursor() as cursor:
                     cursor.execute(f"""
@@ -488,39 +579,58 @@ class DebtService:
                             CAST(julianday('now') - julianday(due_date) AS NUMERIC)
                         )
                         FROM {table_name}
-                        WHERE status = 'overdue' AND due_date < date('now') AND deleted_at IS NULL
+                        WHERE status = 'overdue' 
+                          AND due_date < date('now') 
+                          AND remaining_amount > 0.01
+                          AND deleted_at IS NULL
                     """)
                     row = cursor.fetchone()
                     if row and row[0] is not None:
-                        avg_days_overdue = max(
-                            0, round(float(row[0]), 2)
-                        )  # ✅ Clamp to zero
+                        avg_days_overdue = max(0, round(float(row[0]), 2))
             else:
-                from django.db.models import F, Avg, ExpressionWrapper, fields
+                # PostgreSQL / MySQL compatible
+                from django.db.models import Avg, F, ExpressionWrapper, fields
                 from django.db.models.functions import Now
-
+                
                 expr = ExpressionWrapper(
-                    Now() - F("due_date"), output_field=fields.DurationField()
+                    Now() - F('due_date'),
+                    output_field=fields.DurationField()
                 )
-                result = truly_overdue.aggregate(avg=Avg(expr))
-                avg_duration = result["avg"]
+                result = true_overdue.aggregate(avg=Avg(expr))
+                avg_duration = result['avg']
                 if avg_duration:
-                    avg_days_overdue = max(
-                        0, round(avg_duration.total_seconds() / (24 * 3600), 2)
-                    )  # ✅ Clamp
-
-        status_stats = {item["status"]: item["count"] for item in status_counts}
-
+                    avg_days_overdue = max(0, round(avg_duration.total_seconds() / (24 * 3600), 2))
+        
+        # =========================================================
+        # 4️⃣ RETURN RESULT (camelCase for API consistency)
+        # =========================================================
+        
         return {
-            "total_debts": total_debts,
-            "total_active": status_stats.get(Debt.Status.ACTIVE, 0),
-            "total_paid": status_stats.get(Debt.Status.PAID, 0),
-            "total_overdue": truly_overdue.count(),  # ✅ Use truly_overdue count
-            "total_defaulted": status_stats.get(Debt.Status.DEFAULTED, 0),
-            "total_amount_owed": total_amount,
-            "total_remaining_balance": remaining_amount,
-            "total_overdue_amount": total_overdue_amount,
-            "avg_days_overdue": avg_days_overdue,  # ✅ Guaranteed non‑negative
+            # Counts
+            'totalDebts': total_debts,
+            'totalActive': total_active,
+            'totalPaid': total_paid,
+            'totalOverdue': total_overdue,           # ✅ True overdue only
+            'totalDefaulted': total_defaulted,
+            
+            # Amounts
+            'totalAmountOwed': total_amount_owed,
+            'totalRemainingBalance': total_remaining_balance,
+            'totalOverdueAmount': total_overdue_amount,
+            
+            # Averages
+            'avgDaysOverdue': avg_days_overdue,      # ✅ Guaranteed non-negative
+            
+            # Legacy support (snake_case for backward compatibility)
+            'total_debts': total_debts,
+            'total_active': total_active,
+            'total_paid': total_paid,
+            'total_overdue': total_overdue,
+            'total_defaulted': total_defaulted,
+            'total_amount_owed': total_amount_owed,
+            'total_remaining_balance': total_remaining_balance,
+            'total_overdue_amount': total_overdue_amount,
+            'avg_days_overdue': avg_days_overdue,
         }
 
     @staticmethod
@@ -1487,3 +1597,89 @@ class DebtService:
             "yearly": {"days": 365, "label": "Yearly"},
         }
         return period_map.get(period_type, {"days": 30, "label": "Monthly"})
+    
+    
+    @staticmethod
+    def get_overdue_debts(
+        page=1,
+        limit=20,
+        search=None,
+        sort_by='due_date',
+        sort_order='asc',
+        min_days_overdue=None,
+    ):
+        """
+        Get true overdue debts with pagination.
+
+        Criteria:
+        - status = 'overdue'
+        - due_date < today
+        - remaining_amount > 0.01
+
+        Args:
+            page: Page number
+            limit: Items per page
+            search: Search by debt name, borrower name, contact, email
+            sort_by: Sort field (due_date, name, remaining_amount, etc.)
+            sort_order: 'asc' or 'desc'
+            min_days_overdue: Minimum days overdue (optional)
+
+        Returns:
+            dict: {'data': list of debts, 'pagination': pagination metadata}
+        """
+        from datetime import datetime, timedelta
+        from django.db.models import Q
+        from decimal import Decimal
+
+        today = timezone.now().date()
+
+        # Base queryset: true overdue debts
+        qs = Debt.objects.filter(
+            status=Debt.Status.OVERDUE,
+            due_date__lt=today,
+            remaining_amount__gt=Decimal('0.01'),
+            deleted_at__isnull=True,
+        ).select_related('borrower')
+
+        # Min days overdue filter (if provided)
+        if min_days_overdue:
+            cutoff_date = today - timedelta(days=min_days_overdue)
+            qs = qs.filter(due_date__lte=cutoff_date)
+
+        # Search filter
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search) |
+                Q(borrower__name__icontains=search) |
+                Q(borrower__contact__icontains=search) |
+                Q(borrower__email__icontains=search)
+            )
+
+        # Sorting
+        sort_field_map = {
+            "borrowerName": "borrower__name",
+            "borrower": "borrower__name",
+            "createdAt": "created_at",
+            "updatedAt": "updated_at",
+            "dueDate": "due_date",
+            "name": "name",
+            "totalAmount": "total_amount",
+            "paidAmount": "paid_amount",
+            "remainingAmount": "remaining_amount",
+            "status": "status",
+            "id": "id",
+        }
+
+        order_by_field = sort_field_map.get(sort_by, "due_date")
+        if sort_order.lower() == "desc":
+            order_by_field = f"-{order_by_field}"
+        qs = qs.order_by(order_by_field)
+
+        # Paginate
+        result = paginate_queryset(qs, page, limit)
+
+        # Attach stats to each debt
+        for debt in result['data']:
+            debt.stats = DebtService._get_debt_stats(debt)
+
+        return result

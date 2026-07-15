@@ -751,6 +751,107 @@ class AuditLogService:
             'filePath': file_path,
             'filename': os.path.basename(file_path),
         }
+        
+
+    # ============================================================
+    # STATISTICS (Enhanced)
+    # ============================================================
+
+    @staticmethod
+    def get_enhanced_statistics(days: int = 7) -> dict:
+        """
+        Get enhanced audit log statistics for dashboard.
+        
+        Returns:
+            dict: {
+                'total': int,                           # Total logs in period
+                'totalToday': int,                      # Logs today
+                'uniqueUsers': int,                     # Unique users who performed actions
+                'avgPerDay': float,                     # Average logs per day
+                'mostActiveDay': {'day': str, 'count': int} | None,
+                'byAction': [...],                      # Action distribution
+                'byEntity': [...],                      # Entity distribution
+                'byUser': [...],                        # User distribution
+                'dateRange': {'start': str, 'end': str} | None,
+            }
+        """
+        from django.db.models import Count, Q
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.db.models.functions import TruncDate
+        
+        start_date = timezone.now() - timedelta(days=days)
+        end_date = timezone.now()
+        
+        qs = AuditLog.objects.filter(timestamp__gte=start_date)
+        total = qs.count()
+        
+        # Total today
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        total_today = AuditLog.objects.filter(timestamp__gte=today_start).count()
+        
+        # Unique users (excluding null users)
+        unique_users = qs.exclude(user__isnull=True).values('user').distinct().count()
+        
+        # Average per day
+        days_elapsed = max(1, (end_date - start_date).days)
+        avg_per_day = total / days_elapsed
+        
+        # Most active day
+        daily_counts = qs.annotate(
+            day=TruncDate('timestamp')
+        ).values('day').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        most_active_day = None
+        if daily_counts:
+            first = daily_counts.first()
+            most_active_day = {
+                'day': first['day'].isoformat() if first['day'] else None,
+                'count': first['count']
+            }
+        
+        # Action distribution
+        action_dist = qs.values('action_type').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
+        
+        # Entity distribution
+        entity_dist = qs.values('model_name').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
+        
+        # User distribution
+        user_dist = qs.exclude(user__isnull=True).values(
+            'user__username'
+        ).annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
+        
+        return {
+            'total': total,
+            'totalToday': total_today,
+            'uniqueUsers': unique_users,
+            'avgPerDay': round(avg_per_day, 1),
+            'mostActiveDay': most_active_day,
+            'dateRange': {
+                'start': start_date.isoformat(),
+                'end': end_date.isoformat(),
+            },
+            'byAction': [
+                {'action': item['action_type'], 'count': item['count']}
+                for item in action_dist
+            ],
+            'byEntity': [
+                {'entity': item['model_name'], 'count': item['count']}
+                for item in entity_dist
+            ],
+            'byUser': [
+                {'user': item['user__username'], 'count': item['count']}
+                for item in user_dist
+            ],
+        }
 
 
     # ============================================================
@@ -873,4 +974,7 @@ class AuditLogService:
             'format': format,
             'entryCount': total,
         }
+        
+        
+    
         

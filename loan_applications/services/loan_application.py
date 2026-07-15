@@ -40,7 +40,9 @@ class LoanApplicationService:
     # ============================================================
 
     @staticmethod
-    def get_by_id(application_id: int, include_deleted: bool = False) -> Optional[LoanApplication]:
+    def get_by_id(
+        application_id: int, include_deleted: bool = False
+    ) -> Optional[LoanApplication]:
         """
         Get a single loan application by ID.
 
@@ -51,7 +53,7 @@ class LoanApplicationService:
         Returns:
             LoanApplication instance or None if not found
         """
-        qs = LoanApplication.objects.select_related('debtor')
+        qs = LoanApplication.objects.select_related("debtor")
         if not include_deleted:
             qs = qs.filter(deleted_at__isnull=True)
 
@@ -74,9 +76,8 @@ class LoanApplicationService:
             dict: Paginated list of applications
         """
         qs = LoanApplication.objects.filter(
-            debtor_id=debtor_id,
-            deleted_at__isnull=True
-        ).order_by('-created_at')
+            debtor_id=debtor_id, deleted_at__isnull=True
+        ).order_by("-created_at")
 
         return paginate_queryset(qs, page, limit)
 
@@ -85,8 +86,8 @@ class LoanApplicationService:
         filters: Optional[Dict[str, Any]] = None,
         page: int = 1,
         limit: int = 20,
-        sort_by: str = 'created_at',
-        sort_order: str = 'desc'
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
     ) -> Dict[str, Any]:
         """
         Get paginated list of loan applications with filters.
@@ -104,74 +105,88 @@ class LoanApplicationService:
                 'pagination': pagination metadata
             }
         """
-        qs = LoanApplication.objects.select_related('debtor')
+        qs = LoanApplication.objects.select_related("debtor")
 
         # Handle deleted filtering based on include_deleted flag
-        include_deleted = filters.get('include_deleted', False) if filters else False
+        include_deleted = filters.get("include_deleted", False) if filters else False
         if not include_deleted:
             qs = qs.filter(deleted_at__isnull=True)
 
         # Apply filters
         if filters:
-            if filters.get('status'):
-                qs = qs.filter(status=filters['status'])
+            if filters.get("status"):
+                qs = qs.filter(status=filters["status"])
 
-            if filters.get('debtor_id'):
-                qs = qs.filter(debtor_id=filters['debtor_id'])
+            if filters.get("debtor_id"):
+                qs = qs.filter(debtor_id=filters["debtor_id"])
 
-            if filters.get('from_date'):
-                qs = qs.filter(created_at__gte=filters['from_date'])
+            if filters.get("from_date"):
+                qs = qs.filter(created_at__gte=filters["from_date"])
 
-            if filters.get('to_date'):
-                qs = qs.filter(created_at__lte=filters['to_date'])
+            if filters.get("to_date"):
+                qs = qs.filter(created_at__lte=filters["to_date"])
 
-            if filters.get('search'):
-                search = filters['search']
+            if filters.get("search"):
+                search = filters["search"]
                 qs = qs.filter(
-                    Q(debtor_name__icontains=search) |
-                    Q(purpose__icontains=search) |
-                    Q(debtor_email__icontains=search)
+                    Q(debtor_name__icontains=search)
+                    | Q(purpose__icontains=search)
+                    | Q(debtor_email__icontains=search)
                 )
 
-            if filters.get('min_amount'):
-                qs = qs.filter(requested_amount__gte=filters['min_amount'])
+            if filters.get("min_amount"):
+                qs = qs.filter(requested_amount__gte=filters["min_amount"])
 
-            if filters.get('max_amount'):
-                qs = qs.filter(requested_amount__lte=filters['max_amount'])
+            if filters.get("max_amount"):
+                qs = qs.filter(requested_amount__lte=filters["max_amount"])
 
         # Apply sorting
         sort_by = camel_to_snake(sort_by)
-        if sort_order.lower() == 'asc':
+        if sort_order.lower() == "asc":
             sort_by = sort_by
         else:
-            sort_by = f'-{sort_by}'
+            sort_by = f"-{sort_by}"
         qs = qs.order_by(sort_by)
 
         return paginate_queryset(qs, page, limit)
 
     @staticmethod
-    def get_statistics() -> Dict[str, Any]:
+    def get_statistics(
+        start_date: Optional[str] = None, end_date: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Get comprehensive loan application statistics.
+
+        Args:
+            start_date: Optional start date (YYYY-MM-DD)
+            end_date: Optional end date (YYYY-MM-DD)
 
         Returns:
             dict: Statistics including counts by status and total requested amounts
         """
         qs = LoanApplication.objects.filter(deleted_at__isnull=True)
 
+        # Apply date filters if provided
+        if start_date:
+            qs = qs.filter(created_at__date__gte=start_date)
+        if end_date:
+            qs = qs.filter(created_at__date__lte=end_date)
+
         total = qs.count()
-        status_counts = qs.values('status').annotate(count=Count('id'))
+        status_counts = qs.values("status").annotate(count=Count("id"))
 
         # Build status counts dictionary
         status_stats = {}
         for item in status_counts:
-            status_stats[item['status']] = item['count']
+            status_stats[item["status"]] = item["count"]
 
         # Total requested amount
-        total_amount = qs.aggregate(total=Sum('requested_amount'))['total'] or Decimal('0')
+        total_amount = qs.aggregate(total=Sum("requested_amount"))["total"] or Decimal(
+            "0"
+        )
 
         # Average requested amount
-        avg_amount = qs.aggregate(avg=Avg('requested_amount'))['avg'] or Decimal('0')
+        avg_amount = qs.aggregate(avg=Avg("requested_amount"))["avg"] or Decimal("0")
 
         # Last 30 days
         thirty_days_ago = timezone.now() - timedelta(days=30)
@@ -179,20 +194,24 @@ class LoanApplicationService:
 
         # Amount range stats
         amount_stats = qs.aggregate(
-            min_amount=Min('requested_amount'),
-            max_amount=Max('requested_amount'),
+            min_amount=Min("requested_amount"),
+            max_amount=Max("requested_amount"),
         )
 
         return {
-            'total': total,
-            'pending': status_stats.get(LoanApplication.Status.PENDING, 0),
-            'approved': status_stats.get(LoanApplication.Status.APPROVED, 0),
-            'rejected': status_stats.get(LoanApplication.Status.REJECTED, 0),
-            'total_requested_amount': total_amount,
-            'average_requested_amount': round(avg_amount, 2),
-            'min_requested_amount': amount_stats.get('min_amount') or Decimal('0'),
-            'max_requested_amount': amount_stats.get('max_amount') or Decimal('0'),
-            'applications_last_30_days': recent,
+            "total": total,
+            "pending": status_stats.get(LoanApplication.Status.PENDING, 0),
+            "approved": status_stats.get(LoanApplication.Status.APPROVED, 0),
+            "rejected": status_stats.get(LoanApplication.Status.REJECTED, 0),
+            "total_requested_amount": float(total_amount),
+            "average_requested_amount": round(float(avg_amount), 2),
+            "min_requested_amount": float(
+                amount_stats.get("min_amount") or Decimal("0")
+            ),
+            "max_requested_amount": float(
+                amount_stats.get("max_amount") or Decimal("0")
+            ),
+            "applications_last_30_days": recent,
         }
 
     @staticmethod
@@ -216,25 +235,28 @@ class LoanApplicationService:
 
         # Average processing time for approved applications
         approved_apps = qs.filter(
-            status=LoanApplication.Status.APPROVED,
-            approved_at__isnull=False
+            status=LoanApplication.Status.APPROVED, approved_at__isnull=False
         )
 
         processing_times = []
         for app in approved_apps:
-            processing_time = (app.approved_at - app.created_at).total_seconds() / 3600  # hours
+            processing_time = (
+                app.approved_at - app.created_at
+            ).total_seconds() / 3600  # hours
             processing_times.append(processing_time)
 
-        avg_processing_time = sum(processing_times) / len(processing_times) if processing_times else 0
+        avg_processing_time = (
+            sum(processing_times) / len(processing_times) if processing_times else 0
+        )
 
         return {
-            'total_applications': total,
-            'approved_count': approved,
-            'rejected_count': rejected,
-            'pending_count': pending,
-            'approval_rate': round(approval_rate, 2),
-            'rejection_rate': round(rejection_rate, 2),
-            'average_processing_hours': round(avg_processing_time, 2),
+            "total_applications": total,
+            "approved_count": approved,
+            "rejected_count": rejected,
+            "pending_count": pending,
+            "approval_rate": round(approval_rate, 2),
+            "rejection_rate": round(rejection_rate, 2),
+            "average_processing_hours": round(avg_processing_time, 2),
         }
 
     # ============================================================
@@ -263,11 +285,10 @@ class LoanApplicationService:
         Raises:
             ValidationError: If validation fails
         """
-        debtor = data.get('debtor')          # from serializer (Borrower instance)
-        debtor_id = data.get('debtor_id')    # fallback for raw input
-        debtor_name = data.get('debtor_name')
-        
-        
+        debtor = data.get("debtor")  # from serializer (Borrower instance)
+        debtor_id = data.get("debtor_id")  # fallback for raw input
+        debtor_name = data.get("debtor_name")
+
         if debtor:
             # Already a Borrower instance
             debtor_id = debtor.id
@@ -277,66 +298,65 @@ class LoanApplicationService:
             # Legacy: debtor_id passed directly
             debtor = BorrowerService.get_by_id(debtor_id)
             if not debtor:
-                raise ValidationError({'debtor_id': 'Borrower not found.'})
+                raise ValidationError({"debtor_id": "Borrower not found."})
             if not debtor_name:
                 debtor_name = debtor.name
         else:
             # If new_debtor is provided, create a new borrower
-            if data.get('new_debtor'):
-                new_debtor_data = data['new_debtor']
+            if data.get("new_debtor"):
+                new_debtor_data = data["new_debtor"]
                 debtor = BorrowerService.create(
-                    data=new_debtor_data,
-                    user=user,
-                    request=request
+                    data=new_debtor_data, user=user, request=request
                 )
                 debtor_id = debtor.id
                 debtor_name = debtor.name
             else:
                 # At this point we must have a debtor
-                raise ValidationError({'debtor': 'Debtor information is required.'})
+                raise ValidationError({"debtor": "Debtor information is required."})
 
         # If new debtor data is provided, create debtor first
-        if data.get('new_debtor'):
-            new_debtor_data = data['new_debtor']
+        if data.get("new_debtor"):
+            new_debtor_data = data["new_debtor"]
             debtor = BorrowerService.create(
-                data=new_debtor_data,
-                user=user,
-                request=request
+                data=new_debtor_data, user=user, request=request
             )
             debtor_id = debtor.id
             debtor_name = debtor.name
 
         # Validate required fields
         if not debtor_name:
-            raise ValidationError({'debtor_name': 'Debtor name is required.'})
+            raise ValidationError({"debtor_name": "Debtor name is required."})
 
-        requested_amount = Decimal(str(data.get('requested_amount', 0)))
+        requested_amount = Decimal(str(data.get("requested_amount", 0)))
         if requested_amount <= 0:
-            raise ValidationError({'requested_amount': 'Requested amount must be greater than zero.'})
+            raise ValidationError(
+                {"requested_amount": "Requested amount must be greater than zero."}
+            )
 
         # Validate proposed due date is not in the past
-        proposed_due_date = data.get('proposed_due_date')
+        proposed_due_date = data.get("proposed_due_date")
         if proposed_due_date and isinstance(proposed_due_date, str):
             from datetime import datetime
+
             proposed_due_date = datetime.fromisoformat(proposed_due_date).date()
 
         if proposed_due_date and proposed_due_date < timezone.now().date():
-            raise ValidationError({
-                'proposed_due_date': 'Due date cannot be in the past.'
-            })
+            raise ValidationError(
+                {"proposed_due_date": "Due date cannot be in the past."}
+            )
 
         # Create application
         application = LoanApplication.objects.create(
             debtor_id=debtor_id,
             debtor_name=debtor_name,
-            debtor_contact=data.get('debtor_contact'),
-            debtor_email=data.get('debtor_email'),
-            debtor_address=data.get('debtor_address'),
+            debtor_contact=data.get("debtor_contact"),
+            debtor_email=data.get("debtor_email"),
+            debtor_address=data.get("debtor_address"),
             requested_amount=requested_amount,
-            purpose=data['purpose'],
+            purpose=data["purpose"],
             proposed_due_date=proposed_due_date,
-            interest_rate=data.get('interest_rate'),
-            status=LoanApplication.Status.PENDING
+            interest_rate=data.get("interest_rate"),
+            status=LoanApplication.Status.PENDING,
         )
 
         # Audit log
@@ -344,18 +364,22 @@ class LoanApplicationService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='loan_application_create',
-                model_name='LoanApplication',
+                action_type="loan_application_create",
+                model_name="LoanApplication",
                 object_id=str(application.id),
-                changes={'data': data}
+                changes={"data": data},
             )
 
-        logger.info(f"Loan application created: {application.id} - {application.debtor_name}")
+        logger.info(
+            f"Loan application created: {application.id} - {application.debtor_name}"
+        )
         return application
 
     @staticmethod
     @transaction.atomic
-    def update(application_id: int, data: Dict[str, Any], user=None, request=None) -> LoanApplication:
+    def update(
+        application_id: int, data: Dict[str, Any], user=None, request=None
+    ) -> LoanApplication:
         """
         Update a loan application (only if pending).
 
@@ -373,35 +397,44 @@ class LoanApplicationService:
         """
         application = LoanApplicationService.get_by_id(application_id)
         if not application:
-            raise ValidationError({'id': 'Loan application not found.'})
+            raise ValidationError({"id": "Loan application not found."})
 
         if application.status != LoanApplication.Status.PENDING:
-            raise ValidationError({
-                'id': f'Cannot update application with status {application.status}.'
-            })
+            raise ValidationError(
+                {"id": f"Cannot update application with status {application.status}."}
+            )
 
         # Validate requested amount if provided
-        if data.get('requested_amount'):
-            requested_amount = Decimal(str(data['requested_amount']))
+        if data.get("requested_amount"):
+            requested_amount = Decimal(str(data["requested_amount"]))
             if requested_amount <= 0:
-                raise ValidationError({'requested_amount': 'Requested amount must be greater than zero.'})
+                raise ValidationError(
+                    {"requested_amount": "Requested amount must be greater than zero."}
+                )
 
         # Validate proposed due date if provided
-        if data.get('proposed_due_date'):
-            proposed_due_date = data['proposed_due_date']
+        if data.get("proposed_due_date"):
+            proposed_due_date = data["proposed_due_date"]
             if isinstance(proposed_due_date, str):
                 from datetime import datetime
+
                 proposed_due_date = datetime.fromisoformat(proposed_due_date).date()
 
             if proposed_due_date < timezone.now().date():
-                raise ValidationError({
-                    'proposed_due_date': 'Due date cannot be in the past.'
-                })
+                raise ValidationError(
+                    {"proposed_due_date": "Due date cannot be in the past."}
+                )
 
         # Update fields
         update_fields = [
-            'debtor_name', 'debtor_contact', 'debtor_email', 'debtor_address',
-            'requested_amount', 'purpose', 'proposed_due_date', 'interest_rate'
+            "debtor_name",
+            "debtor_contact",
+            "debtor_email",
+            "debtor_address",
+            "requested_amount",
+            "purpose",
+            "proposed_due_date",
+            "interest_rate",
         ]
         for field in update_fields:
             if field in data:
@@ -414,10 +447,10 @@ class LoanApplicationService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='loan_application_update',
-                model_name='LoanApplication',
+                action_type="loan_application_update",
+                model_name="LoanApplication",
                 object_id=str(application.id),
-                changes={'data': data}
+                changes={"data": data},
             )
 
         logger.info(f"Loan application updated: {application.id}")
@@ -449,26 +482,30 @@ class LoanApplicationService:
         """
         application = LoanApplicationService.get_by_id(application_id)
         if not application:
-            raise ValidationError({'id': 'Loan application not found.'})
+            raise ValidationError({"id": "Loan application not found."})
 
         if application.status != LoanApplication.Status.PENDING:
-            raise ValidationError({
-                'id': f'Cannot approve application with status {application.status}.'
-            })
+            raise ValidationError(
+                {"id": f"Cannot approve application with status {application.status}."}
+            )
 
         # --- Amount validation using system settings ---
         max_amount = max_loan_amount()
         min_amount = min_loan_amount()
 
         if max_amount > 0 and application.requested_amount > max_amount:
-            raise ValidationError({
-                'requested_amount': f'Requested amount (₱{application.requested_amount:,.2f}) exceeds maximum loan amount (₱{max_amount:,.2f}).'
-            })
+            raise ValidationError(
+                {
+                    "requested_amount": f"Requested amount (₱{application.requested_amount:,.2f}) exceeds maximum loan amount (₱{max_amount:,.2f})."
+                }
+            )
 
         if min_amount > 0 and application.requested_amount < min_amount:
-            raise ValidationError({
-                'requested_amount': f'Requested amount (₱{application.requested_amount:,.2f}) is below minimum loan amount (₱{min_amount:,.2f}).'
-            })
+            raise ValidationError(
+                {
+                    "requested_amount": f"Requested amount (₱{application.requested_amount:,.2f}) is below minimum loan amount (₱{min_amount:,.2f})."
+                }
+            )
 
         # --- Interest rate validation ---
         interest_rate = application.interest_rate
@@ -483,32 +520,42 @@ class LoanApplicationService:
             from borrowers.services.credit_check import CreditCheckService
 
             if not application.debtor_id:
-                raise ValidationError({
-                    'debtor': 'No debtor associated with this application. Please create debtor first.'
-                })
+                raise ValidationError(
+                    {
+                        "debtor": "No debtor associated with this application. Please create debtor first."
+                    }
+                )
 
             latest_check = CreditCheckService.get_latest(application.debtor_id)
 
             if not latest_check:
-                raise ValidationError({
-                    'credit_check': f'Credit check required before approval. No credit check found for debtor ID {application.debtor_id}.'
-                })
+                raise ValidationError(
+                    {
+                        "credit_check": f"Credit check required before approval. No credit check found for debtor ID {application.debtor_id}."
+                    }
+                )
 
             validity_days = credit_check_validity_days()
-            check_date = latest_check.date_checked.date() if latest_check.date_checked else None
+            check_date = (
+                latest_check.date_checked.date() if latest_check.date_checked else None
+            )
 
             if check_date:
                 days_since_check = (timezone.now().date() - check_date).days
                 if days_since_check > validity_days:
-                    raise ValidationError({
-                        'credit_check': f'Credit check is too old ({days_since_check} days). Please perform a new credit check (validity: {validity_days} days).'
-                    })
+                    raise ValidationError(
+                        {
+                            "credit_check": f"Credit check is too old ({days_since_check} days). Please perform a new credit check (validity: {validity_days} days)."
+                        }
+                    )
 
             min_score = min_credit_score_for_approval()
             if min_score > 0 and latest_check.score < min_score:
-                raise ValidationError({
-                    'credit_check': f'Credit score ({latest_check.score}) is below the minimum required ({min_score}). Approval denied.'
-                })
+                raise ValidationError(
+                    {
+                        "credit_check": f"Credit score ({latest_check.score}) is below the minimum required ({min_score}). Approval denied."
+                    }
+                )
 
         # --- Loan agreement requirement (soft check) ---
         need_agreement = require_loan_agreement()
@@ -520,20 +567,20 @@ class LoanApplicationService:
         if not application.debtor_id:
             debtor = BorrowerService.create(
                 data={
-                    'name': application.debtor_name,
-                    'contact': application.debtor_contact,
-                    'email': application.debtor_email,
-                    'address': application.debtor_address,
+                    "name": application.debtor_name,
+                    "contact": application.debtor_contact,
+                    "email": application.debtor_email,
+                    "address": application.debtor_address,
                 },
                 user=user,
-                request=request
+                request=request,
             )
             application.debtor = debtor
 
         # --- Approve ---
         application.status = LoanApplication.Status.APPROVED
         application.approved_at = timezone.now()
-        application.approved_by = user.username if user else 'system'
+        application.approved_by = user.username if user else "system"
         application.save()
 
         # Audit log
@@ -541,13 +588,17 @@ class LoanApplicationService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='loan_application_approved',
-                model_name='LoanApplication',
+                action_type="loan_application_approved",
+                model_name="LoanApplication",
                 object_id=str(application.id),
                 changes={
-                    'approved_by': user.username,
-                    'interest_rate': float(application.interest_rate) if application.interest_rate else None,
-                }
+                    "approved_by": user.username,
+                    "interest_rate": (
+                        float(application.interest_rate)
+                        if application.interest_rate
+                        else None
+                    ),
+                },
             )
 
         logger.info(f"Loan application approved: {application.id}")
@@ -555,7 +606,9 @@ class LoanApplicationService:
 
     @staticmethod
     @transaction.atomic
-    def reject(application_id: int, reason: Optional[str] = None, user=None, request=None) -> LoanApplication:
+    def reject(
+        application_id: int, reason: Optional[str] = None, user=None, request=None
+    ) -> LoanApplication:
         """
         Reject a loan application.
 
@@ -573,12 +626,12 @@ class LoanApplicationService:
         """
         application = LoanApplicationService.get_by_id(application_id)
         if not application:
-            raise ValidationError({'id': 'Loan application not found.'})
+            raise ValidationError({"id": "Loan application not found."})
 
         if application.status != LoanApplication.Status.PENDING:
-            raise ValidationError({
-                'id': f'Cannot reject application with status {application.status}.'
-            })
+            raise ValidationError(
+                {"id": f"Cannot reject application with status {application.status}."}
+            )
 
         application.status = LoanApplication.Status.REJECTED
         application.rejected_at = timezone.now()
@@ -590,10 +643,10 @@ class LoanApplicationService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='loan_application_rejected',
-                model_name='LoanApplication',
+                action_type="loan_application_rejected",
+                model_name="LoanApplication",
                 object_id=str(application.id),
-                changes={'reason': reason}
+                changes={"reason": reason},
             )
 
         logger.info(f"Loan application rejected: {application.id}")
@@ -618,12 +671,12 @@ class LoanApplicationService:
         """
         application = LoanApplicationService.get_by_id(application_id)
         if not application:
-            raise ValidationError({'id': 'Loan application not found.'})
+            raise ValidationError({"id": "Loan application not found."})
 
         if application.status != LoanApplication.Status.PENDING:
-            raise ValidationError({
-                'id': f'Cannot delete application with status {application.status}.'
-            })
+            raise ValidationError(
+                {"id": f"Cannot delete application with status {application.status}."}
+            )
 
         application.soft_delete()
 
@@ -632,10 +685,10 @@ class LoanApplicationService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='loan_application_delete',
-                model_name='LoanApplication',
+                action_type="loan_application_delete",
+                model_name="LoanApplication",
                 object_id=str(application.id),
-                changes={'deleted_at': application.deleted_at}
+                changes={"deleted_at": application.deleted_at},
             )
 
         logger.info(f"Loan application soft-deleted: {application.id}")
@@ -660,13 +713,13 @@ class LoanApplicationService:
         """
         application = LoanApplication.objects.filter(id=application_id).first()
         if not application:
-            raise ValidationError({'id': 'Loan application not found.'})
+            raise ValidationError({"id": "Loan application not found."})
 
         if not application.deleted_at:
-            raise ValidationError({'id': 'Loan application is not deleted.'})
+            raise ValidationError({"id": "Loan application is not deleted."})
 
         application.restore()
-        
+
         logger.debug(f"Application data: {application.__dict__}")
 
         # Audit log
@@ -674,10 +727,10 @@ class LoanApplicationService:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='loan_application_restore',
-                model_name='LoanApplication',
+                action_type="loan_application_restore",
+                model_name="LoanApplication",
                 object_id=str(application.id),
-                changes={'restored_at': timezone.now()}
+                changes={"restored_at": timezone.now()},
             )
 
         logger.info(f"Loan application restored: {application.id}")
@@ -699,22 +752,24 @@ class LoanApplicationService:
         """
         application = LoanApplication.objects.filter(id=application_id).first()
         if not application:
-            raise ValidationError({'id': 'Loan application not found.'})
+            raise ValidationError({"id": "Loan application not found."})
 
         if application.status != LoanApplication.Status.PENDING:
-            raise ValidationError({
-                'id': f'Cannot permanently delete application with status {application.status}.'
-            })
+            raise ValidationError(
+                {
+                    "id": f"Cannot permanently delete application with status {application.status}."
+                }
+            )
 
         # Audit log before deletion
         if user:
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='loan_application_permanent_delete',
-                model_name='LoanApplication',
+                action_type="loan_application_permanent_delete",
+                model_name="LoanApplication",
                 object_id=str(application.id),
-                changes={'permanent': True}
+                changes={"permanent": True},
             )
 
         application.delete()
@@ -737,8 +792,7 @@ class LoanApplicationService:
             dict: Summary of applications for the debtor
         """
         qs = LoanApplication.objects.filter(
-            debtor_id=debtor_id,
-            deleted_at__isnull=True
+            debtor_id=debtor_id, deleted_at__isnull=True
         )
 
         total = qs.count()
@@ -746,20 +800,26 @@ class LoanApplicationService:
         approved = qs.filter(status=LoanApplication.Status.APPROVED).count()
         rejected = qs.filter(status=LoanApplication.Status.REJECTED).count()
 
-        total_amount = qs.aggregate(total=Sum('requested_amount'))['total'] or Decimal('0')
+        total_amount = qs.aggregate(total=Sum("requested_amount"))["total"] or Decimal(
+            "0"
+        )
 
         # Last application
-        last_application = qs.order_by('-created_at').first()
+        last_application = qs.order_by("-created_at").first()
 
         return {
-            'debtor_id': debtor_id,
-            'total_applications': total,
-            'pending': pending,
-            'approved': approved,
-            'rejected': rejected,
-            'total_requested_amount': total_amount,
-            'last_application_date': last_application.created_at if last_application else None,
-            'last_application_status': last_application.status if last_application else None,
+            "debtor_id": debtor_id,
+            "total_applications": total,
+            "pending": pending,
+            "approved": approved,
+            "rejected": rejected,
+            "total_requested_amount": total_amount,
+            "last_application_date": (
+                last_application.created_at if last_application else None
+            ),
+            "last_application_status": (
+                last_application.status if last_application else None
+            ),
         }
 
     @staticmethod
@@ -781,14 +841,14 @@ class LoanApplicationService:
         pending_count = LoanApplication.objects.filter(
             debtor_id=debtor_id,
             status=LoanApplication.Status.PENDING,
-            deleted_at__isnull=True
+            deleted_at__isnull=True,
         ).count()
 
         if pending_count > 0:
             return {
-                'can_apply': False,
-                'reason': f'You have {pending_count} pending application(s). Please wait for approval.',
-                'pending_count': pending_count,
+                "can_apply": False,
+                "reason": f"You have {pending_count} pending application(s). Please wait for approval.",
+                "pending_count": pending_count,
             }
 
         # Check for recent rejected applications (optional guardrail)
@@ -797,18 +857,18 @@ class LoanApplicationService:
             debtor_id=debtor_id,
             status=LoanApplication.Status.REJECTED,
             rejected_at__gte=thirty_days_ago,
-            deleted_at__isnull=True
+            deleted_at__isnull=True,
         ).count()
 
         if recent_rejected > 0:
             return {
-                'can_apply': True,
-                'reason': 'You have recent rejected applications, but you may still apply.',
-                'pending_count': 0,
+                "can_apply": True,
+                "reason": "You have recent rejected applications, but you may still apply.",
+                "pending_count": 0,
             }
 
         return {
-            'can_apply': True,
-            'reason': None,
-            'pending_count': 0,
+            "can_apply": True,
+            "reason": None,
+            "pending_count": 0,
         }

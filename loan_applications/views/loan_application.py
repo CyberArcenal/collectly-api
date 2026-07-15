@@ -34,6 +34,29 @@ logger = logging.getLogger(__name__)
 # Response serializers for documentation
 # ----------------------------------------------------------------------
 
+class LoanApplicationStatsDataSerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    pending = serializers.IntegerField()
+    approved = serializers.IntegerField()
+    rejected = serializers.IntegerField()
+    total_requested_amount = serializers.FloatField()
+    average_requested_amount = serializers.FloatField()
+    min_requested_amount = serializers.FloatField()
+    max_requested_amount = serializers.FloatField()
+    applications_last_30_days = serializers.IntegerField()
+
+
+class LoanApplicationStatsResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    data = LoanApplicationStatsDataSerializer()
+
+
+class ErrorResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=False)
+    message = serializers.CharField()
+    data = serializers.DictField(allow_null=True, required=False)
+
 
 class LoanApplicationListResponseSerializer(serializers.Serializer):
     status = serializers.BooleanField(default=True)
@@ -1010,5 +1033,112 @@ class LoanApplicationPermanentDeleteView(APIView):
             return _error(
                 data={"detail": str(exc)},
                 message="Failed to permanently delete loan application.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            
+            
+            
+
+
+
+
+
+
+
+
+
+
+
+# ============================================================
+# View
+# ============================================================
+
+class LoanApplicationStatisticsView(APIView):
+    """
+    Get loan application statistics.
+
+    Returns comprehensive statistics about all loan applications:
+    - Total, pending, approved, rejected counts
+    - Requested amount statistics (total, average, min, max)
+    - Applications in the last 30 days
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Loan Applications"],
+        summary="Get loan application statistics",
+        description="Returns comprehensive statistics about loan applications including counts by status and amount analysis.",
+        parameters=[
+            OpenApiParameter(
+                name="start_date",
+                type=str,
+                description="Filter applications from this date (YYYY-MM-DD)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=str,
+                description="Filter applications up to this date (YYYY-MM-DD)",
+                required=False,
+            ),
+        ],
+        responses={
+            200: LoanApplicationStatsResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        examples=[
+            OpenApiExample(
+                name="Success Response",
+                value={
+                    "status": True,
+                    "message": "Statistics retrieved successfully.",
+                    "data": {
+                        "total": 125,
+                        "pending": 12,
+                        "approved": 87,
+                        "rejected": 26,
+                        "total_requested_amount": 1575000.00,
+                        "average_requested_amount": 12600.00,
+                        "min_requested_amount": 1000.00,
+                        "max_requested_amount": 50000.00,
+                        "applications_last_30_days": 18,
+                    }
+                },
+                status_codes=["200"],
+            ),
+            OpenApiExample(
+                name="Unauthorized",
+                value={"status": False, "message": "Authentication credentials were not provided.", "data": None},
+                status_codes=["401"],
+            ),
+            OpenApiExample(
+                name="Forbidden",
+                value={"status": False, "message": "You do not have permission to view application statistics.", "data": None},
+                status_codes=["403"],
+            ),
+        ],
+    )
+    def get(self, request):
+        try:
+            start_date = request.query_params.get('start_date')
+            end_date = request.query_params.get('end_date')
+
+            stats = LoanApplicationService.get_statistics(
+                start_date=start_date,
+                end_date=end_date
+            )
+
+            return _success(
+                data=stats,
+                message="Statistics retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+        except Exception as exc:
+            logger.exception("Loan application stats error")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to retrieve loan application statistics.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

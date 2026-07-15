@@ -1,9 +1,9 @@
 import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
-
+from django.db.models.functions import Coalesce
 from django.db import transaction
-from django.db.models import Q, Count, Sum
+from django.db.models import Q, Sum, Value, F
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
@@ -175,12 +175,50 @@ class BorrowerService:
                 qs = qs.filter(active_debts__lte=filters["max_debts"])
 
         # Apply sorting
-        sort_by = camel_to_snake(sort_by)
-        if sort_order.lower() == "desc":
-            sort_by = f"-{sort_by}"
-        qs = qs.order_by(sort_by)
+        # ✅ Sorting with support for total_debt (computed field)
+        sort_field = sort_by
 
-        return paginate_queryset(qs, page, limit)
+        if sort_field == "total_debt":
+            # Annotate with total remaining debt
+            qs = qs.annotate(
+                total_debt=Coalesce(Sum('debts__remaining_amount'), Value(0))
+            )
+            order_by = "total_debt"
+        else:
+            # Map frontend camelCase to snake_case
+            sort_field_map = {
+                "createdAt": "created_at",
+                "updatedAt": "updated_at",
+                "name": "name",
+                "contact": "contact",
+                "email": "email",
+                "address": "address",
+                "id": "id",
+            }
+            order_by = sort_field_map.get(sort_field, sort_field)
+
+            # Ensure it's a valid field on Borrower model
+            valid_fields = [f.name for f in Borrower._meta.get_fields()]
+            if order_by not in valid_fields:
+                order_by = "name"  # fallback
+
+        if sort_order.lower() == "desc":
+            order_by = f"-{order_by}"
+
+        qs = qs.order_by(order_by)
+
+        # Paginate
+        result = paginate_queryset(qs, page, limit)
+
+        # Add computed total_debt to each borrower (if not already annotated)
+        for borrower in result["data"]:
+            if not hasattr(borrower, 'total_debt'):
+                # Compute on the fly (for backward compatibility)
+                borrower.total_debt = borrower.debts.filter(
+                    deleted_at__isnull=True
+                ).aggregate(total=Sum('remaining_amount'))['total'] or 0
+
+        return result
 
     @staticmethod
     def get_statistics() -> Dict[str, Any]:

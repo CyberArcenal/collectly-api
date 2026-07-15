@@ -480,3 +480,7 @@ class BorrowerStateTransitionService:
             'target': target_borrower,
             'debts_transferred': debts_transferred,
         }
+    @staticmethod
+    @transaction.atomic
+    def on_before_delete(borrower: Borrower, user="system"):
+        pass

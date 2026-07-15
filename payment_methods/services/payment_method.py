@@ -265,3 +265,64 @@ class PaymentMethodService:
             })
         
         return stats_list
+    
+
+    @staticmethod
+    def get_overall_summary():
+        """
+        Get overall summary statistics for all payment methods.
+
+        Returns:
+            dict: {
+                'total_methods': int,
+                'total_transactions': int,
+                'total_amount_collected': float,
+                'default_method': dict | None,
+                'methods': list of method stats
+            }
+        """
+        methods = PaymentMethod.objects.filter(deleted_at__isnull=True)
+        total_methods = methods.count()
+
+        # Get default method
+        default_method = methods.filter(is_default=True).first()
+
+        # Prefetch stats to avoid N+1 queries
+        methods_with_stats = methods.prefetch_related('stats')
+
+        method_stats = []
+        total_transactions = 0
+        total_amount_collected = 0
+
+        for method in methods_with_stats:
+            stats = getattr(method, 'stats', None)
+            transaction_count = stats.transaction_count if stats else 0
+            total_amount = float(stats.total_amount) if stats else 0
+
+            total_transactions += transaction_count
+            total_amount_collected += total_amount
+
+            method_stats.append({
+                'id': method.id,
+                'name': method.name,
+                'icon': method.icon,
+                'is_default': method.is_default,
+                'transaction_count': transaction_count,
+                'total_amount': total_amount,
+                'average_transaction': round(
+                    total_amount / transaction_count if transaction_count > 0 else 0,
+                    2
+                ),
+            })
+
+        return {
+            'total_methods': total_methods,
+            'total_transactions': total_transactions,
+            'total_amount_collected': round(total_amount_collected, 2),
+            'default_method': {
+                'id': default_method.id,
+                'name': default_method.name,
+                'icon': default_method.icon,
+            } if default_method else None,
+            'methods': method_stats,
+        }

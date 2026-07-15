@@ -34,6 +34,7 @@ PROJECT_APPS = [
     "payment_methods",
     "system_settings",
     "analytics",
+    'sync',
 ]
 
 

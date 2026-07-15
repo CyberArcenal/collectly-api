@@ -72,7 +72,7 @@ def debtor_group_post_delete(sender, instance, **kwargs):
     try:
         logger.info(f"[DebtorGroupSignal] after_delete: id={instance.id}")
         service = DebtorGroupStateTransitionService()
-        service.on_after_delete({"id": instance.id}, "system")
+        service.on_after_delete(instance, "system")
     except Exception as e:
         logger.error(f"[DebtorGroupSignal] after_delete error: {e}")
         raise

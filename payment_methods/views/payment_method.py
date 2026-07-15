@@ -32,7 +32,41 @@ logger = logging.getLogger(__name__)
 # ----------------------------------------------------------------------
 # Response serializers for documentation
 # ----------------------------------------------------------------------
+class PaymentMethodStatsItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    icon = serializers.CharField()
+    is_default = serializers.BooleanField()
+    transaction_count = serializers.IntegerField()
+    total_amount = serializers.FloatField()
+    average_transaction = serializers.FloatField()
 
+
+class PaymentMethodDefaultSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    icon = serializers.CharField()
+
+
+class PaymentMethodOverallStatsDataSerializer(serializers.Serializer):
+    total_methods = serializers.IntegerField()
+    total_transactions = serializers.IntegerField()
+    total_amount_collected = serializers.FloatField()
+    default_method = PaymentMethodDefaultSerializer(allow_null=True)
+    methods = PaymentMethodStatsItemSerializer(many=True)
+
+
+class PaymentMethodOverallStatsResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=True)
+    message = serializers.CharField()
+    data = PaymentMethodOverallStatsDataSerializer()
+
+
+class ErrorResponseSerializer(serializers.Serializer):
+    status = serializers.BooleanField(default=False)
+    message = serializers.CharField()
+    data = serializers.DictField(allow_null=True, required=False)
+    
 class PaymentMethodListResponseSerializer(serializers.Serializer):
     status = serializers.BooleanField(default=True)
     message = serializers.CharField()
@@ -677,27 +711,94 @@ class PaymentMethodStatsView(APIView):
                 message="Failed to retrieve payment method statistics.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+         
 
-
-# ----------------------------------------------------------------------
-# Payment Method All Stats View
-# ----------------------------------------------------------------------
+# ============================================================
+# Payment Method All Stats View (UPDATED)
+# ============================================================
 
 class PaymentMethodAllStatsView(APIView):
     """
-    Get statistics for all payment methods.
+    Get overall summary statistics for all payment methods.
+
+    Returns aggregated totals and per-method breakdown including:
+    - total number of payment methods
+    - total transactions across all methods
+    - total amount collected across all methods
+    - default payment method info
+    - detailed stats for each method
     """
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
         tags=["Payment Methods"],
+        summary="Get overall payment method statistics",
+        description="Returns aggregated totals and per-method breakdown for all payment methods.",
         responses={
-            200: PaymentMethodAllStatsResponseSerializer,
+            200: PaymentMethodOverallStatsResponseSerializer,
             401: ErrorResponseSerializer,
             403: ErrorResponseSerializer,
             500: ErrorResponseSerializer,
         },
-        description="Get statistics for all payment methods."
+        examples=[
+            OpenApiExample(
+                name="Success Response",
+                value={
+                    "status": True,
+                    "message": "Payment method statistics retrieved successfully.",
+                    "data": {
+                        "total_methods": 4,
+                        "total_transactions": 1250,
+                        "total_amount_collected": 875000.00,
+                        "default_method": {
+                            "id": 1,
+                            "name": "Cash",
+                            "icon": "DollarSign"
+                        },
+                        "methods": [
+                            {
+                                "id": 1,
+                                "name": "Cash",
+                                "icon": "DollarSign",
+                                "is_default": True,
+                                "transaction_count": 800,
+                                "total_amount": 500000.00,
+                                "average_transaction": 625.00
+                            },
+                            {
+                                "id": 2,
+                                "name": "Bank Transfer",
+                                "icon": "Landmark",
+                                "is_default": False,
+                                "transaction_count": 300,
+                                "total_amount": 300000.00,
+                                "average_transaction": 1000.00
+                            },
+                            {
+                                "id": 3,
+                                "name": "GCash",
+                                "icon": "Smartphone",
+                                "is_default": False,
+                                "transaction_count": 150,
+                                "total_amount": 75000.00,
+                                "average_transaction": 500.00
+                            }
+                        ]
+                    }
+                },
+                status_codes=["200"],
+            ),
+            OpenApiExample(
+                name="Unauthorized",
+                value={"status": False, "message": "Authentication credentials were not provided.", "data": None},
+                status_codes=["401"],
+            ),
+            OpenApiExample(
+                name="Forbidden",
+                value={"status": False, "message": "You do not have permission to view payment method statistics.", "data": None},
+                status_codes=["403"],
+            ),
+        ],
     )
     def get(self, request):
         """Get statistics for all payment methods."""
@@ -713,7 +814,7 @@ class PaymentMethodAllStatsView(APIView):
             )
 
         try:
-            stats_list = PaymentMethodService.get_all_stats()
+            stats = PaymentMethodService.get_overall_summary()
 
             log_audit_event(
                 request=request,
@@ -726,8 +827,8 @@ class PaymentMethodAllStatsView(APIView):
             )
 
             return _success(
-                data=stats_list,
-                message="All payment method statistics retrieved successfully.",
+                data=stats,
+                message="Payment method statistics retrieved successfully.",
                 status=status.HTTP_200_OK,
             )
 

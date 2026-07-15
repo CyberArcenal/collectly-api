@@ -474,3 +474,82 @@ class GroupService:
             debtor_id=debtor_id,
             deleted_at__isnull=True
         ).exists()
+        
+
+    @staticmethod
+    def get_overall_statistics():
+        """
+        Get overall statistics for all groups.
+        
+        Returns:
+            dict: {
+                'total_groups': int,
+                'average_members': float,
+                'groups_with_zero_members': int,
+                'groups': list of {
+                    'id': int,
+                    'name': str,
+                    'member_count': int,
+                    'total_debt': float
+                }
+            }
+        """
+        groups = DebtorGroup.objects.filter(deleted_at__isnull=True)
+        total_groups = groups.count()
+        
+        if total_groups == 0:
+            return {
+                'total_groups': 0,
+                'average_members': 0,
+                'groups_with_zero_members': 0,
+                'groups': [],
+            }
+        
+        # Annotate each group with member count and total debt
+        from django.db.models import Sum, Count, Q, OuterRef, Subquery
+        from debts.models import Debt
+        from django.db import connection
+
+        # We'll use a raw SQL approach or annotations.
+        # Using annotations with Subquery for total debt per group is complex.
+        # Simpler: iterate over groups and compute counts via ORM.
+        
+        group_stats = []
+        total_members = 0
+        zero_member_count = 0
+        
+        for group in groups:
+            # Count active members
+            member_count = group.members.filter(
+                deleted_at__isnull=True,
+                debtor__deleted_at__isnull=True
+            ).count()
+            
+            total_members += member_count
+            if member_count == 0:
+                zero_member_count += 1
+            
+            # Compute total outstanding debt of all members in this group
+            # We can do a query through members → debtor → debts
+            total_debt = Debt.objects.filter(
+                borrower__group_memberships__group=group,
+                borrower__group_memberships__deleted_at__isnull=True,
+                borrower__deleted_at__isnull=True,
+                deleted_at__isnull=True
+            ).aggregate(total=Sum('remaining_amount'))['total'] or 0
+            
+            group_stats.append({
+                'id': group.id,
+                'name': group.name,
+                'member_count': member_count,
+                'total_debt': float(total_debt),
+            })
+        
+        average_members = total_members / total_groups if total_groups > 0 else 0
+        
+        return {
+            'total_groups': total_groups,
+            'average_members': round(average_members, 2),
+            'groups_with_zero_members': zero_member_count,
+            'groups': group_stats,
+        }

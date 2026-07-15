@@ -1848,3 +1848,96 @@ class DebtExportView(APIView):
                 message="Failed to export debts.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+        
+
+# ===================================================================
+# DEBT OVERDUE VIEW
+# ===================================================================
+
+class DebtOverdueListView(APIView):
+    """
+    Get true overdue debts with pagination.
+    Only returns debts with:
+    - status = 'overdue'
+    - due_date < today
+    - remaining_amount > 0.01
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+    pagination_class = CustomPagination
+
+    @extend_schema(
+        tags=["Debts"],
+        parameters=[
+            OpenApiParameter(name="page", type=int, description="Page number", required=False),
+            OpenApiParameter(name="page_size", type=int, description="Items per page", required=False),
+            OpenApiParameter(name="search", type=str, description="Search by name or borrower", required=False),
+            OpenApiParameter(name="sort_by", type=str, description="Sort field", required=False, default="due_date"),
+            OpenApiParameter(name="sort_order", type=str, description="asc or desc", required=False, default="asc"),
+            OpenApiParameter(name="min_days_overdue", type=int, description="Minimum days overdue (optional)", required=False),
+        ],
+        responses={
+            200: DebtListResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+        description="Get true overdue debts (status='overdue', due_date < today, remaining_amount > 0)."
+    )
+    def get(self, request):
+        """Get true overdue debts."""
+        user = request.user
+        client_ip = get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to view debts."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            page = int(request.query_params.get('page', 1))
+            limit = int(request.query_params.get('page_size', 20))
+            search = request.query_params.get('search')
+            sort_by = request.query_params.get('sort_by', 'due_date')
+            sort_order = request.query_params.get('sort_order', 'asc')
+            min_days_overdue = request.query_params.get('min_days_overdue')
+
+            result = DebtService.get_overdue_debts(
+                page=page,
+                limit=limit,
+                search=search,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                min_days_overdue=min_days_overdue,
+            )
+
+            paginator = self.pagination_class()
+            data = DebtListSerializer(result['data'], many=True, context={'request': request}).data
+            response = paginator.get_paginated_response(
+                data=data,
+                message="Overdue debts retrieved successfully.",
+                pagination=result['pagination']
+            )
+
+            log_audit_event(
+                request=request,
+                user=user,
+                action_type="read",
+                model_name="Debt",
+                object_id="overdue_list",
+                changes={"count": result['pagination']['total']},
+                ip_address=client_ip,
+                user_agent=user_agent,
+            )
+
+            return response
+
+        except Exception as exc:
+            logger.exception("Overdue debts retrieval error")
+            return _error(
+                data={"detail": str(exc)},
+                message="An error occurred.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
