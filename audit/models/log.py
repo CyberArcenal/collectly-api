@@ -50,7 +50,6 @@ class AuditLog(models.Model):
         ("notification_create", "Notification Create"),
         ("notification_send", "Notification Send"),
         ("notification_read", "Notification Read"),
-        
         ("activation_error", "Activation Error"),
         ("activation_create", "Activation Create"),
         ("activation_update", "Activation Update"),
@@ -58,7 +57,7 @@ class AuditLog(models.Model):
         ("suspicious_activity", "Suspicious Activity"),
         ("system_alert", "System Alert"),
         ("audit_export", "Audit Export"),
-        ("2fa_initiated", "2 factor Initiated"),
+        ("2fa_initiated", "2 Factor Initiated"),
         # ========== COLLECTLY-SPECIFIC ==========
         ("debt_create", "Debt Create"),
         ("debt_update", "Debt Update"),
@@ -89,28 +88,46 @@ class AuditLog(models.Model):
         ("payment_method_delete", "Payment Method Delete"),
         ("credit_check_performed", "Credit Check Performed"),
         ("interest_rate_change", "Interest Rate Change"),
-        ("sync_pull", "Sync Pull"),
-        ("sync_push", "Sync Push"),
         ("print_receipt", "Print Receipt"),
         ("export_data", "Export Data"),
         ("import_data", "Import Data"),
-        
         ("debt_create_from_application", "Debt Create From Application"),
-        
         ("payment_apply", "Payment Apply"),
-        
         ("interest_accrual", "Interest Accrual"),
-        
         ("payment_confirm", "Payment Confirm"),
-        
         ("debt_paid", "Debt Paid"),
         ("debt_status_auto_paid", "Debt Status Auto Paid"),
-        ("sync_process_queue", "Sync Process Queue"),
-        ("sync_queue_process_all", "Syn Queue Process All"),
-        ("sync_receive", "Sync Receive"),
-        ("sync_update", "Sync Update"),
-        ("sync_status_updated", "Synce Status Updated"),
-        ("sync_create", "Synce Create"),
+        # ========== SYNC ACTIONS (Complete) ==========
+        ("sync_pull", "Sync Pull"),  # ✅ Existing
+        ("sync_push", "Sync Push"),  # ✅ Existing
+        ("sync_receive", "Sync Receive"),  # ✅ Existing
+        ("sync_update", "Sync Update"),  # ✅ Existing
+        ("sync_create", "Sync Create"),  # ✅ Existing
+        ("sync_status_updated", "Sync Status Updated"),  # ✅ Corrected
+        ("sync_metadata_updated", "Sync Metadata Updated"),  # ✅ Corrected
+        ("sync_reset_all", "Sync Reset All"),  # ✅ NEW
+        ("sync_conflict_created", "Sync Conflict Created"),  # ✅ NEW
+        ("sync_conflict_updated", "Sync Conflict Updated"),  # ✅ NEW
+        ("sync_conflict_resolved", "Sync Conflict Resolved"),  # ✅ NEW
+        ("sync_conflict_deleted", "Sync Conflict Deleted"),  # ✅ NEW
+        ("sync_queue_created", "Sync Queue Created"),  # ✅ NEW
+        ("sync_queue_updated", "Sync Queue Updated"),  # ✅ NEW
+        ("sync_queue_processed", "Sync Queue Processed"),  # ✅ NEW
+        ("sync_queue_deleted", "Sync Queue Deleted"),  # ✅ NEW
+        ("sync_queue_clear_entity", "Sync Queue Clear Entity"),  # ✅ NEW
+        ("sync_queue_process_all", "Sync Queue Process All"),  # ✅ NEW
+        ("sync_process_queue", "Sync Process Queue"),  # ✅ Existing
+        ("sync_queue_process_all", "Sync Queue Process All"),  # ✅ Existing (keep one)
+        ("debt_restore_to_active", "Debt Restore To Active"),
+        ("debt_overdue", "Debt Overdue"),
+        # ========== SYNC ACTIONS ==========
+        ("sync_trigger", "Sync Trigger"),
+        ("sync_task_queued", "Sync Task Queued"),
+        ("sync_auto_resolve", "Sync Auto Resolve"),
+        ("sync_resolve_conflict", "Sync Resolve Conflict"),
+        ("sync_cleanup", "Sync Cleanup"),
+        ("sync_reset", "Sync Reset"),
+        ("sync_enqueue", "Sync Enqueue"),
     )
 
     event_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)

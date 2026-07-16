@@ -751,39 +751,43 @@ class SyncService:
     # ============================================================
     # STATUS AND MONITORING
     # ============================================================
-    
+
     @staticmethod
     def get_status(entity: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Get sync status.
-        
-        Args:
-            entity: Optional entity name
-        
-        Returns:
-            dict: Sync status
-        """
         if entity:
             status = SyncMetadataService.get_sync_status(entity)
             queue_pending = SyncQueueService.count_pending(entity)
             has_conflicts = SyncConflictService.has_pending(entity, None) if entity else False
-            
             return {
                 'entity': status,
                 'queue_pending': queue_pending,
                 'has_conflicts': has_conflicts,
             }
-        
+
         # Overall status
         metadata_summary = SyncMetadataService.get_summary()
         queue_stats = SyncQueueService.get_statistics()
         conflict_stats = SyncConflictService.get_statistics()
-        
+
+        # ✅ NEW: Get full metadata list for entities
+        all_metadata = SyncMetadataService.get_all()
+        metadata_list = []
+        for m in all_metadata:
+            metadata_list.append({
+                'entity': m.entity,
+                'status': m.status,
+                'last_synced_at': m.last_synced_at,
+                'total_synced': m.total_synced,
+                'last_sync_count': m.last_sync_count,
+                'has_pending': m.status in ['syncing', 'failed'],
+            })
+
         return {
             'summary': metadata_summary,
             'queue': queue_stats,
             'conflicts': conflict_stats,
             'is_syncing': metadata_summary.get('is_syncing', False),
+            'metadata': metadata_list,  # ✅ Added
         }
     
     @staticmethod
@@ -1008,3 +1012,183 @@ class SyncService:
             'sample_records': [SyncService._model_to_dict(r, fields) for r in records],
             'fields': fields,
         }
+    
+    @staticmethod
+    def pull_sync_chunk(
+        entity_name: str,
+        records: List[Dict[str, Any]],
+        client_user: str = 'system',
+        skip_conflicts: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Process a chunk of records without metadata updates and conflict detection.
+        
+        This is used by background tasks to process records in smaller batches
+        with better progress tracking and error isolation.
+
+        Args:
+            entity_name: Entity name (e.g., 'Borrower', 'Debt')
+            records: List of record dictionaries to process
+            client_user: Client user identifier
+            skip_conflicts: If True, auto-resolve conflicts (client wins).
+                           If False, conflicts are detected but not created.
+
+        Returns:
+            dict: {
+                'created': int,
+                'updated': int,
+                'skipped': int,
+                'errors': list,
+                'conflicts': list,
+                'ids': list
+            }
+        """
+        # Get entity configuration
+        config = ENTITY_CONFIG.get(entity_name)
+        if not config:
+            raise ValidationError({'entity': f'Unknown entity: {entity_name}'})
+
+        model = config['model']
+        fields = config['fields']
+        id_field = config['id_field']
+
+        # Define required fields for validation
+        REQUIRED_FIELDS = {
+            'PaymentTransaction': ['payment_date', 'amount', 'debt_id'],
+            'LoanAgreement': ['debt_id'],
+            'LoanApplication': ['requested_amount', 'debtor_name'],
+            'PenaltyTransaction': ['penalty_date', 'debt_id'],
+            # Add others as needed
+        }
+
+        results = {
+            'created': 0,
+            'updated': 0,
+            'skipped': 0,
+            'errors': [],
+            'conflicts': [],
+            'ids': [],
+        }
+
+        for record in records:
+            try:
+                record_id = record.get(id_field)
+
+                # ────────────────────────────────────────────────
+                # 1. VALIDATE REQUIRED FIELDS
+                # ────────────────────────────────────────────────
+                required = REQUIRED_FIELDS.get(entity_name, [])
+                missing = [f for f in required if not record.get(f)]
+                if missing:
+                    results['errors'].append({
+                        'record_id': record_id,
+                        'missing_fields': missing,
+                        'error': f"Missing required fields: {', '.join(missing)}"
+                    })
+                    continue
+
+                # ────────────────────────────────────────────────
+                # 2. CREATE NEW RECORD (no ID)
+                # ────────────────────────────────────────────────
+                if not record_id:
+                    instance = SyncService._create_record(
+                        model, record, fields, client_user, None
+                    )
+                    results['created'] += 1
+                    results['ids'].append(instance.pk)
+                    continue
+
+                # ────────────────────────────────────────────────
+                # 3. CHECK IF RECORD EXISTS ON SERVER
+                # ────────────────────────────────────────────────
+                existing = model.objects.filter(id=record_id).first()
+
+                if existing:
+                    # Parse client timestamp
+                    client_updated = record.get('updated_at')
+                    client_time = SyncService._parse_datetime(client_updated) if client_updated else None
+
+                    # ────────────────────────────────────────────
+                    # 3a. SKIP IF CLIENT DATA IS OLDER OR SAME
+                    # ────────────────────────────────────────────
+                    if client_time and existing.updated_at and existing.updated_at >= client_time:
+                        results['skipped'] += 1
+                        results['ids'].append(existing.pk)
+                        continue
+
+                    # ────────────────────────────────────────────
+                    # 3b. CONFLICT DETECTION (optional)
+                    # ────────────────────────────────────────────
+                    if client_time and existing.updated_at and existing.updated_at > client_time:
+                        # Server is newer - check if client has changes
+                        has_changes = SyncService._record_has_changes(
+                            existing, record, fields
+                        )
+                        if has_changes:
+                            if skip_conflicts:
+                                # Auto-resolve: client wins (overwrite server)
+                                # Or server wins - we choose client for now
+                                pass
+                            else:
+                                # For background tasks, we could create conflicts
+                                # but we skip to avoid metadata creation
+                                results['conflicts'].append({
+                                    'id': record_id,
+                                    'message': 'Conflict detected (skipped in background)',
+                                    'local_updated_at': client_time,
+                                    'server_updated_at': existing.updated_at,
+                                })
+                                continue
+
+                    # ────────────────────────────────────────────
+                    # 3c. UPDATE EXISTING RECORD
+                    # ────────────────────────────────────────────
+                    # Handle special cases for specific entities
+                    if entity_name == 'LoanAgreement' and 'debt_id' in record:
+                        # Ensure debt exists before updating
+                        from debts.models.debt import Debt
+                        debt_id = record.get('debt_id')
+                        if debt_id and not Debt.objects.filter(id=debt_id).exists():
+                            results['errors'].append({
+                                'record_id': record_id,
+                                'error': f"Debt with ID {debt_id} does not exist"
+                            })
+                            continue
+
+                    if entity_name == 'PaymentMethod' and 'name' in record:
+                        # Check for duplicate name
+                        name = record.get('name')
+                        if name and model.objects.filter(name=name).exclude(id=record_id).exists():
+                            # Update existing instead of creating duplicate
+                            duplicate = model.objects.get(name=name)
+                            # Merge data - keep the existing one
+                            record['id'] = duplicate.id
+                            existing = duplicate
+                            # Continue with update
+
+                    SyncService._update_record(
+                        existing, record, fields, client_user, None
+                    )
+                    results['updated'] += 1
+                    results['ids'].append(existing.pk)
+
+                else:
+                    # ────────────────────────────────────────────────
+                    # 4. CLIENT HAS ID BUT SERVER DOESN'T - CREATE
+                    # ────────────────────────────────────────────────
+                    instance = SyncService._create_record(
+                        model, record, fields, client_user, None,
+                        force_id=record_id
+                    )
+                    results['created'] += 1
+                    results['ids'].append(instance.pk)
+
+            except Exception as e:
+                logger.error(f"[Sync] Failed to sync record {record.get(id_field)}: {e}")
+                results['errors'].append({
+                    'record_id': record.get(id_field),
+                    'record': record,
+                    'error': str(e),
+                })
+
+        return results

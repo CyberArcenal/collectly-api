@@ -1,5 +1,6 @@
 # sync/views/sync.py
 import logging
+import uuid
 from rest_framework.views import APIView
 from rest_framework import status, serializers
 from rest_framework.permissions import IsAuthenticated
@@ -10,9 +11,11 @@ from sync.services.sync import SyncService
 from sync.services.sync_metadata import SyncMetadataService
 from sync.services.sync_conflict import SyncConflictService
 from sync.services.sync_queue import SyncQueueService
+from sync.services.task_progress import TaskProgressService
 from sync.models.sync_metadata import SyncMetadata
 from sync.models.sync_conflict import SyncConflict
 from sync.models.sync_queue import SyncQueue
+from sync.models.task_progress import TaskProgress
 
 from users.permissions.base import IsAccountActive, can_edit, can_read
 from utils.response import _success, _error
@@ -74,6 +77,16 @@ class SyncQueueSerializer(serializers.ModelSerializer):
         ]
 
 
+class TaskProgressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaskProgress
+        fields = [
+            'task_id', 'entity', 'status', 'total', 'processed',
+            'failed', 'current_entity', 'result', 'error',
+            'created_at', 'updated_at'
+        ]
+
+
 class SyncStatusResponseSerializer(serializers.Serializer):
     status = serializers.BooleanField()
     message = serializers.CharField()
@@ -87,23 +100,20 @@ class ErrorResponseSerializer(serializers.Serializer):
 
 
 # ============================================================
-# SYNC VIEW - Receive data from clients
+# SYNC VIEW - Receive data from clients (Task-based)
 # ============================================================
 
 class SyncView(APIView):
     """
     Receive sync data from clients (pull sync).
-    
-    This is the main endpoint that offline clients use to push their data
-    to the server. The server processes the data, detects conflicts,
-    and returns the results.
+    Now uses background tasks for processing.
     """
     permission_classes = [IsAuthenticated, IsAccountActive]
 
     @extend_schema(
         tags=["Sync"],
-        summary="Receive sync data from client",
-        description="Process incoming sync data from offline clients for a specific entity.",
+        summary="Receive sync data from client (async)",
+        description="Process incoming sync data from offline clients using background tasks.",
         parameters=[
             OpenApiParameter(
                 name="entity_name",
@@ -128,8 +138,8 @@ class SyncView(APIView):
             }
         ),
         responses={
-            200: inline_serializer(
-                name="SyncResponse",
+            202: inline_serializer(
+                name="SyncTaskResponse",
                 fields={
                     "status": serializers.BooleanField(),
                     "message": serializers.CharField(),
@@ -146,25 +156,26 @@ class SyncView(APIView):
                 name="Success Response",
                 value={
                     "status": True,
-                    "message": "Synced 5 records for Borrower",
+                    "message": "Sync started in background.",
                     "data": {
+                        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "status": "queued",
                         "entity": "Borrower",
                         "total": 5,
-                        "created": 2,
-                        "updated": 3,
-                        "skipped": 0,
-                        "errors": [],
-                        "conflicts": [],
-                        "ids": [1, 2, 3, 4, 5]
                     }
                 },
-                status_codes=["200"],
+                status_codes=["202"],
             ),
         ],
     )
     @transaction.atomic
     def post(self, request, entity_name):
-        """Process sync data from client."""
+        """
+        Start async sync task.
+
+        Returns:
+            task_id immediately for status polling.
+        """
         user = request.user
         client_ip = get_client_ip(request)
         user_agent = request.META.get("HTTP_USER_AGENT", "")
@@ -187,47 +198,233 @@ class SyncView(APIView):
             )
 
         try:
-            result = SyncService.pull_sync(
+            # Generate task_id
+            task_id = str(uuid.uuid4())
+
+            # Create task progress record
+            TaskProgressService.create_task(
+                task_id=task_id,
+                entity=entity_name,
+                total=len(data),
+            )
+
+            # Enqueue Celery task
+            from sync.tasks import sync_entity_task
+            sync_entity_task.delay(
                 entity_name=entity_name,
                 records=data,
                 client_user=client_user,
-                request=request,
+                task_id=task_id,
             )
 
+            # Audit log
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='sync_receive',
+                action_type='sync_task_queued',
                 model_name=entity_name,
                 object_id='sync',
                 changes={
-                    'total': result['total'],
-                    'created': result['created'],
-                    'updated': result['updated'],
-                    'conflicts': len(result['conflicts']),
-                    'errors': len(result['errors']),
+                    'task_id': task_id,
+                    'total_records': len(data),
+                    'client_user': client_user,
                 },
                 ip_address=client_ip,
                 user_agent=user_agent,
             )
 
             return _success(
-                data=result,
-                message=f"Synced {len(data)} records for {entity_name}",
-                status=status.HTTP_200_OK,
+                data={
+                    'task_id': task_id,
+                    'status': 'queued',
+                    'entity': entity_name,
+                    'total': len(data),
+                },
+                message="Sync started in background.",
+                status=status.HTTP_202_ACCEPTED,
             )
 
         except Exception as exc:
-            logger.exception(f"Sync failed for {entity_name}: {exc}")
+            logger.exception(f"Sync task queue failed for {entity_name}: {exc}")
             return _error(
                 data={"detail": str(exc)},
-                message="Sync failed.",
+                message="Failed to start sync task.",
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
 # ============================================================
-# SYNC STATUS VIEW
+# SYNC TASK STATUS VIEW (NEW)
+# ============================================================
+
+class SyncTaskStatusView(APIView):
+    """
+    Get status of a background sync task.
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Sync"],
+        summary="Get task status",
+        description="Get progress and status of a background sync task.",
+        parameters=[
+            OpenApiParameter(
+                name="task_id",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="Task ID (UUID)",
+                required=True,
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="TaskStatusResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": TaskProgressSerializer(),
+                }
+            ),
+            404: ErrorResponseSerializer,
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+    )
+    def get(self, request, task_id):
+        """Get task status."""
+        user = request.user
+        client_ip = get_client_ip(request)
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to view task status."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            progress = TaskProgressService.get_task(task_id)
+            if not progress:
+                return _error(
+                    data={"detail": "Task not found."},
+                    message="Task not found.",
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            return _success(
+                data=TaskProgressSerializer(progress).data,
+                message="Task status retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception(f"Task status error for {task_id}: {exc}")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to get task status.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ============================================================
+# SYNC TASK LIST VIEW (NEW)
+# ============================================================
+
+class SyncTaskListView(APIView):
+    """
+    List all sync tasks (recent).
+    """
+    permission_classes = [IsAuthenticated, IsAccountActive]
+
+    @extend_schema(
+        tags=["Sync"],
+        summary="List sync tasks",
+        description="List recent sync tasks with filtering.",
+        parameters=[
+            OpenApiParameter(
+                name="entity",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by entity",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="status",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by status (queued, running, completed, failed)",
+                required=False,
+            ),
+            OpenApiParameter(
+                name="limit",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Maximum items to return",
+                required=False,
+                default=50,
+            ),
+        ],
+        responses={
+            200: inline_serializer(
+                name="TaskListResponse",
+                fields={
+                    "status": serializers.BooleanField(),
+                    "message": serializers.CharField(),
+                    "data": serializers.DictField(),
+                }
+            ),
+            401: ErrorResponseSerializer,
+            403: ErrorResponseSerializer,
+            500: ErrorResponseSerializer,
+        },
+    )
+    def get(self, request):
+        """List sync tasks."""
+        user = request.user
+        client_ip = get_client_ip(request)
+
+        if not can_read(user):
+            return _error(
+                data={"detail": "You do not have permission to view tasks."},
+                message="Permission denied.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            qs = TaskProgress.objects.all()
+            
+            entity = request.query_params.get('entity')
+            status_filter = request.query_params.get('status')
+            limit = int(request.query_params.get('limit', 50))
+
+            if entity:
+                qs = qs.filter(entity=entity)
+            if status_filter:
+                qs = qs.filter(status=status_filter)
+
+            qs = qs.order_by('-created_at')[:limit]
+
+            return _success(
+                data={
+                    'items': TaskProgressSerializer(qs, many=True).data,
+                    'count': len(qs),
+                },
+                message="Tasks retrieved successfully.",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception(f"Task list error: {exc}")
+            return _error(
+                data={"detail": str(exc)},
+                message="Failed to get task list.",
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ============================================================
+# SYNC STATUS VIEW (Existing)
 # ============================================================
 
 class SyncStatusView(APIView):
@@ -287,7 +484,7 @@ class SyncStatusView(APIView):
             )
 
         except Exception as exc:
-            logger.exception("Sync status error: {exc}")
+            logger.exception(f"Sync status error: {exc}")
             return _error(
                 data={"detail": str(exc)},
                 message="Failed to get sync status.",
@@ -296,7 +493,7 @@ class SyncStatusView(APIView):
 
 
 # ============================================================
-# SYNC ENTITY VIEW
+# SYNC ENTITY VIEW (Existing)
 # ============================================================
 
 class SyncEntityView(APIView):
@@ -325,6 +522,11 @@ class SyncEntityView(APIView):
                     required=False,
                     default=False,
                     help_text="Force sync even if no changes"
+                ),
+                "user": serializers.CharField(
+                    required=False,
+                    default="system",
+                    help_text="User identifier"
                 ),
             }
         ),
@@ -360,7 +562,7 @@ class SyncEntityView(APIView):
         try:
             result = SyncService.sync_entity(
                 entity_name=entity_name,
-                user=user.username,
+                user=request.data.get('user', user.username),
                 request=request,
             )
 
@@ -394,7 +596,7 @@ class SyncEntityView(APIView):
 
 
 # ============================================================
-# SYNC CONFLICTS VIEW
+# SYNC CONFLICTS VIEW (Existing)
 # ============================================================
 
 class SyncConflictsView(APIView):
@@ -597,7 +799,7 @@ class SyncConflictsView(APIView):
 
 
 # ============================================================
-# SYNC AUTO-RESOLVE VIEW
+# SYNC AUTO-RESOLVE VIEW (Existing)
 # ============================================================
 
 class SyncAutoResolveView(APIView):
@@ -688,7 +890,7 @@ class SyncAutoResolveView(APIView):
 
 
 # ============================================================
-# SYNC QUEUE VIEW
+# SYNC QUEUE VIEW (Existing)
 # ============================================================
 
 class SyncQueueView(APIView):
@@ -851,7 +1053,7 @@ class SyncQueueView(APIView):
 
 
 # ============================================================
-# SYNC PROCESS QUEUE VIEW
+# SYNC PROCESS QUEUE VIEW (Existing)
 # ============================================================
 
 class SyncProcessQueueView(APIView):
@@ -939,7 +1141,7 @@ class SyncProcessQueueView(APIView):
 
 
 # ============================================================
-# SYNC CLEANUP VIEW
+# SYNC CLEANUP VIEW (Existing)
 # ============================================================
 
 class SyncCleanupView(APIView):
@@ -1023,7 +1225,7 @@ class SyncCleanupView(APIView):
 
 
 # ============================================================
-# SYNC RESET VIEW
+# SYNC RESET VIEW (Existing)
 # ============================================================
 
 class SyncResetView(APIView):
@@ -1103,7 +1305,7 @@ class SyncResetView(APIView):
 
 
 # ============================================================
-# SYNC HEALTH VIEW
+# SYNC HEALTH VIEW (Existing)
 # ============================================================
 
 class SyncHealthView(APIView):
@@ -1160,7 +1362,7 @@ class SyncHealthView(APIView):
 
 
 # ============================================================
-# SYNC TEST VIEW (Debug)
+# SYNC TEST VIEW (Existing)
 # ============================================================
 
 class SyncTestView(APIView):
