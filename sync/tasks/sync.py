@@ -10,17 +10,36 @@ from datetime import timedelta
 from sync.services.sync import SyncService
 from sync.services.task_progress import TaskProgressService
 from sync.models.task_progress import TaskProgress
+import time
+import fcntl
 
 logger = logging.getLogger(__name__)
+LOCK_FILE = '/tmp/sync_task.lock'
 
-
+def acquire_lock(timeout=30):
+    """Acquire a file-based lock to prevent concurrent sync tasks."""
+    lock_fd = open(LOCK_FILE, 'w')
+    start = time.time()
+    while True:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock_fd
+        except OSError:
+            if time.time() - start > timeout:
+                raise TimeoutError("Could not acquire lock for sync task")
+            time.sleep(1)
+            
+def release_lock(lock_fd):
+    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    lock_fd.close()
+            
 @shared_task(
     bind=True,
-    max_retries=5,
-    default_retry_delay=30,
+    max_retries=10,
+    default_retry_delay=60,
     autoretry_for=(OperationalError,),
     retry_backoff=True,
-    retry_backoff_max=300,
+    retry_backoff_max=600,
     retry_jitter=True,
 )
 def sync_entity_task(self, entity_name, records, client_user, task_id):
@@ -37,8 +56,9 @@ def sync_entity_task(self, entity_name, records, client_user, task_id):
         f"[SyncTask] Starting sync for {entity_name}: {len(records)} records, "
         f"task_id={task_id}, retry={self.request.retries}"
     )
-
+    lock_fd = None
     try:
+        lock_fd = acquire_lock(timeout=60)
         # Mark task as running
         TaskProgressService.update_status(task_id, 'running')
         TaskProgressService.update_progress(task_id, 0, entity_name)
@@ -123,6 +143,17 @@ def sync_entity_task(self, entity_name, records, client_user, task_id):
             f"{len(results['errors'])} errors, {len(results['conflicts'])} conflicts"
         )
         return results
+    
+    except TimeoutError as e:
+        logger.error(f"[SyncTask] Could not acquire lock: {e}")
+        raise self.retry(exc=e, countdown=30)
+    
+    except OperationalError as e:
+        # If it's a disk I/O error, retry with backoff
+        if 'disk I/O error' in str(e) or 'database is locked' in str(e):
+            logger.warning(f"[SyncTask] Database error, retrying: {e}")
+            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+        raise
 
     except Exception as exc:
         logger.exception(f"[SyncTask] Failed for {entity_name}: {exc}")
@@ -138,6 +169,10 @@ def sync_entity_task(self, entity_name, records, client_user, task_id):
 
         # Retry with exponential backoff
         raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
+    
+    finally:
+        if lock_fd:
+            release_lock(lock_fd)
 
 
 @shared_task(

@@ -1,3 +1,5 @@
+import dj_database_url
+
 from .base import *
 from .logger import *
 DEBUG = True
@@ -10,11 +12,12 @@ CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
 
 # SQLite database para sa development
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
-         'OPTIONS': {
-            'timeout': 30,  # default ay 5 seconds, dagdagan mo
-        }
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('POSTGRES_DB', 'collectly_db'),
+        'USER': os.getenv('POSTGRES_USER', 'collectly'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'collectly_password'),
+        'HOST': os.getenv('DB_HOST', 'db'),   # "db" is the service name in compose
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }

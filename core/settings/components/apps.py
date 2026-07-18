@@ -22,7 +22,6 @@ INSTALLED_APPS = [
 PROJECT_APPS = [
     "audit",
     "users",
-    
     # Core business (10 apps)
     "borrowers",
     "debts",
@@ -34,7 +33,8 @@ PROJECT_APPS = [
     "payment_methods",
     "system_settings",
     "analytics",
-    'sync',
+    "sync",
+    "controls",
 ]
 
 
