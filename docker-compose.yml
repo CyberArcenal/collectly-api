@@ -1,20 +1,19 @@
+# docker-compose.yml
 version: '3.8'
 
 services:
   db:
-    image: postgres:15
     container_name: collectly_db
+    image: postgres:15
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-collectly_db}
-      POSTGRES_USER: ${POSTGRES_USER:-collectly}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-collectly_password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-collectly} -d ${POSTGRES_DB:-collectly_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -36,78 +35,58 @@ services:
   web:
     build: .
     container_name: collectly_web
-    command: >
-      sh -c "
-        python manage.py migrate &&
-        python manage.py runserver 0.0.0.0:8001
-      "
-    working_dir: /app
+    command: python manage.py runserver 0.0.0.0:8001
     volumes:
-      - .:/app:delegated
+      - .:/app
+      - shared_temp:/shared_temp 
     ports:
       - "8001:8001"
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings.dev
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-collectly}:${POSTGRES_PASSWORD:-collectly_password}@db:5432/${POSTGRES_DB:-collectly_db}
+      - DATABASE_URL=${POSTGRES_URL}
       - REDIS_URL=redis://redis:6379/0
-    env_file:
-      - .env
+      - TMPDIR=/shared_temp
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    restart: on-failure
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8001/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
 
   celery:
     build: .
     container_name: collectly_celery
     command: celery -A core worker --loglevel=info --without-gossip --without-mingle --without-heartbeat
-    working_dir: /app
     volumes:
       - .:/app
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings.dev
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-collectly}:${POSTGRES_PASSWORD:-collectly_password}@db:5432/${POSTGRES_DB:-collectly_db}
+      - DATABASE_URL=${POSTGRES_URL}
       - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-    env_file:
-      - .env
+      - TMPDIR=/shared_temp
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    restart: on-failure
 
   celery-beat:
     build: .
     container_name: collectly_celery_beat
-    command: celery -A core beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-    working_dir: /app
+    command: celery -A core beat --loglevel=info
     volumes:
       - .:/app
+      - shared_temp:/shared_temp 
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings.dev
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-collectly}:${POSTGRES_PASSWORD:-collectly_password}@db:5432/${POSTGRES_DB:-collectly_db}
+      - DATABASE_URL=${POSTGRES_URL}
       - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-    env_file:
-      - .env
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    restart: on-failure
 
 volumes:
   postgres_data:
   redis_data:
+  shared_temp:

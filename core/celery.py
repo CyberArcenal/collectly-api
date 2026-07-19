@@ -18,6 +18,10 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 # 5. Autodiscover tasks from all installed apps
 app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
 
+# Ensure broker URL from settings
+app.conf.broker_url = settings.CELERY_BROKER_URL
+app.conf.result_backend = settings.CELERY_RESULT_BACKEND
+
 # 6. Optional: Load Django's logging configuration
 app.conf.update(
     worker_hijack_root_logger=False,

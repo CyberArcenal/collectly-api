@@ -1,18 +1,17 @@
+# audit/models/log.py
 import uuid
-from django.db import models
-
-# Create your models here.
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from users.models.User import User
-import uuid
 from core import settings
 
 
 class AuditLog(models.Model):
     ACTION_TYPES = (
-        # Core CRUD
+        # ==========================================================
+        # CORE CRUD
+        # ==========================================================
         ("create", "Create"),
         ("update", "Update"),
         ("partial_update", "Partial Update"),
@@ -24,7 +23,15 @@ class AuditLog(models.Model):
         ("read_grouped_config", "Read Grouped Config"),
         ("read_system_info", "Read System Info"),
         ("update_grouped_config", "Update Grouped Config"),
-        # Authentication / Session
+        ("config_bulk_update", "Config Bulk Update"),
+        ("config_bulk_delete", "Config Bulk Delete"),
+        ("config_restore", "Config Restore"),
+        ("config_reset", "Config Reset"),
+        ("config_update_grouped", "Config Update Grouped"),
+
+        # ==========================================================
+        # AUTHENTICATION / SESSION
+        # ==========================================================
         ("login", "Login"),
         ("logout", "Logout"),
         ("logout_all", "Logout All"),
@@ -32,18 +39,33 @@ class AuditLog(models.Model):
         ("session_terminate", "Session Terminate"),
         ("password_change", "Password Change"),
         ("password_reset", "Password Reset"),
-        # User / Role Management
+        ("token_refresh", "Token Refresh"),
+        ("token_revoke", "Token Revoke"),
+
+        # ==========================================================
+        # USER / ROLE MANAGEMENT
+        # ==========================================================
         ("user_create", "User Create"),
         ("user_update", "User Update"),
         ("user_delete", "User Delete"),
         ("role_assign", "Role Assign"),
         ("role_revoke", "Role Revoke"),
         ("permission_update", "Permission Update"),
-        # System / Config Management
+        ("user_restore", "User Restore"),
+        ("user_activate", "User Activate"),
+        ("user_suspend", "User Suspend"),
+        ("user_restrict", "User Restrict"),
+
+        # ==========================================================
+        # SYSTEM / CONFIG MANAGEMENT
+        # ==========================================================
         ("config_update", "Config Update"),
         ("settings_change", "Settings Change"),
         ("feature_toggle", "Feature Toggle"),
-        # Notification / Activation
+
+        # ==========================================================
+        # NOTIFICATION / ACTIVATION
+        # ==========================================================
         ("notification_error", "Notification Error"),
         ("notification_update", "Notification Update"),
         ("notification_delete", "Notification Delete"),
@@ -53,74 +75,133 @@ class AuditLog(models.Model):
         ("activation_error", "Activation Error"),
         ("activation_create", "Activation Create"),
         ("activation_update", "Activation Update"),
-        # Security / Monitoring
+        ("notification_log_retry", "Notification Log Retry"),
+        ("notification_log_create", "Notification Log Create"),
+
+        # ==========================================================
+        # SECURITY / MONITORING
+        # ==========================================================
         ("suspicious_activity", "Suspicious Activity"),
         ("system_alert", "System Alert"),
         ("audit_export", "Audit Export"),
         ("2fa_initiated", "2 Factor Initiated"),
-        # ========== COLLECTLY-SPECIFIC ==========
+
+        # ==========================================================
+        # COLLECTLY-SPECIFIC BUSINESS ACTIONS
+        # ==========================================================
         ("debt_create", "Debt Create"),
         ("debt_update", "Debt Update"),
         ("debt_delete", "Debt Delete"),
         ("debt_forgive", "Debt Forgiveness"),
+        ("debt_restore_to_active", "Debt Restore To Active"),
+        ("debt_overdue", "Debt Overdue"),
+        ("debt_paid", "Debt Paid"),
+        ("debt_status_auto_paid", "Debt Status Auto Paid"),
+        ("debt_create_from_application", "Debt Create From Application"),
+        ("debt_restore", "Debt Restore"),
+
         ("payment_create", "Payment Create"),
         ("payment_update", "Payment Update"),
         ("payment_delete", "Payment Delete"),
-        ("penalty_create", "Penalty Create"),
-        ("penalty_update", "Penalty Update"),
-        ("penalty_delete", "Penalty Delete"),
-        ("borrower_create", "Borrower Create"),
-        ("borrower_update", "Borrower Update"),
-        ("borrower_delete", "Borrower Delete"),
-        ("loan_agreement_create", "Loan Agreement Create"),
-        ("loan_agreement_signed", "Loan Agreement Signed"),
-        ("loan_application_create", "Loan Application Create"),
-        ("loan_application_approved", "Loan Application Approved"),
-        ("loan_application_rejected", "Loan Application Rejected"),
-        ("loan_application_submit", "Loan Application Submit"),
-        ("group_create", "Group Create"),
-        ("group_update", "Group Update"),
-        ("group_delete", "Group Delete"),
-        ("group_member_add", "Group Member Add"),
-        ("group_member_remove", "Group Member Remove"),
+        ("payment_void", "Payment Void"),
+        ("payment_restore", "Payment Restore"),
+        ("payment_permanent_delete", "Payment Permanent Delete"),
+        ("payment_bulk_create", "Payment Bulk Create"),
+        ("payment_bulk_update", "Payment Bulk Update"),
+        ("payment_import", "Payment Import"),
+        ("payment_export", "Payment Export"),
+        ("payment_apply", "Payment Apply"),
+        ("payment_confirm", "Payment Confirm"),
         ("payment_method_create", "Payment Method Create"),
         ("payment_method_update", "Payment Method Update"),
         ("payment_method_delete", "Payment Method Delete"),
+        ("payment_method_restore", "Payment Method Restore"),
+        ("payment_method_set_default", "Payment Method Set Default"),
+        ("payment_method_stats_recalc", "Payment Method Stats Recalc"),
+
+        ("penalty_create", "Penalty Create"),
+        ("penalty_update", "Penalty Update"),
+        ("penalty_delete", "Penalty Delete"),
+        ("penalty_auto_apply", "Penalty Auto Apply"),
+
+        ("borrower_create", "Borrower Create"),
+        ("borrower_update", "Borrower Update"),
+        ("borrower_delete", "Borrower Delete"),
+        ("borrower_restore", "Borrower Restore"),
+        ("borrower_permanent_delete", "Borrower Permanent Delete"),
+        ("borrower_bulk_import", "Borrower Bulk Import"),
+        ("borrower_credit_score_recalc", "Borrower Credit Score Recalc"),
+        ("borrower_merge", "Borrower Merge"),
+        ("borrower_cleanup", "Borrower Cleanup"),
+        ("borrower_status_update", "Borrower Status Update"),
+
+        ("loan_agreement_create", "Loan Agreement Create"),
+        ("loan_agreement_update", "Loan Agreement Update"),
+        ("loan_agreement_delete", "Loan Agreement Delete"),
+        ("loan_agreement_restore", "Loan Agreement Restore"),
+        ("loan_agreement_signed", "Loan Agreement Signed"),
+        ("loan_agreement_permanent_delete", "Loan Agreement Permanent Delete"),
+
+        ("loan_application_create", "Loan Application Create"),
+        ("loan_application_update", "Loan Application Update"),
+        ("loan_application_delete", "Loan Application Delete"),
+        ("loan_application_restore", "Loan Application Restore"),
+        ("loan_application_approved", "Loan Application Approved"),
+        ("loan_application_rejected", "Loan Application Rejected"),
+        ("loan_application_submit", "Loan Application Submit"),
+        ("loan_application_reopen", "Loan Application Reopen"),
+        ("loan_application_permanent_delete", "Loan Application Permanent Delete"),
+        ("loan_application_auto_approve", "Loan Application Auto Approve"),
+        ("loan_application_stale_cleanup", "Loan Application Stale Cleanup"),
+        ("loan_application_pending_reminder", "Loan Application Pending Reminder"),
+        ("loan_application_bulk_import", "Loan Application Bulk Import"),
+
+        ("group_create", "Group Create"),
+        ("group_update", "Group Update"),
+        ("group_delete", "Group Delete"),
+        ("group_restore", "Group Restore"),
+        ("group_member_add", "Group Member Add"),
+        ("group_member_remove", "Group Member Remove"),
+        ("group_bulk_assign", "Group Bulk Assign"),
+        ("group_clear_members", "Group Clear Members"),
+        ("group_auto_assign", "Group Auto Assign"),
+        ("group_cleanup", "Group Cleanup"),
+        ("group_stats_update", "Group Stats Update"),
+
         ("credit_check_performed", "Credit Check Performed"),
+        ("credit_check_delete", "Credit Check Delete"),
+        ("credit_check_restore", "Credit Check Restore"),
+
         ("interest_rate_change", "Interest Rate Change"),
+        ("interest_accrual", "Interest Accrual"),
+        ("interest_accrual_manual", "Interest Accrual Manual"),
+
         ("print_receipt", "Print Receipt"),
         ("export_data", "Export Data"),
         ("import_data", "Import Data"),
-        ("debt_create_from_application", "Debt Create From Application"),
-        ("payment_apply", "Payment Apply"),
-        ("interest_accrual", "Interest Accrual"),
-        ("payment_confirm", "Payment Confirm"),
-        ("debt_paid", "Debt Paid"),
-        ("debt_status_auto_paid", "Debt Status Auto Paid"),
-        # ========== SYNC ACTIONS (Complete) ==========
-        ("sync_pull", "Sync Pull"),  # ✅ Existing
-        ("sync_push", "Sync Push"),  # ✅ Existing
-        ("sync_receive", "Sync Receive"),  # ✅ Existing
-        ("sync_update", "Sync Update"),  # ✅ Existing
-        ("sync_create", "Sync Create"),  # ✅ Existing
-        ("sync_status_updated", "Sync Status Updated"),  # ✅ Corrected
-        ("sync_metadata_updated", "Sync Metadata Updated"),  # ✅ Corrected
-        ("sync_reset_all", "Sync Reset All"),  # ✅ NEW
-        ("sync_conflict_created", "Sync Conflict Created"),  # ✅ NEW
-        ("sync_conflict_updated", "Sync Conflict Updated"),  # ✅ NEW
-        ("sync_conflict_resolved", "Sync Conflict Resolved"),  # ✅ NEW
-        ("sync_conflict_deleted", "Sync Conflict Deleted"),  # ✅ NEW
-        ("sync_queue_created", "Sync Queue Created"),  # ✅ NEW
-        ("sync_queue_updated", "Sync Queue Updated"),  # ✅ NEW
-        ("sync_queue_processed", "Sync Queue Processed"),  # ✅ NEW
-        ("sync_queue_deleted", "Sync Queue Deleted"),  # ✅ NEW
-        ("sync_queue_clear_entity", "Sync Queue Clear Entity"),  # ✅ NEW
-        ("sync_queue_process_all", "Sync Queue Process All"),  # ✅ NEW
-        ("sync_process_queue", "Sync Process Queue"),  # ✅ Existing
-        ("sync_queue_process_all", "Sync Queue Process All"),  # ✅ Existing (keep one)
-        ("debt_restore_to_active", "Debt Restore To Active"),
-        ("debt_overdue", "Debt Overdue"),
-        # ========== SYNC ACTIONS ==========
+
+        # ==========================================================
+        # SYNC ACTIONS (FULL LIST)
+        # ==========================================================
+        ("sync_pull", "Sync Pull"),
+        ("sync_push", "Sync Push"),
+        ("sync_receive", "Sync Receive"),
+        ("sync_update", "Sync Update"),
+        ("sync_create", "Sync Create"),
+        ("sync_status_updated", "Sync Status Updated"),
+        ("sync_metadata_updated", "Sync Metadata Updated"),
+        ("sync_reset_all", "Sync Reset All"),
+        ("sync_conflict_created", "Sync Conflict Created"),
+        ("sync_conflict_updated", "Sync Conflict Updated"),
+        ("sync_conflict_resolved", "Sync Conflict Resolved"),
+        ("sync_conflict_deleted", "Sync Conflict Deleted"),
+        ("sync_queue_created", "Sync Queue Created"),
+        ("sync_queue_updated", "Sync Queue Updated"),
+        ("sync_queue_processed", "Sync Queue Processed"),
+        ("sync_queue_deleted", "Sync Queue Deleted"),
+        ("sync_queue_clear_entity", "Sync Queue Clear Entity"),
+        ("sync_queue_process_all", "Sync Queue Process All"),
+        ("sync_process_queue", "Sync Process Queue"),
         ("sync_trigger", "Sync Trigger"),
         ("sync_task_queued", "Sync Task Queued"),
         ("sync_auto_resolve", "Sync Auto Resolve"),
@@ -128,6 +209,56 @@ class AuditLog(models.Model):
         ("sync_cleanup", "Sync Cleanup"),
         ("sync_reset", "Sync Reset"),
         ("sync_enqueue", "Sync Enqueue"),
+        ("sync_health_check", "Sync Health Check"),
+        ("sync_queue_retry", "Sync Queue Retry"),
+        ("sync_report", "Sync Report"),
+
+        # ==========================================================
+        # TASK / SCHEDULER ACTIONS
+        # ==========================================================
+        ("task_trigger", "Task Trigger"),
+        ("task_status_check", "Task Status Check"),
+        ("task_cancel", "Task Cancel"),
+        ("task_retry", "Task Retry"),
+        ("task_completed", "Task Completed"),
+        ("task_failed", "Task Failed"),
+        ("task_queued", "Task Queued"),
+
+        # ==========================================================
+        # OTHER (GENERIC)
+        # ==========================================================
+        ("restore", "Restore"),
+        ("permanent_delete", "Permanent Delete"),
+        ("bulk_create", "Bulk Create"),
+        ("bulk_update", "Bulk Update"),
+        ("bulk_delete", "Bulk Delete"),
+        ("bulk_import", "Bulk Import"),
+        ("bulk_export", "Bulk Export"),
+        ("cleanup", "Cleanup"),
+        ("reset", "Reset"),
+        ("archive", "Archive"),
+        ("unarchive", "Unarchive"),
+        ("approve", "Approve"),
+        ("reject", "Reject"),
+        ("review", "Review"),
+        ("comment", "Comment"),
+        ("assign", "Assign"),
+        ("unassign", "Unassign"),
+        ("lock", "Lock"),
+        ("unlock", "Unlock"),
+        ("validate", "Validate"),
+        ("notify", "Notify"),
+
+        # ==========================================================
+        # SYSTEM TOOLS / CONTROLS
+        # ==========================================================
+        ("cache_clear", "Cache Clear"),
+        ("cache_warm", "Cache Warm"),
+        ("backup_create", "Backup Create"),
+        ("backup_restore", "Backup Restore"),
+        ("settings_validate", "Settings Validate"),
+        ("settings_diff", "Settings Diff"),
+        ("settings_backup", "Settings Backup"),
     )
 
     event_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
@@ -162,3 +293,14 @@ class AuditLog(models.Model):
         return (
             f"[{self.action_type}] {self.model_name} ({self.object_id}) by {self.user}"
         )
+
+    class Meta:
+        db_table = 'audit_logs'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['action_type']),
+            models.Index(fields=['model_name']),
+            models.Index(fields=['user']),
+            models.Index(fields=['timestamp']),
+            models.Index(fields=['event_id']),
+        ]

@@ -1,0 +1,55 @@
+{
+  "exported_at": "2026-07-19T05:23:02.716905+00:00",
+  "version": "1.0",
+  "settings": [
+    {
+      "key": "audit_retention_days",
+      "value": "365",
+      "setting_type": "audit_security",
+      "description": "Audit log retention",
+      "is_public": false
+    },
+    {
+      "key": "company_name",
+      "value": "Collectly Inc.",
+      "setting_type": "general",
+      "description": "Company name",
+      "is_public": true
+    },
+    {
+      "key": "sync_interval_minutes",
+      "value": "5",
+      "setting_type": "integrations",
+      "description": "Sync interval",
+      "is_public": false
+    },
+    {
+      "key": "default_interest_rate",
+      "value": "10.00",
+      "setting_type": "loans",
+      "description": "Default interest rate",
+      "is_public": true
+    },
+    {
+      "key": "default_penalty_rate",
+      "value": "2.00",
+      "setting_type": "loans",
+      "description": "Default penalty rate",
+      "is_public": false
+    },
+    {
+      "key": "enable_email_notifications",
+      "value": "true",
+      "setting_type": "notifications",
+      "description": "Enable email",
+      "is_public": false
+    },
+    {
+      "key": "enable_sms_notifications",
+      "value": "true",
+      "setting_type": "notifications",
+      "description": "Enable SMS",
+      "is_public": true
+    }
+  ]
+}

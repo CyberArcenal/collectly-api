@@ -307,7 +307,7 @@ def cleanup_old_notification_logs(days=90):
         }
 
 
-@shared_task
+@shared_task(name='notifications.tasks.send_scheduled_notifications')
 def send_scheduled_notifications():
     """
     Send scheduled notifications that are due.
