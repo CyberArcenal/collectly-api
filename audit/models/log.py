@@ -259,6 +259,9 @@ class AuditLog(models.Model):
         ("settings_validate", "Settings Validate"),
         ("settings_diff", "Settings Diff"),
         ("settings_backup", "Settings Backup"),
+        
+        ("apply_forgiveness", "Apply Forgiveness"),
+        ("debt_forgiveness", "Debt Forgiveness"),
     )
 
     event_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)

@@ -162,9 +162,9 @@ def cleanup_unused_payment_methods(self, days: int = 180, user: str = 'system'):
         unused_methods = PaymentMethod.objects.filter(
             deleted_at__isnull=True,
         ).annotate(
-            transaction_count=Count('payment_transactions', filter=Q(
-                payment_transactions__deleted_at__isnull=True,
-                payment_transactions__created_at__gte=cutoff_date
+            transaction_count=Count('transactions', filter=Q(
+                transactions__deleted_at__isnull=True,
+                transactions__created_at__gte=cutoff_date
             ))
         ).filter(transaction_count=0)
 

@@ -68,11 +68,12 @@ class NotificationLogService:
         Create a new notification log.
         """
         log_entry = NotificationLog.objects.create(
-            recipient_email=data['recipient_email'],
-            subject=data.get('subject'),
-            payload=data.get('payload'),
-            status=NotificationLog.Status.QUEUED
-        )
+        channel=data.get('channel', NotificationLog.Channel.EMAIL),
+        recipient=data['recipient'],
+        subject=data.get('subject'),
+        payload=data.get('payload'),
+        status=NotificationLog.Status.QUEUED
+    )
         
         # Audit log
         if user:

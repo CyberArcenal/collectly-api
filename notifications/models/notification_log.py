@@ -7,6 +7,9 @@ class NotificationLog(BaseModel):
     Log of sent notifications (email/SMS).
     Tracks delivery status and retry attempts.
     """
+    class Channel(models.TextChoices):
+        EMAIL = 'email', 'Email'
+        SMS = 'sms', 'SMS'
     
     class Status(models.TextChoices):
         QUEUED = 'queued', 'Queued'
@@ -17,6 +20,22 @@ class NotificationLog(BaseModel):
     recipient_email = models.EmailField(
         help_text="Recipient email address"
     )
+    channel = models.CharField(
+        max_length=20,
+        choices=Channel.choices,
+        default=Channel.EMAIL,
+        db_index=True,
+        help_text="Delivery channel"
+    )
+    
+    recipient = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Email address or phone number"
+    )
+    
     subject = models.CharField(
         max_length=255,
         null=True,

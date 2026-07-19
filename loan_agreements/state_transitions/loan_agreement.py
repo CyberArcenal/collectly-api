@@ -7,12 +7,13 @@ from django.utils import timezone
 from audit.utils.log import log_audit_event
 from loan_agreements.models.loan_agreement import LoanAgreement
 from debts.models.debt import Debt
+from notifications.models.notification_log import NotificationLog
 from notifications.services.notification import NotificationService
-from notifications.tasks import send_email_task
 from notifications.email_templates.loan_agreement import (
     generate_draft_created_email,
     generate_signed_email,
 )
+from notifications.services.notification_log import NotificationLogService
 from system_settings.utils import (
     email_enabled,
     get_system_setting,
@@ -63,21 +64,50 @@ class LoanAgreementStateTransitionService:
         """
         if text is None and html:
             # Strip HTML tags to get plain text
-            text = re.sub(r'<[^>]+>', '', html)
+            text = re.sub(r"<[^>]+>", "", html)
 
         try:
-            send_email_task.delay(
-                to=recipient,
-                subject=subject,
-                html=html,
-                text=text or "",
-                log_id=None,
-                is_retry=False,
+            NotificationLogService.create(
+                data={
+                    "channel": NotificationLog.Channel.EMAIL,
+                    "recipient": recipient,
+                    "subject": subject,
+                    "payload": html,
+                },
+                user=user,
+                request=None,
             )
             logger.info(f"[Email] Queued email to {recipient}: {subject}")
             return True
         except Exception as e:
             logger.error(f"[Email] Failed to queue email to {recipient}: {e}")
+            return False
+
+    @staticmethod
+    def _send_sms(phone_number, message, user="system"):
+        """
+        Send SMS (placeholder - implement with Twilio).
+
+        Args:
+            phone_number: Recipient phone number
+            message: SMS message
+            user: User performing the action
+        """
+
+        try:
+            NotificationLogService.create(
+                data={
+                    "channel": NotificationLog.Channel.SMS,
+                    "recipient": phone_number,
+                    "payload": message,
+                },
+                user=user,
+                request=None,
+            )
+            logger.info(f"[SMS] Queued email to {phone_number}: {message}")
+            return True
+        except Exception as e:
+            logger.error(f"[SMS] Failed to queue email to {phone_number}: {e}")
             return False
 
     @staticmethod

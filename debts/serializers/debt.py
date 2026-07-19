@@ -20,6 +20,7 @@ class DebtMinimalSerializer(serializers.ModelSerializer):
 # ---------- List (lightweight) ----------
 class DebtListSerializer(serializers.ModelSerializer):
     """Lightweight read-only serializer for list views."""
+    stats = serializers.SerializerMethodField()
     # ✅ Overwrite borrower with minimal serializer
     borrower = BorrowerMinimalSerializer(read_only=True)
 
@@ -41,6 +42,7 @@ class DebtListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Debt
         fields = [
+            'stats',
             'id',
             'borrower',          # nested minimal
             'name',
@@ -65,6 +67,11 @@ class DebtListSerializer(serializers.ModelSerializer):
             'isOverdue',
         ]
         read_only_fields = ['__all__']
+    
+    def get_stats(self, obj):
+        # Use the existing service method to compute stats (avoids N+1 with annotations)
+        from debts.services.debt import DebtService
+        return DebtService._get_debt_stats(obj)
 
     def get_amount_display(self, obj):
         return obj.amount_display
@@ -91,6 +98,7 @@ class DebtReadSerializer(serializers.ModelSerializer):
     """Full read-only serializer with nested relations."""
     # ✅ Overwrite borrower with minimal serializer
     borrower = BorrowerMinimalSerializer(read_only=True)
+    stats = serializers.SerializerMethodField()
 
     amount_display = serializers.SerializerMethodField()
     remaining_display = serializers.SerializerMethodField()
@@ -123,6 +131,7 @@ class DebtReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Debt
         fields = [
+            'stats',
             'id',
             'borrower',
             'name',
@@ -167,6 +176,11 @@ class DebtReadSerializer(serializers.ModelSerializer):
             'isOverdue',
         ]
         read_only_fields = ['__all__']
+    
+    def get_stats(self, obj):
+        # Use the existing service method to compute stats (avoids N+1 with annotations)
+        from debts.services.debt import DebtService
+        return DebtService._get_debt_stats(obj)
 
     def get_amount_display(self, obj):
         return obj.amount_display
@@ -384,3 +398,14 @@ class DebtUpdateSerializer(serializers.ModelSerializer):
         # Save will auto-calculate remaining_amount
         instance.save()
         return instance
+    
+    
+class DebtStatsSerializer(serializers.Serializer):
+    total_paid = serializers.DecimalField(max_digits=12, decimal_places=2)
+    total_penalty = serializers.DecimalField(max_digits=12, decimal_places=2)
+    remaining_balance = serializers.DecimalField(max_digits=12, decimal_places=2)
+    days_overdue = serializers.IntegerField()
+    payment_count = serializers.IntegerField()
+    penalty_count = serializers.IntegerField()
+    last_payment_date = serializers.DateField(allow_null=True)
+    is_fully_paid = serializers.BooleanField()

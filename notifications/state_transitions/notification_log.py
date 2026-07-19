@@ -117,22 +117,14 @@ class NotificationLogStateTransitionService:
 
     @staticmethod
     @transaction.atomic
-    def on_create(log_entry, user="system", request=None):
+    def on_create(log_entry:NotificationLog, user="system", request=None):
         """
-        Handle post-notification log creation events.
-
-        Args:
-            log_entry: NotificationLog instance
-            user: User performing the action
-            request: HTTP request object for audit
-
-        Returns:
-            NotificationLog: The created log instance
+        Handle post-creation: queue delivery based on channel.
         """
         logger.info(
             f"[NotificationLogTransition] on_create: "
-            f"log_id={log_entry.id}, recipient={log_entry.recipient_email}, "
-            f"status={log_entry.status}, user={user}"
+            f"log_id={log_entry.id}, recipient={log_entry.recipient}, "
+            f"channel={log_entry.channel}, status={log_entry.status}"
         )
 
         # Audit log
@@ -143,17 +135,43 @@ class NotificationLogStateTransitionService:
             model_name='NotificationLog',
             object_id=str(log_entry.id),
             changes={
-                'recipient_email': log_entry.recipient_email,
+                'recipient': log_entry.recipient,
+                'channel': log_entry.channel,
                 'subject': log_entry.subject,
                 'status': log_entry.status,
             }
         )
 
-        # Queue email delivery if status is QUEUED
-        if log_entry.status == NotificationLog.Status.QUEUED:
-            NotificationLogStateTransitionService._queue_email_delivery(log_entry)
+        # Only queue if status is QUEUED
+        if log_entry.status != NotificationLog.Status.QUEUED:
+            logger.info(f"[NotificationLogTransition] Log #{log_entry.id} not queued, skipping delivery")
+            return log_entry
 
-        logger.info(f"[NotificationLogTransition] Notification log #{log_entry.id} created")
+        # Dispatch based on channel
+        if log_entry.channel == NotificationLog.Channel.EMAIL:
+            # Queue email via Celery
+            from notifications.tasks import send_email_task
+            send_email_task.delay(
+                to=log_entry.recipient,
+                subject=log_entry.subject or "Notification",
+                html=log_entry.payload or "",
+                text=log_entry.payload or "",
+                log_id=log_entry.id,
+                is_retry=False,
+            )
+            logger.info(f"[NotificationLogTransition] Queued email for log #{log_entry.id}")
+        elif log_entry.channel == NotificationLog.Channel.SMS:
+            # Queue SMS via Celery
+            from notifications.tasks import send_sms_task
+            send_sms_task.delay(
+                to=log_entry.recipient,
+                message=log_entry.payload or "",
+                log_id=log_entry.id,
+            )
+            logger.info(f"[NotificationLogTransition] Queued SMS for log #{log_entry.id}")
+        else:
+            logger.warning(f"[NotificationLogTransition] Unknown channel: {log_entry.channel}")
+
         return log_entry
 
     @staticmethod

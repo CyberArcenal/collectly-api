@@ -9,10 +9,11 @@ from django.utils import timezone
 from audit.utils.log import log_audit_event
 from debts.models.debt import Debt
 from debts.models.forgiveness_log import ForgivenessLog
+from notifications.models.notification_log import NotificationLog
+from notifications.services.notification_log import NotificationLogService
 from payments.models.penalty_transaction import PenaltyTransaction
 from notifications.models.notification import Notification
 from notifications.services.notification import NotificationService
-from notifications.tasks import send_email_task
 from notifications.email_templates.debt_status import (
     generate_paid_email,
     generate_overdue_email,
@@ -56,10 +57,16 @@ class DebtStateTransitionService:
             dict: Company name, branch address, contact email, and phone
         """
         return {
-            'company_name': get_system_setting('company_name', 'Collectly'),
-            'branch_address': get_system_setting('branch_location', 'Manila, Philippines'),
-            'contact_email': get_system_setting('smtp_from_email', 'support@collectly.ph'),
-            'contact_phone': get_system_setting('twilio_phone_number', '+63 (2) 8123-4567'),
+            "company_name": get_system_setting("company_name", "Collectly"),
+            "branch_address": get_system_setting(
+                "branch_location", "Manila, Philippines"
+            ),
+            "contact_email": get_system_setting(
+                "smtp_from_email", "support@collectly.ph"
+            ),
+            "contact_phone": get_system_setting(
+                "twilio_phone_number", "+63 (2) 8123-4567"
+            ),
         }
 
     @staticmethod
@@ -76,16 +83,18 @@ class DebtStateTransitionService:
         """
         if text is None and html:
             # Strip HTML tags to get plain text
-            text = re.sub(r'<[^>]+>', '', html)
+            text = re.sub(r"<[^>]+>", "", html)
 
         try:
-            send_email_task.delay(
-                to=recipient,
-                subject=subject,
-                html=html,
-                text=text or "",
-                log_id=None,
-                is_retry=False,
+            NotificationLogService.create(
+                data={
+                    "channel": NotificationLog.Channel.EMAIL,
+                    "recipient": recipient,
+                    "subject": subject,
+                    "payload": html,
+                },
+                user=user,
+                request=None,
             )
             logger.info(f"[Email] Queued email to {recipient}: {subject}")
             return True
@@ -103,8 +112,22 @@ class DebtStateTransitionService:
             message: SMS message
             user: User performing the action
         """
-        logger.info(f"[SMS] Would send to {phone_number}: {message}")
-        return True
+
+        try:
+            NotificationLogService.create(
+                data={
+                    "channel": NotificationLog.Channel.SMS,
+                    "recipient": phone_number,
+                    "payload": message,
+                },
+                user=user,
+                request=None,
+            )
+            logger.info(f"[SMS] Queued email to {phone_number}: {message}")
+            return True
+        except Exception as e:
+            logger.error(f"[SMS] Failed to queue email to {phone_number}: {e}")
+            return False
 
     @staticmethod
     def _send_in_app_notification(title, message, metadata=None, user="system"):
@@ -120,13 +143,13 @@ class DebtStateTransitionService:
         try:
             NotificationService.create(
                 data={
-                    'title': title,
-                    'message': message,
-                    'type': 'info',
-                    'metadata': metadata or {},
+                    "title": title,
+                    "message": message,
+                    "type": "info",
+                    "metadata": metadata or {},
                 },
                 user=user,
-                request=None
+                request=None,
             )
             return True
         except Exception as e:
@@ -147,9 +170,9 @@ class DebtStateTransitionService:
         Raises:
             ValidationError: If debt not found
         """
-        debt = Debt.objects.select_related('borrower').filter(id=debt_id).first()
+        debt = Debt.objects.select_related("borrower").filter(id=debt_id).first()
         if not debt:
-            raise ValidationError({'detail': f'Debt #{debt_id} not found'})
+            raise ValidationError({"detail": f"Debt #{debt_id} not found"})
         return debt
 
     @staticmethod
@@ -164,11 +187,11 @@ class DebtStateTransitionService:
         try:
             if borrower_id:
                 CreditCheckService.perform_credit_check(
-                    data={'debtor_id': borrower_id},
-                    user=user,
-                    request=None
+                    data={"debtor_id": borrower_id}, user=user, request=None
                 )
-                logger.info(f"[DebtTransition] Credit score updated for borrower #{borrower_id}")
+                logger.info(
+                    f"[DebtTransition] Credit score updated for borrower #{borrower_id}"
+                )
         except Exception as e:
             logger.warning(f"[DebtTransition] Failed to update credit score: {e}")
 
@@ -195,12 +218,12 @@ class DebtStateTransitionService:
             debt_id: Debt ID
         """
         Notification.objects.filter(
-            debt_id=debt_id,
-            is_read=False,
-            deleted_at__isnull=True
+            debt_id=debt_id, is_read=False, deleted_at__isnull=True
         ).update(is_read=True, updated_at=timezone.now())
 
-        logger.info(f"[DebtTransition] Marked notifications as read for debt #{debt_id}")
+        logger.info(
+            f"[DebtTransition] Marked notifications as read for debt #{debt_id}"
+        )
 
     # ============================================================
     # STATE TRANSITION METHODS
@@ -227,7 +250,11 @@ class DebtStateTransitionService:
 
         # Check if status is allowed
         if not DebtStateTransitionService._is_status_allowed(Debt.Status.PAID):
-            raise ValidationError({'detail': f'Status {Debt.Status.PAID} is not allowed by system settings.'})
+            raise ValidationError(
+                {
+                    "detail": f"Status {Debt.Status.PAID} is not allowed by system settings."
+                }
+            )
 
         # Reload debt with borrower
         debt_with_borrower = DebtStateTransitionService._get_debt_with_borrower(debt.id)
@@ -247,20 +274,19 @@ class DebtStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='debt_paid',
-            model_name='Debt',
+            action_type="debt_paid",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'before': {'status': old_status},
-                'after': {'status': Debt.Status.PAID},
-            }
+                "before": {"status": old_status},
+                "after": {"status": Debt.Status.PAID},
+            },
         )
 
         # Update credit score
         if debt_with_borrower.borrower_id:
             DebtStateTransitionService._update_credit_score(
-                debt_with_borrower.borrower_id,
-                user=user
+                debt_with_borrower.borrower_id, user=user
             )
 
         # Send notifications
@@ -271,20 +297,22 @@ class DebtStateTransitionService:
             DebtStateTransitionService._send_in_app_notification(
                 title="✅ Debt Fully Paid",
                 message=f'Debt "{debt_with_borrower.name}" has been fully paid.',
-                metadata={'debt_id': debt.id, 'borrower_id': borrower.id},
+                metadata={"debt_id": debt.id, "borrower_id": borrower.id},
                 user=user,
             )
 
             # Email notification
             if email_enabled() and borrower.email:
                 email_data = DebtStateTransitionService._get_email_data()
-                html = generate_paid_email({
-                    'debt_id': debt.id,
-                    'debtor_name': borrower.name,
-                    'original_amount': debt_with_borrower.total_amount,
-                    'total_paid': debt_with_borrower.total_amount,
-                    **email_data,
-                })
+                html = generate_paid_email(
+                    {
+                        "debt_id": debt.id,
+                        "debtor_name": borrower.name,
+                        "original_amount": debt_with_borrower.total_amount,
+                        "total_paid": debt_with_borrower.total_amount,
+                        **email_data,
+                    }
+                )
                 DebtStateTransitionService._send_email(
                     recipient=borrower.email,
                     subject="✅ Debt Fully Paid",
@@ -294,7 +322,7 @@ class DebtStateTransitionService:
 
             # SMS notification
             if sms_enabled() and borrower.contact:
-                message = f"Dear {borrower.name}, your debt \"{debt_with_borrower.name}\" is fully paid. Thank you!"
+                message = f'Dear {borrower.name}, your debt "{debt_with_borrower.name}" is fully paid. Thank you!'
                 DebtStateTransitionService._send_sms(
                     phone_number=borrower.contact,
                     message=message,
@@ -325,7 +353,11 @@ class DebtStateTransitionService:
 
         # Check if status is allowed
         if not DebtStateTransitionService._is_status_allowed(Debt.Status.OVERDUE):
-            raise ValidationError({'detail': f'Status {Debt.Status.OVERDUE} is not allowed by system settings.'})
+            raise ValidationError(
+                {
+                    "detail": f"Status {Debt.Status.OVERDUE} is not allowed by system settings."
+                }
+            )
 
         # Reload debt with borrower
         debt_with_borrower = DebtStateTransitionService._get_debt_with_borrower(debt.id)
@@ -339,7 +371,7 @@ class DebtStateTransitionService:
         debt_with_borrower.save()
 
         # Apply auto-penalty
-        penalty_amount = Decimal('0')
+        penalty_amount = Decimal("0")
         if enable_auto_penalty():
             penalty_amount = DebtStateTransitionService._apply_auto_penalty(
                 debt=debt_with_borrower,
@@ -350,14 +382,14 @@ class DebtStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='debt_overdue',
-            model_name='Debt',
+            action_type="debt_overdue",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'before': {'status': old_status},
-                'after': {'status': Debt.Status.OVERDUE},
-                'penalty_applied': float(penalty_amount),
-            }
+                "before": {"status": old_status},
+                "after": {"status": Debt.Status.OVERDUE},
+                "penalty_applied": float(penalty_amount),
+            },
         )
 
         # Send notifications
@@ -368,23 +400,33 @@ class DebtStateTransitionService:
             DebtStateTransitionService._send_in_app_notification(
                 title="⏰ Debt Overdue",
                 message=f'Debt "{debt_with_borrower.name}" is now overdue. Please make a payment.',
-                metadata={'debt_id': debt.id, 'borrower_id': borrower.id, 'days_overdue': debt_with_borrower.days_overdue},
+                metadata={
+                    "debt_id": debt.id,
+                    "borrower_id": borrower.id,
+                    "days_overdue": debt_with_borrower.days_overdue,
+                },
                 user=user,
             )
 
             # Email notification
             if email_enabled() and borrower.email:
                 email_data = DebtStateTransitionService._get_email_data()
-                html = generate_overdue_email({
-                    'debt_id': debt.id,
-                    'debtor_name': borrower.name,
-                    'original_amount': debt_with_borrower.total_amount,
-                    'remaining_balance': debt_with_borrower.remaining_amount,
-                    'due_date': debt_with_borrower.due_date,
-                    'days_overdue': (timezone.now().date() - debt_with_borrower.due_date).days if debt_with_borrower.due_date else 0,
-                    'penalty_amount': float(penalty_amount),
-                    **email_data,
-                })
+                html = generate_overdue_email(
+                    {
+                        "debt_id": debt.id,
+                        "debtor_name": borrower.name,
+                        "original_amount": debt_with_borrower.total_amount,
+                        "remaining_balance": debt_with_borrower.remaining_amount,
+                        "due_date": debt_with_borrower.due_date,
+                        "days_overdue": (
+                            (timezone.now().date() - debt_with_borrower.due_date).days
+                            if debt_with_borrower.due_date
+                            else 0
+                        ),
+                        "penalty_amount": float(penalty_amount),
+                        **email_data,
+                    }
+                )
                 DebtStateTransitionService._send_email(
                     recipient=borrower.email,
                     subject="⏰ Debt Overdue – Immediate Action Required",
@@ -394,7 +436,7 @@ class DebtStateTransitionService:
 
             # SMS notification
             if sms_enabled() and borrower.contact:
-                message = f"Dear {borrower.name}, your payment for debt \"{debt_with_borrower.name}\" is overdue."
+                message = f'Dear {borrower.name}, your payment for debt "{debt_with_borrower.name}" is overdue.'
                 DebtStateTransitionService._send_sms(
                     phone_number=borrower.contact,
                     message=message,
@@ -424,26 +466,30 @@ class DebtStateTransitionService:
         if due_date:
             days_overdue = (today - due_date).days
             if days_overdue <= grace_days:
-                logger.info(f"[DebtTransition] Debt #{debt.id} within grace period ({days_overdue} days)")
-                return Decimal('0')
+                logger.info(
+                    f"[DebtTransition] Debt #{debt.id} within grace period ({days_overdue} days)"
+                )
+                return Decimal("0")
 
             # Check if penalty already exists since due date
             existing_penalty = PenaltyTransaction.objects.filter(
-                debt=debt,
-                deleted_at__isnull=True,
-                penalty_date__gte=due_date
+                debt=debt, deleted_at__isnull=True, penalty_date__gte=due_date
             ).exists()
 
             if existing_penalty:
-                logger.info(f"[DebtTransition] Penalty already exists for debt #{debt.id}")
-                return Decimal('0')
+                logger.info(
+                    f"[DebtTransition] Penalty already exists for debt #{debt.id}"
+                )
+                return Decimal("0")
 
             # Calculate penalty
             penalty_rate = debt.penalty_rate or default_penalty_rate()
             calc_method = penalty_calculation_method()
 
-            if calc_method == 'percentage':
-                penalty_amount = debt.remaining_amount * (Decimal(str(penalty_rate)) / Decimal('100'))
+            if calc_method == "percentage":
+                penalty_amount = debt.remaining_amount * (
+                    Decimal(str(penalty_rate)) / Decimal("100")
+                )
             else:  # fixed
                 penalty_amount = Decimal(str(penalty_rate))
 
@@ -453,7 +499,7 @@ class DebtStateTransitionService:
                     debt=debt,
                     amount=penalty_amount,
                     penalty_date=today,
-                    reason=f'Auto-penalty for overdue ({days_overdue} days)',
+                    reason=f"Auto-penalty for overdue ({days_overdue} days)",
                     is_auto=True,
                 )
 
@@ -461,25 +507,27 @@ class DebtStateTransitionService:
                 debt.remaining_amount += penalty_amount
                 debt.save()
 
-                logger.info(f"[DebtTransition] Applied penalty of {penalty_amount} to debt #{debt.id}")
+                logger.info(
+                    f"[DebtTransition] Applied penalty of {penalty_amount} to debt #{debt.id}"
+                )
 
                 # Audit log for penalty
                 log_audit_event(
                     request=None,
-                    user='system',
-                    action_type='penalty_auto_applied',
-                    model_name='PenaltyTransaction',
+                    user="system",
+                    action_type="penalty_auto_applied",
+                    model_name="PenaltyTransaction",
                     object_id=str(debt.id),
                     changes={
-                        'amount': float(penalty_amount),
-                        'days_overdue': days_overdue,
-                        'reason': 'Auto-penalty',
-                    }
+                        "amount": float(penalty_amount),
+                        "days_overdue": days_overdue,
+                        "reason": "Auto-penalty",
+                    },
                 )
 
                 return penalty_amount
 
-        return Decimal('0')
+        return Decimal("0")
 
     @staticmethod
     @transaction.atomic
@@ -502,7 +550,11 @@ class DebtStateTransitionService:
 
         # Check if status is allowed
         if not DebtStateTransitionService._is_status_allowed(Debt.Status.DEFAULTED):
-            raise ValidationError({'detail': f'Status {Debt.Status.DEFAULTED} is not allowed by system settings.'})
+            raise ValidationError(
+                {
+                    "detail": f"Status {Debt.Status.DEFAULTED} is not allowed by system settings."
+                }
+            )
 
         # Reload debt with borrower
         debt_with_borrower = DebtStateTransitionService._get_debt_with_borrower(debt.id)
@@ -519,13 +571,13 @@ class DebtStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='debt_defaulted',
-            model_name='Debt',
+            action_type="debt_defaulted",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'before': {'status': old_status},
-                'after': {'status': Debt.Status.DEFAULTED},
-            }
+                "before": {"status": old_status},
+                "after": {"status": Debt.Status.DEFAULTED},
+            },
         )
 
         # Send notifications
@@ -536,7 +588,7 @@ class DebtStateTransitionService:
             DebtStateTransitionService._send_in_app_notification(
                 title="⚠️ Debt Defaulted",
                 message=f'Debt "{debt_with_borrower.name}" is now in default. Please contact support.',
-                metadata={'debt_id': debt.id, 'borrower_id': borrower.id},
+                metadata={"debt_id": debt.id, "borrower_id": borrower.id},
                 user=user,
             )
 
@@ -544,21 +596,23 @@ class DebtStateTransitionService:
             DebtStateTransitionService._send_in_app_notification(
                 title="⚠️ Debt Defaulted – Legal Action Required",
                 message=f'Debt #{debt.id} ({debt_with_borrower.name}) for borrower {borrower.name or "Unknown"} has been defaulted. Please review.',
-                metadata={'debt_id': debt.id, 'borrower_id': borrower.id},
+                metadata={"debt_id": debt.id, "borrower_id": borrower.id},
                 user=user,
             )
 
             # Email notification
             if email_enabled() and borrower.email:
                 email_data = DebtStateTransitionService._get_email_data()
-                html = generate_defaulted_email({
-                    'debt_id': debt.id,
-                    'debtor_name': borrower.name,
-                    'original_amount': debt_with_borrower.total_amount,
-                    'remaining_balance': debt_with_borrower.remaining_amount,
-                    'due_date': debt_with_borrower.due_date,
-                    **email_data,
-                })
+                html = generate_defaulted_email(
+                    {
+                        "debt_id": debt.id,
+                        "debtor_name": borrower.name,
+                        "original_amount": debt_with_borrower.total_amount,
+                        "remaining_balance": debt_with_borrower.remaining_amount,
+                        "due_date": debt_with_borrower.due_date,
+                        **email_data,
+                    }
+                )
                 DebtStateTransitionService._send_email(
                     recipient=borrower.email,
                     subject="⚠️ Debt Defaulted – Legal Action Pending",
@@ -568,7 +622,7 @@ class DebtStateTransitionService:
 
             # SMS notification
             if sms_enabled() and borrower.contact:
-                message = f"Dear {borrower.name}, your debt \"{debt_with_borrower.name}\" is now in default."
+                message = f'Dear {borrower.name}, your debt "{debt_with_borrower.name}" is now in default.'
                 DebtStateTransitionService._send_sms(
                     phone_number=borrower.contact,
                     message=message,
@@ -595,11 +649,17 @@ class DebtStateTransitionService:
         Raises:
             ValidationError: If validation fails
         """
-        logger.info(f"[DebtTransition] on_restore_to_active: debt_id={debt.id}, user={user}")
+        logger.info(
+            f"[DebtTransition] on_restore_to_active: debt_id={debt.id}, user={user}"
+        )
 
         # Check if status is allowed
         if not DebtStateTransitionService._is_status_allowed(Debt.Status.ACTIVE):
-            raise ValidationError({'detail': f'Status {Debt.Status.ACTIVE} is not allowed by system settings.'})
+            raise ValidationError(
+                {
+                    "detail": f"Status {Debt.Status.ACTIVE} is not allowed by system settings."
+                }
+            )
 
         # Reload debt with borrower
         debt_with_borrower = DebtStateTransitionService._get_debt_with_borrower(debt.id)
@@ -622,13 +682,13 @@ class DebtStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='debt_restore_to_active',
-            model_name='Debt',
+            action_type="debt_restore_to_active",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'before': {'status': old_status},
-                'after': {'status': Debt.Status.ACTIVE},
-            }
+                "before": {"status": old_status},
+                "after": {"status": Debt.Status.ACTIVE},
+            },
         )
 
         # Send notifications
@@ -639,21 +699,23 @@ class DebtStateTransitionService:
             DebtStateTransitionService._send_in_app_notification(
                 title="↺ Debt Restored",
                 message=f'Debt "{debt_with_borrower.name}" has been restored to active status.',
-                metadata={'debt_id': debt.id, 'borrower_id': borrower.id},
+                metadata={"debt_id": debt.id, "borrower_id": borrower.id},
                 user=user,
             )
 
             # Email notification
             if email_enabled() and borrower.email:
                 email_data = DebtStateTransitionService._get_email_data()
-                html = generate_restored_email({
-                    'debt_id': debt.id,
-                    'debtor_name': borrower.name,
-                    'original_amount': debt_with_borrower.total_amount,
-                    'remaining_balance': debt_with_borrower.remaining_amount,
-                    'due_date': debt_with_borrower.due_date,
-                    **email_data,
-                })
+                html = generate_restored_email(
+                    {
+                        "debt_id": debt.id,
+                        "debtor_name": borrower.name,
+                        "original_amount": debt_with_borrower.total_amount,
+                        "remaining_balance": debt_with_borrower.remaining_amount,
+                        "due_date": debt_with_borrower.due_date,
+                        **email_data,
+                    }
+                )
                 DebtStateTransitionService._send_email(
                     recipient=borrower.email,
                     subject="↺ Debt Restored – Payments Resumed",
@@ -663,7 +725,7 @@ class DebtStateTransitionService:
 
             # SMS notification
             if sms_enabled() and borrower.contact:
-                message = f"Dear {borrower.name}, your debt \"{debt_with_borrower.name}\" is now active again."
+                message = f'Dear {borrower.name}, your debt "{debt_with_borrower.name}" is now active again.'
                 DebtStateTransitionService._send_sms(
                     phone_number=borrower.contact,
                     message=message,
@@ -692,11 +754,15 @@ class DebtStateTransitionService:
         Raises:
             ValidationError: If validation fails
         """
-        logger.info(f"[DebtTransition] on_forgiveness: debt_id={debt.id}, amount={amount_forgiven}, user={user}")
+        logger.info(
+            f"[DebtTransition] on_forgiveness: debt_id={debt.id}, amount={amount_forgiven}, user={user}"
+        )
 
         # Check if status is allowed
         if not DebtStateTransitionService._is_status_allowed(debt.status):
-            raise ValidationError({'detail': f'Status {debt.status} is not allowed by system settings.'})
+            raise ValidationError(
+                {"detail": f"Status {debt.status} is not allowed by system settings."}
+            )
 
         # Reload debt with borrower
         debt_with_borrower = DebtStateTransitionService._get_debt_with_borrower(debt.id)
@@ -710,15 +776,15 @@ class DebtStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='debt_forgiveness',
-            model_name='Debt',
+            action_type="debt_forgiveness",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'forgiveness_amount': float(amount_forgiven),
-                'reason': note,
-                'before_total': float(old_total),
-                'after_total': float(debt_with_borrower.total_amount),
-            }
+                "forgiveness_amount": float(amount_forgiven),
+                "reason": note,
+                "before_total": float(old_total),
+                "after_total": float(debt_with_borrower.total_amount),
+            },
         )
 
         # Send notifications
@@ -729,13 +795,13 @@ class DebtStateTransitionService:
             DebtStateTransitionService._send_in_app_notification(
                 title="✓ Debt Forgiveness Applied",
                 message=(
-                    f'An amount of {amount_forgiven:.2f} has been forgiven from debt '
+                    f"An amount of {amount_forgiven:.2f} has been forgiven from debt "
                     f'"{debt_with_borrower.name}". Remaining balance: {debt_with_borrower.remaining_amount:.2f}.'
                 ),
                 metadata={
-                    'debt_id': debt.id,
-                    'borrower_id': borrower.id,
-                    'amount_forgiven': float(amount_forgiven),
+                    "debt_id": debt.id,
+                    "borrower_id": borrower.id,
+                    "amount_forgiven": float(amount_forgiven),
                 },
                 user=user,
             )
@@ -743,15 +809,17 @@ class DebtStateTransitionService:
             # Email notification
             if email_enabled() and borrower.email:
                 email_data = DebtStateTransitionService._get_email_data()
-                html = generate_forgiveness_email({
-                    'debt_id': debt.id,
-                    'debtor_name': borrower.name,
-                    'original_amount': debt_with_borrower.total_amount,
-                    'forgiven_amount': float(amount_forgiven),
-                    'new_balance': debt_with_borrower.remaining_amount,
-                    'reason': note,
-                    **email_data,
-                })
+                html = generate_forgiveness_email(
+                    {
+                        "debt_id": debt.id,
+                        "debtor_name": borrower.name,
+                        "original_amount": debt_with_borrower.total_amount,
+                        "forgiven_amount": float(amount_forgiven),
+                        "new_balance": debt_with_borrower.remaining_amount,
+                        "reason": note,
+                        **email_data,
+                    }
+                )
                 DebtStateTransitionService._send_email(
                     recipient=borrower.email,
                     subject="✓ Debt Forgiveness Applied",
@@ -771,85 +839,95 @@ class DebtStateTransitionService:
                     user=user,
                 )
 
-        logger.info(f"[DebtTransition] Forgiveness applied to debt #{debt.id}: {amount_forgiven}")
-        
+        logger.info(
+            f"[DebtTransition] Forgiveness applied to debt #{debt.id}: {amount_forgiven}"
+        )
+
     @staticmethod
     @transaction.atomic
     def recalculate_balance(debt, user="system", request=None, update_status=True):
         """
         Recalculate remaining amount based on total_amount and paid_amount.
         Optionally update status to PAID if remaining <= 0.
-        
+
         Args:
             debt: Debt instance
             user: User performing the action (for audit)
             request: HTTP request object (for audit)
             update_status: If True, automatically mark as PAID when fully paid
-        
+
         Returns:
             Debt: The updated debt instance
         """
-        logger.info(f"[DebtTransition] recalculate_balance: debt_id={debt.id}, user={user}")
-        
+        logger.info(
+            f"[DebtTransition] recalculate_balance: debt_id={debt.id}, user={user}"
+        )
+
         # Reload from DB to ensure latest values
         debt.refresh_from_db()
-        
+
         old_remaining = debt.remaining_amount
         new_remaining = debt.total_amount - debt.paid_amount
         if new_remaining < 0:
-            new_remaining = Decimal('0')
-        
+            new_remaining = Decimal("0")
+
         # Update if changed
         if new_remaining != debt.remaining_amount:
             debt.remaining_amount = new_remaining
             debt.updated_at = timezone.now()
-            debt.save(update_fields=['remaining_amount', 'updated_at'])
-            
+            debt.save(update_fields=["remaining_amount", "updated_at"])
+
             logger.info(
                 f"[DebtTransition] Debt #{debt.id} remaining updated: "
                 f"{old_remaining:.2f} → {new_remaining:.2f}"
             )
-            
+
             # Audit log for balance change
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='debt_balance_recalc',
-                model_name='Debt',
+                action_type="debt_balance_recalc",
+                model_name="Debt",
                 object_id=str(debt.id),
                 changes={
-                    'before': {'remaining_amount': float(old_remaining)},
-                    'after': {'remaining_amount': float(new_remaining)},
-                    'recalculated_by': str(user) if user else 'system',
-                }
+                    "before": {"remaining_amount": float(old_remaining)},
+                    "after": {"remaining_amount": float(new_remaining)},
+                    "recalculated_by": str(user) if user else "system",
+                },
             )
-        
+
         # If fully paid and update_status is True, mark as PAID
-        if update_status and new_remaining <= Decimal('0.01') and debt.status != Debt.Status.PAID:
-            logger.info(f"[DebtTransition] Debt #{debt.id} fully paid, updating status to PAID")
+        if (
+            update_status
+            and new_remaining <= Decimal("0.01")
+            and debt.status != Debt.Status.PAID
+        ):
+            logger.info(
+                f"[DebtTransition] Debt #{debt.id} fully paid, updating status to PAID"
+            )
             old_status = debt.status
             debt.status = Debt.Status.PAID
             debt.updated_at = timezone.now()
-            debt.save(update_fields=['status', 'updated_at'])
-            
+            debt.save(update_fields=["status", "updated_at"])
+
             log_audit_event(
                 request=request,
                 user=user,
-                action_type='debt_status_update',
-                model_name='Debt',
+                action_type="debt_status_update",
+                model_name="Debt",
                 object_id=str(debt.id),
                 changes={
-                    'before': {'status': old_status},
-                    'after': {'status': Debt.Status.PAID},
-                    'reason': 'fully paid',
-                }
+                    "before": {"status": old_status},
+                    "after": {"status": Debt.Status.PAID},
+                    "reason": "fully paid",
+                },
             )
-            
+
             # Trigger on_paid for notifications, etc.
             # But careful not to loop - we can call on_paid directly or rely on signal
             # Since on_paid is already called by the signal when status changes, we can let that handle it.
             # However, we might want to explicitly send notifications here, but the signal will catch it.
             # For simplicity, we can call the signal method or just let the post_save signal handle it.
             # We'll just update the status and let the signal's post_save trigger the transition.
-        
+
         return debt

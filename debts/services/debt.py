@@ -1085,9 +1085,7 @@ class DebtService:
         # Use ForgivenessService to apply forgiveness
         ForgivenessService.apply_forgiveness(
             debt_id=debt_id,
-            borrower_id=debt.borrower_id,
-            amount=amount,
-            created_by=user.username if user else "system",
+            amount_forgiven=amount,
             reason=reason,
             user=user,
             request=request,

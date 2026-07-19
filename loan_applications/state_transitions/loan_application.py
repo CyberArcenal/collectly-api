@@ -13,13 +13,14 @@ from loan_applications.models.loan_application import LoanApplication
 from debts.models.debt import Debt
 from debts.services.debt import DebtService
 from loan_agreements.services.loan_agreement import LoanAgreementService
+from notifications.models.notification_log import NotificationLog
 from notifications.services.notification import NotificationService
-from notifications.tasks import send_email_task
 from notifications.email_templates.loan_status import (
     generate_submitted_email,
     generate_approved_email,
     generate_rejected_email,
 )
+from notifications.services.notification_log import NotificationLogService
 from system_settings.utils import (
     enforce_credit_check,
     email_enabled,
@@ -87,13 +88,15 @@ class LoanApplicationStateTransitionService:
             text = re.sub(r"<[^>]+>", "", html)
 
         try:
-            send_email_task.delay(
-                to=recipient,
-                subject=subject,
-                html=html,
-                text=text or "",
-                log_id=None,
-                is_retry=False,
+            NotificationLogService.create(
+                data={
+                    "channel": NotificationLog.Channel.EMAIL,
+                    "recipient": recipient,
+                    "subject": subject,
+                    "payload": html,
+                },
+                user=user,
+                request=None,
             )
             logger.info(f"[Email] Queued email to {recipient}: {subject}")
             return True
@@ -111,8 +114,22 @@ class LoanApplicationStateTransitionService:
             message: SMS message
             user: User performing the action
         """
-        logger.info(f"[SMS] Would send to {phone_number}: {message}")
-        return True
+
+        try:
+            NotificationLogService.create(
+                data={
+                    "channel": NotificationLog.Channel.SMS,
+                    "recipient": phone_number,
+                    "payload": message,
+                },
+                user=user,
+                request=None,
+            )
+            logger.info(f"[SMS] Queued email to {phone_number}: {message}")
+            return True
+        except Exception as e:
+            logger.error(f"[SMS] Failed to queue email to {phone_number}: {e}")
+            return False
 
     @staticmethod
     def _send_in_app_notification(title, message, metadata=None, user="system"):

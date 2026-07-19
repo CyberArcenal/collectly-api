@@ -495,3 +495,91 @@ def generate_submitted_email(data: Dict[str, Any]) -> str:
     """
 
     return _base_layout(content, 'Loan Application Received', data)
+  
+  
+def generate_pending_reminder_email(data: Dict[str, Any]) -> str:
+    """
+    Generate reminder email for pending loan applications (admin reminder to review).
+
+    Args:
+        data: {
+            'applicant_name': str,
+            'application_id': int,
+            'purpose': str,
+            'amount': float,
+            'days_waiting': int,  # number of days since submission
+            'company_name': str,
+            'branch_address': str,
+            'contact_email': str,
+            'contact_phone': str,
+        }
+
+    Returns:
+        str: Complete HTML email
+    """
+    applicant_name = data.get('applicant_name', 'Borrower')
+    application_id = data.get('application_id', 'N/A')
+    purpose = data.get('purpose', 'General loan')
+    amount = data.get('amount', 0)
+    days_waiting = data.get('days_waiting', 0)
+
+    # Determine urgency tone based on waiting days
+    if days_waiting >= 7:
+        urgency_note = "⚠️ This application has been pending for over a week. Please prioritize."
+    elif days_waiting >= 3:
+        urgency_note = "⏳ This application is approaching the 5‑day review target."
+    else:
+        urgency_note = "🕒 This application is within the normal review window."
+
+    content = f"""
+    <div style="text-align: center;">
+      <div class="status-badge status-pending">⏳ Pending Review</div>
+      <div class="greeting">Reminder: Pending Loan Application</div>
+      <p class="message-body" style="font-size: 15px; color: {COLORS['textSecondary']}; margin-bottom: 12px;">
+        The following loan application has been waiting for review for <strong>{days_waiting} days</strong>.
+      </p>
+      <p style="font-size: 14px; color: {COLORS['warning']}; margin-top: -6px;">
+        {urgency_note}
+      </p>
+    </div>
+
+    <div class="details-grid">
+      <div class="detail-row">
+        <span class="detail-label">Application ID</span>
+        <span class="detail-value">#{application_id}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Applicant</span>
+        <span class="detail-value">{applicant_name}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Purpose</span>
+        <span class="detail-value">{purpose}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Amount Requested</span>
+        <span class="detail-value" style="color: {COLORS['primary']}; font-size: 18px;">{format_currency(amount)}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Days Waiting</span>
+        <span class="detail-value" style="color: {COLORS['warning']};">{days_waiting} days</span>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="message-body">
+      <p><strong>Suggested Actions:</strong></p>
+      <ul style="margin: 8px 0 0 0; padding-left: 20px; list-style: none;">
+        <li style="margin-bottom: 6px;">📋 Review the application details</li>
+        <li style="margin-bottom: 6px;">✅ Make a decision (approve/reject) or request additional documents</li>
+        <li style="margin-bottom: 6px;">📧 Notify the applicant of the outcome</li>
+      </ul>
+      <p style="margin-top: 12px; font-size: 14px; background: {COLORS['bgLight']}; padding: 12px 16px; border-radius: 8px; border-left: 4px solid {COLORS['warning']};">
+        📞 <strong>Need assistance?</strong> Contact support at <a href="mailto:{data.get('contact_email', 'support@collectly.ph')}" style="color: {COLORS['primary']};">{data.get('contact_email', 'support@collectly.ph')}</a>.
+      </p>
+    </div>
+    """
+
+    return _base_layout(content, 'Pending Loan Reminder', data)
+  

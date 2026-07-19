@@ -7,10 +7,11 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from audit.utils.log import log_audit_event
+from notifications.models.notification_log import NotificationLog
+from notifications.services.notification_log import NotificationLogService
 from payments.models.payment_transaction import PaymentTransaction
 from debts.models.debt import Debt
 from notifications.services.notification import NotificationService
-from notifications.tasks import send_email_task
 from notifications.email_templates.debt_status import generate_paid_email
 from system_settings.utils import (
     email_enabled,
@@ -38,26 +39,44 @@ class PaymentTransactionStateTransitionService:
     def _get_email_data():
         """Get common email configuration data from system settings."""
         return {
-            'company_name': get_system_setting('company_name', 'Collectly'),
-            'branch_address': get_system_setting('branch_location', 'Manila, Philippines'),
-            'contact_email': get_system_setting('smtp_from_email', 'support@collectly.ph'),
-            'contact_phone': get_system_setting('twilio_phone_number', '+63 (2) 8123-4567'),
+            "company_name": get_system_setting("company_name", "Collectly"),
+            "branch_address": get_system_setting(
+                "branch_location", "Manila, Philippines"
+            ),
+            "contact_email": get_system_setting(
+                "smtp_from_email", "support@collectly.ph"
+            ),
+            "contact_phone": get_system_setting(
+                "twilio_phone_number", "+63 (2) 8123-4567"
+            ),
         }
 
     @staticmethod
     def _send_email(recipient, subject, html, text=None, user="system"):
-        """Send email using Celery task."""
+        """
+        Send email using Celery task.
+
+        Args:
+            recipient: Email recipient
+            subject: Email subject
+            html: HTML content
+            text: Plain text content (optional, will strip HTML if not provided)
+            user: User performing the action
+        """
         if text is None and html:
-            text = re.sub(r'<[^>]+>', '', html)
+            # Strip HTML tags to get plain text
+            text = re.sub(r"<[^>]+>", "", html)
 
         try:
-            send_email_task.delay(
-                to=recipient,
-                subject=subject,
-                html=html,
-                text=text or "",
-                log_id=None,
-                is_retry=False,
+            NotificationLogService.create(
+                data={
+                    "channel": NotificationLog.Channel.EMAIL,
+                    "recipient": recipient,
+                    "subject": subject,
+                    "payload": html,
+                },
+                user=user,
+                request=None,
             )
             logger.info(f"[Email] Queued email to {recipient}: {subject}")
             return True
@@ -67,9 +86,30 @@ class PaymentTransactionStateTransitionService:
 
     @staticmethod
     def _send_sms(phone_number, message, user="system"):
-        """Send SMS (placeholder)."""
-        logger.info(f"[SMS] Would send to {phone_number}: {message}")
-        return True
+        """
+        Send SMS (placeholder - implement with Twilio).
+
+        Args:
+            phone_number: Recipient phone number
+            message: SMS message
+            user: User performing the action
+        """
+
+        try:
+            NotificationLogService.create(
+                data={
+                    "channel": NotificationLog.Channel.SMS,
+                    "recipient": phone_number,
+                    "payload": message,
+                },
+                user=user,
+                request=None,
+            )
+            logger.info(f"[SMS] Queued email to {phone_number}: {message}")
+            return True
+        except Exception as e:
+            logger.error(f"[SMS] Failed to queue email to {phone_number}: {e}")
+            return False
 
     @staticmethod
     def _send_in_app_notification(title, message, metadata=None, user="system"):
@@ -77,13 +117,13 @@ class PaymentTransactionStateTransitionService:
         try:
             NotificationService.create(
                 data={
-                    'title': title,
-                    'message': message,
-                    'type': 'payment_confirmation',
-                    'metadata': metadata or {},
+                    "title": title,
+                    "message": message,
+                    "type": "payment_confirmation",
+                    "metadata": metadata or {},
                 },
                 user=user,
-                request=None
+                request=None,
             )
             return True
         except Exception as e:
@@ -93,12 +133,13 @@ class PaymentTransactionStateTransitionService:
     @staticmethod
     def _get_debt_with_borrower(debt_id):
         """Get debt with borrower relation."""
-        debt = Debt.objects.select_related('borrower').filter(
-            id=debt_id,
-            deleted_at__isnull=True
-        ).first()
+        debt = (
+            Debt.objects.select_related("borrower")
+            .filter(id=debt_id, deleted_at__isnull=True)
+            .first()
+        )
         if not debt:
-            raise ValidationError({'detail': f'Debt #{debt_id} not found'})
+            raise ValidationError({"detail": f"Debt #{debt_id} not found"})
         return debt
 
     # ============================================================
@@ -121,22 +162,22 @@ class PaymentTransactionStateTransitionService:
 
         debt = Debt.objects.filter(id=payment.debt_id).first()
         if not debt:
-            raise ValidationError({'detail': 'Payment has no associated debt.'})
+            raise ValidationError({"detail": "Payment has no associated debt."})
 
         old_paid_amount = debt.paid_amount
         old_remaining = debt.remaining_amount
-        
+
         logger.info(
-        f"[PaymentTransition] Before update: debt #{debt.id} "
-        f"paid={old_paid_amount}, remaining={old_remaining}"
-    )
+            f"[PaymentTransition] Before update: debt #{debt.id} "
+            f"paid={old_paid_amount}, remaining={old_remaining}"
+        )
 
         # Only update paid_amount - signal handles remaining and status
         debt.paid_amount += payment.amount
         if debt.paid_amount < 0:
-            debt.paid_amount = Decimal('0')
+            debt.paid_amount = Decimal("0")
         debt.updated_at = timezone.now()
-        debt.save(update_fields=['paid_amount', 'remaining_amount', 'updated_at'])
+        debt.save(update_fields=["paid_amount", "remaining_amount", "updated_at"])
 
         logger.info(
             f"[PaymentTransition] After save (before refresh): debt #{debt.id} "
@@ -155,21 +196,21 @@ class PaymentTransactionStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='payment_apply',
-            model_name='Debt',
+            action_type="payment_apply",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'before': {
-                    'paid_amount': float(old_paid_amount),
-                    'remaining_amount': float(old_remaining),
+                "before": {
+                    "paid_amount": float(old_paid_amount),
+                    "remaining_amount": float(old_remaining),
                 },
-                'after': {
-                    'paid_amount': float(debt.paid_amount),
-                    'remaining_amount': float(debt.remaining_amount),
+                "after": {
+                    "paid_amount": float(debt.paid_amount),
+                    "remaining_amount": float(debt.remaining_amount),
                 },
-                'payment_id': payment.id,
-                'payment_amount': float(payment.amount),
-            }
+                "payment_id": payment.id,
+                "payment_amount": float(payment.amount),
+            },
         )
 
         logger.info(
@@ -195,15 +236,15 @@ class PaymentTransactionStateTransitionService:
 
         debt = Debt.objects.filter(id=payment.debt_id).first()
         if not debt:
-            raise ValidationError({'detail': 'Payment has no associated debt.'})
+            raise ValidationError({"detail": "Payment has no associated debt."})
 
         old_paid_amount = debt.paid_amount
         old_remaining = debt.remaining_amount
 
         # Only update paid_amount - signal handles remaining and status
-        debt.paid_amount = max(Decimal('0'), debt.paid_amount - payment.amount)
+        debt.paid_amount = max(Decimal("0"), debt.paid_amount - payment.amount)
         debt.updated_at = timezone.now()
-        debt.save(update_fields=['paid_amount', 'remaining_amount', 'updated_at'])
+        debt.save(update_fields=["paid_amount", "remaining_amount", "updated_at"])
 
         # Refresh to get updated remaining from signal
         debt.refresh_from_db()
@@ -212,21 +253,21 @@ class PaymentTransactionStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='payment_reverse',
-            model_name='Debt',
+            action_type="payment_reverse",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'before': {
-                    'paid_amount': float(old_paid_amount),
-                    'remaining_amount': float(old_remaining),
+                "before": {
+                    "paid_amount": float(old_paid_amount),
+                    "remaining_amount": float(old_remaining),
                 },
-                'after': {
-                    'paid_amount': float(debt.paid_amount),
-                    'remaining_amount': float(debt.remaining_amount),
+                "after": {
+                    "paid_amount": float(debt.paid_amount),
+                    "remaining_amount": float(debt.remaining_amount),
                 },
-                'payment_id': payment.id,
-                'payment_amount': float(payment.amount),
-            }
+                "payment_id": payment.id,
+                "payment_amount": float(payment.amount),
+            },
         )
 
         logger.info(
@@ -239,7 +280,9 @@ class PaymentTransactionStateTransitionService:
 
     @staticmethod
     @transaction.atomic
-    def update_payment_amount(payment, old_amount, new_amount, user="system", request=None):
+    def update_payment_amount(
+        payment, old_amount, new_amount, user="system", request=None
+    ):
         """
         Update the amount of a payment and adjust debt balance.
         remaining_amount and status are handled automatically by Debt signals.
@@ -256,7 +299,7 @@ class PaymentTransactionStateTransitionService:
 
         debt = Debt.objects.filter(id=payment.debt_id).first()
         if not debt:
-            raise ValidationError({'detail': 'Payment has no associated debt.'})
+            raise ValidationError({"detail": "Payment has no associated debt."})
 
         old_paid_amount = debt.paid_amount
         old_remaining = debt.remaining_amount
@@ -264,13 +307,13 @@ class PaymentTransactionStateTransitionService:
         # Only update paid_amount - signal handles remaining and status
         debt.paid_amount += Decimal(str(diff))
         if debt.paid_amount < 0:
-            debt.paid_amount = Decimal('0')
+            debt.paid_amount = Decimal("0")
         debt.updated_at = timezone.now()
-        debt.save(update_fields=['paid_amount', 'remaining_amount', 'updated_at'])
+        debt.save(update_fields=["paid_amount", "remaining_amount", "updated_at"])
 
         # Update payment amount
         payment.amount = Decimal(str(new_amount))
-        payment.save(update_fields=['amount', 'updated_at'])
+        payment.save(update_fields=["amount", "updated_at"])
 
         # Refresh to get updated remaining from signal
         debt.refresh_from_db()
@@ -279,23 +322,23 @@ class PaymentTransactionStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='payment_amount_update',
-            model_name='Debt',
+            action_type="payment_amount_update",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'before': {
-                    'paid_amount': float(old_paid_amount),
-                    'remaining_amount': float(old_remaining),
+                "before": {
+                    "paid_amount": float(old_paid_amount),
+                    "remaining_amount": float(old_remaining),
                 },
-                'after': {
-                    'paid_amount': float(debt.paid_amount),
-                    'remaining_amount': float(debt.remaining_amount),
+                "after": {
+                    "paid_amount": float(debt.paid_amount),
+                    "remaining_amount": float(debt.remaining_amount),
                 },
-                'payment_id': payment.id,
-                'old_amount': float(old_amount),
-                'new_amount': float(new_amount),
-                'diff': float(diff),
-            }
+                "payment_id": payment.id,
+                "old_amount": float(old_amount),
+                "new_amount": float(new_amount),
+                "diff": float(diff),
+            },
         )
 
         logger.info(
@@ -308,7 +351,9 @@ class PaymentTransactionStateTransitionService:
 
     @staticmethod
     @transaction.atomic
-    def transfer_payment(payment, old_debt_id, new_debt_id, user="system", request=None):
+    def transfer_payment(
+        payment, old_debt_id, new_debt_id, user="system", request=None
+    ):
         """
         Transfer a payment from one debt to another.
         remaining_amount and status are handled automatically by Debt signals.
@@ -322,7 +367,7 @@ class PaymentTransactionStateTransitionService:
         old_debt = Debt.objects.filter(id=old_debt_id).first()
         new_debt = Debt.objects.filter(id=new_debt_id).first()
         if not old_debt or not new_debt:
-            raise ValidationError({'detail': 'Old or new debt not found.'})
+            raise ValidationError({"detail": "Old or new debt not found."})
 
         # Store old values for audit
         old_debt_old_paid = old_debt.paid_amount
@@ -331,61 +376,61 @@ class PaymentTransactionStateTransitionService:
         new_debt_old_remaining = new_debt.remaining_amount
 
         # Remove from old debt (signal handles remaining)
-        old_debt.paid_amount = max(Decimal('0'), old_debt.paid_amount - payment.amount)
+        old_debt.paid_amount = max(Decimal("0"), old_debt.paid_amount - payment.amount)
         old_debt.updated_at = timezone.now()
-        old_debt.save(update_fields=['paid_amount', 'remaining_amount', 'updated_at'])
+        old_debt.save(update_fields=["paid_amount", "remaining_amount", "updated_at"])
         old_debt.refresh_from_db()
 
         # Add to new debt (signal handles remaining)
         new_debt.paid_amount += payment.amount
         new_debt.updated_at = timezone.now()
-        new_debt.save(update_fields=['paid_amount', 'remaining_amount', 'updated_at'])
+        new_debt.save(update_fields=["paid_amount", "remaining_amount", "updated_at"])
         new_debt.refresh_from_db()
 
         # Update payment debt reference
         payment.debt = new_debt
         payment.updated_at = timezone.now()
-        payment.save(update_fields=['debt', 'updated_at'])
+        payment.save(update_fields=["debt", "updated_at"])
 
         # Audit logs
         log_audit_event(
             request=request,
             user=user,
-            action_type='payment_transfer_remove',
-            model_name='Debt',
+            action_type="payment_transfer_remove",
+            model_name="Debt",
             object_id=str(old_debt.id),
             changes={
-                'before': {
-                    'paid_amount': float(old_debt_old_paid),
-                    'remaining_amount': float(old_debt_old_remaining),
+                "before": {
+                    "paid_amount": float(old_debt_old_paid),
+                    "remaining_amount": float(old_debt_old_remaining),
                 },
-                'after': {
-                    'paid_amount': float(old_debt.paid_amount),
-                    'remaining_amount': float(old_debt.remaining_amount),
+                "after": {
+                    "paid_amount": float(old_debt.paid_amount),
+                    "remaining_amount": float(old_debt.remaining_amount),
                 },
-                'payment_id': payment.id,
-                'payment_amount': float(payment.amount),
-            }
+                "payment_id": payment.id,
+                "payment_amount": float(payment.amount),
+            },
         )
 
         log_audit_event(
             request=request,
             user=user,
-            action_type='payment_transfer_add',
-            model_name='Debt',
+            action_type="payment_transfer_add",
+            model_name="Debt",
             object_id=str(new_debt.id),
             changes={
-                'before': {
-                    'paid_amount': float(new_debt_old_paid),
-                    'remaining_amount': float(new_debt_old_remaining),
+                "before": {
+                    "paid_amount": float(new_debt_old_paid),
+                    "remaining_amount": float(new_debt_old_remaining),
                 },
-                'after': {
-                    'paid_amount': float(new_debt.paid_amount),
-                    'remaining_amount': float(new_debt.remaining_amount),
+                "after": {
+                    "paid_amount": float(new_debt.paid_amount),
+                    "remaining_amount": float(new_debt.remaining_amount),
                 },
-                'payment_id': payment.id,
-                'payment_amount': float(payment.amount),
-            }
+                "payment_id": payment.id,
+                "payment_amount": float(payment.amount),
+            },
         )
 
         logger.info(
@@ -405,45 +450,55 @@ class PaymentTransactionStateTransitionService:
     def on_confirm(payment: PaymentTransaction, user="system", request=None):
         """Handle payment confirmation."""
         if payment.confirmed:
-            logger.info(f"[PaymentTransition] Payment #{payment.id} already confirmed, skipping.")
+            logger.info(
+                f"[PaymentTransition] Payment #{payment.id} already confirmed, skipping."
+            )
             return payment
 
-        logger.info(f"[PaymentTransition] on_confirm: payment_id={payment.id}, user={user}")
+        logger.info(
+            f"[PaymentTransition] on_confirm: payment_id={payment.id}, user={user}"
+        )
 
         # 1. Apply payment (updates paid_amount; signal handles remaining & status)
         PaymentTransactionStateTransitionService.apply_payment(payment, user, request)
 
         # 2. Reload debt with borrower (after signal updates)
-        debt_with_borrower = PaymentTransactionStateTransitionService._get_debt_with_borrower(
-            payment.debt_id
+        debt_with_borrower = (
+            PaymentTransactionStateTransitionService._get_debt_with_borrower(
+                payment.debt_id
+            )
         )
 
         # 3. Check partial payment setting
         allow_partial = enable_partial_payment()
-        if not allow_partial and debt_with_borrower.remaining_amount > Decimal('0.01'):
+        if not allow_partial and debt_with_borrower.remaining_amount > Decimal("0.01"):
             # Reverse the payment
-            PaymentTransactionStateTransitionService.reverse_payment(payment, user, request)
-            raise ValidationError({
-                'detail': 'Partial payments are disabled. You can only pay the full remaining amount.'
-            })
+            PaymentTransactionStateTransitionService.reverse_payment(
+                payment, user, request
+            )
+            raise ValidationError(
+                {
+                    "detail": "Partial payments are disabled. You can only pay the full remaining amount."
+                }
+            )
 
         # 4. Mark payment as confirmed
         payment.confirmed = True
         payment.updated_at = timezone.now()
-        payment.save(update_fields=['confirmed', 'updated_at'])
+        payment.save(update_fields=["confirmed", "updated_at"])
 
         # 5. Notifications
         PaymentTransactionStateTransitionService._send_in_app_notification(
             title="💳 Payment Confirmed",
             message=(
-                f'Payment of ₱{payment.amount:,.2f} for debt '
+                f"Payment of ₱{payment.amount:,.2f} for debt "
                 f'"{debt_with_borrower.name}" has been confirmed.'
             ),
             metadata={
-                'payment_id': payment.id,
-                'debt_id': debt_with_borrower.id,
-                'amount': float(payment.amount),
-                'borrower_id': debt_with_borrower.borrower_id,
+                "payment_id": payment.id,
+                "debt_id": debt_with_borrower.id,
+                "amount": float(payment.amount),
+                "borrower_id": debt_with_borrower.borrower_id,
             },
             user=user,
         )
@@ -452,13 +507,15 @@ class PaymentTransactionStateTransitionService:
         if email_enabled() and borrower and borrower.email:
             try:
                 email_data = PaymentTransactionStateTransitionService._get_email_data()
-                html = generate_paid_email({
-                    'debt_id': debt_with_borrower.id,
-                    'debtor_name': borrower.name,
-                    'original_amount': debt_with_borrower.total_amount,
-                    'total_paid': payment.amount,
-                    **email_data,
-                })
+                html = generate_paid_email(
+                    {
+                        "debt_id": debt_with_borrower.id,
+                        "debtor_name": borrower.name,
+                        "original_amount": debt_with_borrower.total_amount,
+                        "total_paid": payment.amount,
+                        **email_data,
+                    }
+                )
                 PaymentTransactionStateTransitionService._send_email(
                     recipient=borrower.email,
                     subject="✅ Payment Confirmed – Thank You!",
@@ -466,7 +523,9 @@ class PaymentTransactionStateTransitionService:
                     user=user,
                 )
             except Exception as e:
-                logger.error(f"[PaymentTransition] Failed to send payment confirmation email: {e}")
+                logger.error(
+                    f"[PaymentTransition] Failed to send payment confirmation email: {e}"
+                )
 
         if sms_enabled() and borrower and borrower.contact:
             try:
@@ -482,19 +541,21 @@ class PaymentTransactionStateTransitionService:
                     user=user,
                 )
             except Exception as e:
-                logger.error(f"[PaymentTransition] Failed to send payment confirmation SMS: {e}")
+                logger.error(
+                    f"[PaymentTransition] Failed to send payment confirmation SMS: {e}"
+                )
 
         # 6. Audit log
         log_audit_event(
             request=request,
             user=user,
-            action_type='payment_confirm',
-            model_name='PaymentTransaction',
+            action_type="payment_confirm",
+            model_name="PaymentTransaction",
             object_id=str(payment.id),
             changes={
-                'before': {'confirmed': False},
-                'after': {'confirmed': True},
-            }
+                "before": {"confirmed": False},
+                "after": {"confirmed": True},
+            },
         )
 
         logger.info(f"[PaymentTransition] Payment #{payment.id} confirmed")
@@ -504,10 +565,12 @@ class PaymentTransactionStateTransitionService:
     @transaction.atomic
     def on_void(payment, user="system", request=None):
         """Handle payment voiding."""
-        logger.info(f"[PaymentTransition] on_void: payment_id={payment.id}, user={user}")
+        logger.info(
+            f"[PaymentTransition] on_void: payment_id={payment.id}, user={user}"
+        )
 
         if payment.deleted_at:
-            raise ValidationError({'detail': 'Payment is already voided.'})
+            raise ValidationError({"detail": "Payment is already voided."})
 
         # 1. Reverse payment (signal handles remaining & status)
         PaymentTransactionStateTransitionService.reverse_payment(payment, user, request)
@@ -516,8 +579,10 @@ class PaymentTransactionStateTransitionService:
         payment.soft_delete()
 
         # 3. Re-fetch debt for notifications
-        debt_with_borrower = PaymentTransactionStateTransitionService._get_debt_with_borrower(
-            payment.debt_id
+        debt_with_borrower = (
+            PaymentTransactionStateTransitionService._get_debt_with_borrower(
+                payment.debt_id
+            )
         )
 
         # 4. In-app notification
@@ -525,13 +590,13 @@ class PaymentTransactionStateTransitionService:
             PaymentTransactionStateTransitionService._send_in_app_notification(
                 title="🔄 Payment Voided",
                 message=(
-                    f'Your payment of ₱{payment.amount:,.2f} for debt '
+                    f"Your payment of ₱{payment.amount:,.2f} for debt "
                     f'"{debt_with_borrower.name}" has been voided.'
                 ),
                 metadata={
-                    'payment_id': payment.id,
-                    'debt_id': debt_with_borrower.id,
-                    'amount': float(payment.amount),
+                    "payment_id": payment.id,
+                    "debt_id": debt_with_borrower.id,
+                    "amount": float(payment.amount),
                 },
                 user=user,
             )
@@ -540,13 +605,13 @@ class PaymentTransactionStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='payment_void',
-            model_name='PaymentTransaction',
+            action_type="payment_void",
+            model_name="PaymentTransaction",
             object_id=str(payment.id),
             changes={
-                'before': {'status': 'active', 'deleted_at': None},
-                'after': {'status': 'voided', 'deleted_at': payment.deleted_at},
-            }
+                "before": {"status": "active", "deleted_at": None},
+                "after": {"status": "voided", "deleted_at": payment.deleted_at},
+            },
         )
 
         logger.info(f"[PaymentTransition] Payment #{payment.id} voided")
@@ -562,15 +627,17 @@ class PaymentTransactionStateTransitionService:
         )
 
         if refund_amount <= 0:
-            raise ValidationError({'detail': 'Refund amount must be positive.'})
+            raise ValidationError({"detail": "Refund amount must be positive."})
         if refund_amount > payment.amount:
-            raise ValidationError({
-                'detail': f'Refund amount cannot exceed payment amount (₱{payment.amount:,.2f}).'
-            })
+            raise ValidationError(
+                {
+                    "detail": f"Refund amount cannot exceed payment amount (₱{payment.amount:,.2f})."
+                }
+            )
 
         debt = Debt.objects.filter(id=payment.debt_id).first()
         if not debt:
-            raise ValidationError({'detail': 'Payment has no associated debt.'})
+            raise ValidationError({"detail": "Payment has no associated debt."})
 
         old_paid_amount = debt.paid_amount
         old_remaining = debt.remaining_amount
@@ -588,27 +655,27 @@ class PaymentTransactionStateTransitionService:
         )
 
         # 2. Adjust debt balance (signal handles remaining & status)
-        debt.paid_amount = max(Decimal('0'), debt.paid_amount - refund_amount)
+        debt.paid_amount = max(Decimal("0"), debt.paid_amount - refund_amount)
         debt.updated_at = timezone.now()
-        debt.save(update_fields=['paid_amount', 'remaining_amount', 'updated_at'])
+        debt.save(update_fields=["paid_amount", "remaining_amount", "updated_at"])
         debt.refresh_from_db()
 
         # 3. In-app notification
-        debt_with_borrower = PaymentTransactionStateTransitionService._get_debt_with_borrower(
-            debt.id
+        debt_with_borrower = (
+            PaymentTransactionStateTransitionService._get_debt_with_borrower(debt.id)
         )
         if debt_with_borrower.borrower:
             PaymentTransactionStateTransitionService._send_in_app_notification(
                 title="💰 Payment Refunded",
                 message=(
-                    f'A refund of ₱{refund_amount:,.2f} has been issued for your '
+                    f"A refund of ₱{refund_amount:,.2f} has been issued for your "
                     f'payment of ₱{payment.amount:,.2f} on debt "{debt_with_borrower.name}".'
                 ),
                 metadata={
-                    'payment_id': payment.id,
-                    'refund_id': refund.id,
-                    'debt_id': debt.id,
-                    'refund_amount': float(refund_amount),
+                    "payment_id": payment.id,
+                    "refund_id": refund.id,
+                    "debt_id": debt.id,
+                    "refund_amount": float(refund_amount),
                 },
                 user=user,
             )
@@ -617,34 +684,34 @@ class PaymentTransactionStateTransitionService:
         log_audit_event(
             request=request,
             user=user,
-            action_type='payment_refund',
-            model_name='PaymentTransaction',
+            action_type="payment_refund",
+            model_name="PaymentTransaction",
             object_id=str(refund.id),
             changes={
-                'original_payment_id': payment.id,
-                'refund_amount': float(refund_amount),
-                'amount': float(refund.amount),
-                'debt_id': debt.id,
-            }
+                "original_payment_id": payment.id,
+                "refund_amount": float(refund_amount),
+                "amount": float(refund.amount),
+                "debt_id": debt.id,
+            },
         )
 
         log_audit_event(
             request=request,
             user=user,
-            action_type='debt_refund',
-            model_name='Debt',
+            action_type="debt_refund",
+            model_name="Debt",
             object_id=str(debt.id),
             changes={
-                'before': {
-                    'paid_amount': float(old_paid_amount),
-                    'remaining_amount': float(old_remaining),
+                "before": {
+                    "paid_amount": float(old_paid_amount),
+                    "remaining_amount": float(old_remaining),
                 },
-                'after': {
-                    'paid_amount': float(debt.paid_amount),
-                    'remaining_amount': float(debt.remaining_amount),
+                "after": {
+                    "paid_amount": float(debt.paid_amount),
+                    "remaining_amount": float(debt.remaining_amount),
                 },
-                'refund_amount': float(refund_amount),
-            }
+                "refund_amount": float(refund_amount),
+            },
         )
 
         logger.info(

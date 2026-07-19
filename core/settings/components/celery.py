@@ -21,18 +21,18 @@ CELERY_TASK_ALWAYS_EAGER = False
 CELERY_BEAT_SCHEDULE = {
     # Retry failed notifications every hour
     "retry-failed-notifications": {
-        "task": "notifications.tasks.reminder.retry_failed_notifications",
+        "task": "notifications.tasks.retry_failed_notifications",
         "schedule": crontab(minute=0),
     },
     # Clean up old notification logs daily at 3 AM
     "cleanup-old-notification-logs": {
-        "task": "notifications.tasks.reminder.cleanup_old_notification_logs",
+        "task": "notifications.tasks.cleanup_old_notification_logs",
         "schedule": crontab(hour=3, minute=0),
         "args": (90,),
     },
     # Send scheduled notifications every 15 minutes
     "send-scheduled-notifications": {
-        "task": "notifications.tasks.reminder.send_scheduled_notifications",
+        "task": "notifications.tasks.send_scheduled_notifications",
         "schedule": crontab(minute="*/15"),
     },
     # Audit trail cleanup daily at 2 AM
@@ -47,7 +47,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     # Overdue reminders daily at 9 AM
     "send-overdue-reminders": {
-        "task": "notifications.tasks.reminder.send_overdue_reminders",
+        "task": "notifications.tasks.send_overdue_reminders",
         "schedule": crontab(hour=9, minute=0),
     },
     # Overdue status corrector daily at 1 AM

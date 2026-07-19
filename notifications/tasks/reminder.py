@@ -306,8 +306,7 @@ def cleanup_old_notification_logs(days=90):
             'message': f'Cleanup failed: {str(e)}'
         }
 
-
-@shared_task(name='notifications.tasks.send_scheduled_notifications')
+@shared_task
 def send_scheduled_notifications():
     """
     Send scheduled notifications that are due.

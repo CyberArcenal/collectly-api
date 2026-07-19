@@ -30,10 +30,13 @@ class NotificationLogListSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'recipient_email',
+            'recipient',
+            'channel',
             'subject',
             'status',
             'status_display',
             'retry_count',
+            'payload',
             'sent_at',
             'created_at',
             # CamelCase aliases
@@ -67,6 +70,8 @@ class NotificationLogReadSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'recipient_email',
+            'recipient',
+            'channel',
             'subject',
             'payload',
             'status',
@@ -126,6 +131,8 @@ class NotificationLogCreateSerializer(serializers.ModelSerializer):
         model = NotificationLog
         fields = [
             'recipient_email',
+            'recipient',
+            'channel',
             'subject',
             'payload',
             'status',
