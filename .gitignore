@@ -5,3 +5,4 @@
 manage.py
 TODO
 /.venv
+*.json

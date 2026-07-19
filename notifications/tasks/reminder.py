@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from django.core import cache
+from django.core.cache import cache
 from celery import shared_task
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings

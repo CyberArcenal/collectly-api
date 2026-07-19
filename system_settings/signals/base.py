@@ -19,7 +19,13 @@ logger = logging.getLogger(__name__)
 def system_setting_pre_save(sender, instance, **kwargs):
     """Log before saving a system setting."""
     try:
-        logger.info(f"[SystemSettingSignal] before_save: id={instance.id}, key={instance.key}, setting_type={instance.setting_type}, value={instance.value[:50] if instance.value else None}...")
+        # ✅ Convert value to string first before slicing
+        value_str = str(instance.value) if instance.value is not None else "None"
+        logger.info(
+            f"[SystemSettingSignal] before_save: id={instance.id}, "
+            f"key={instance.key}, setting_type={instance.setting_type}, "
+            f"value={value_str[:50]}..."
+        )
     except Exception as e:
         logger.error(f"[SystemSettingSignal] before_save error: {e}")
         raise
@@ -43,20 +49,20 @@ def system_setting_pre_save_capture_old(sender, instance, **kwargs):
 
 @receiver(post_save, sender=SystemSetting)
 def system_setting_post_save(sender, instance, created, **kwargs):
-    """
-    Handle post-save events for SystemSetting.
-    - On create: call on_apply
-    - On update: call on_apply with old and new values
-    - Clear cache
-    """
+    """Handle post-save events for SystemSetting."""
     try:
-        logger.info(f"[SystemSettingSignal] after_save: id={instance.id}, key={instance.key}, setting_type={instance.setting_type}, created={created}")
+        # ✅ Safe logging using str()
+        value_str = str(instance.value) if instance.value is not None else "None"
+        logger.info(
+            f"[SystemSettingSignal] after_save: id={instance.id}, "
+            f"key={instance.key}, setting_type={instance.setting_type}, "
+            f"created={created}, value={value_str[:50]}..."
+        )
         
-        # Clear cache (LocMemCache doesn't implement delete_pattern)
+        # Clear cache
         try:
             cache.delete_pattern("setting_*")
         except AttributeError:
-            # Fallback: clear whole cache when pattern delete is unavailable
             try:
                 cache.clear()
             except Exception:
@@ -74,7 +80,6 @@ def system_setting_post_save(sender, instance, created, **kwargs):
             # Special handling for interest rate changes
             interest_rate_keys = ["default_interest_rate", "default_penalty_rate"]
             if instance.key in interest_rate_keys and old_value != instance.value:
-                # Log interest rate change
                 from debts.models.interest_rate_change_log import InterestRateChangeLog
                 
                 try:
