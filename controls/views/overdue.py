@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from debts.tasks.debt import (
+from debts.tasks import (
     force_overdue_correction,
     get_overdue_corrector_status,
     force_overdue_update,

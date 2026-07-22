@@ -10,11 +10,11 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from debts.tasks.debt import (
+from debts.tasks import (
     check_overdue_status_health,
     check_zero_balance_health,
 )
-from payments.tasks.payment import check_penalty_application_health
+from payments.tasks import check_penalty_application_health
 from controls.serializers import (
     HealthCheckResponseSerializer,
     ErrorResponseSerializer,

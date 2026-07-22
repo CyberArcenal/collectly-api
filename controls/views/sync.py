@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from sync.tasks.sync import (
+from sync.tasks import (
     sync_health_check,
     force_sync_health_check,
     auto_retry_failed_queue_items,

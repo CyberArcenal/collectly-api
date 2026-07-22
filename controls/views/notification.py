@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from notifications.tasks.reminder import force_overdue_reminders
+from notifications.tasks import force_overdue_reminders
 from notifications.models.notification_log import NotificationLog
 
 from controls.serializers import (
@@ -169,7 +169,7 @@ class TriggerNotificationRetryView(APIView):
             )
 
         try:
-            from notifications.tasks.reminder import retry_failed_notifications
+            from notifications.tasks import retry_failed_notifications
             task = retry_failed_notifications.delay()
             log_audit_event(
                 request=request,

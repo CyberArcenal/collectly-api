@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from debts.tasks.debt import force_interest_accrual, get_interest_accrual_stats
+from debts.tasks import force_interest_accrual, get_interest_accrual_stats
 from controls.serializers import (
     TaskTriggerResponseSerializer,
     TaskStatusResponseSerializer,

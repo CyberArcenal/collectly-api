@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from users.tasks.user import (
+from users.tasks import (
     force_security_cleanup,
     force_security_monitor,
     force_suspend_inactive,

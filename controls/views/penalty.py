@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from payments.tasks.payment import force_penalty_application, get_penalty_scheduler_status
+from payments.tasks import force_penalty_application, get_penalty_scheduler_status
 from controls.serializers import (
     TaskTriggerResponseSerializer,
     TaskStatusResponseSerializer,

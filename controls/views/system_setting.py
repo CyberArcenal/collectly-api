@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from system_settings.tasks.system_setting import (
+from system_settings.tasks import (
     force_settings_cache_refresh,
     force_settings_validate,
     force_settings_backup,

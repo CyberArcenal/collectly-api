@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from loan_applications.tasks.application import (
+from loan_applications.tasks import (
     force_auto_approve,
     force_cleanup_stale,
     force_pending_reminders,

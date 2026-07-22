@@ -9,7 +9,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 from rest_framework import serializers
-from audit.tasks.log import force_audit_cleanup, get_audit_cleanup_stats
+from audit.tasks.cleanup import force_audit_cleanup, get_audit_cleanup_stats
 
 from controls.serializers import (
     TaskTriggerResponseSerializer,

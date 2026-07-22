@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from payment_methods.tasks.payment_method import (
+from payment_methods.tasks import (
     recalculate_payment_method_stats,
     force_payment_method_stats_recalc,
     cleanup_unused_payment_methods,

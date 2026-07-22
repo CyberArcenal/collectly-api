@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from groups.tasks.group import (
+from groups.tasks import (
     bulk_assign_borrowers_to_group,
     update_group_statistics,
     cleanup_orphaned_memberships,

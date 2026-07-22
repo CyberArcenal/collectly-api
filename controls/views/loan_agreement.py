@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from loan_agreements.tasks.loan_agreement import (
+from loan_agreements.tasks import (
     cleanup_old_draft_agreements,
     notify_overdue_agreements,
     auto_assign_agreements,

@@ -10,7 +10,7 @@ from utils.response import _success, _error
 from utils.security import get_client_ip
 from audit.utils.log import log_audit_event
 
-from borrowers.tasks.borrower import (
+from borrowers.tasks import (
     recalculate_credit_scores,
     force_credit_score_recalc,
     merge_duplicate_borrowers,
