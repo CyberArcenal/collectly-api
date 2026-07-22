@@ -124,6 +124,12 @@ class NotificationLogCRUDView(APIView):
                 description="Search by email, subject, or payload",
                 required=False,
             ),
+            OpenApiParameter(
+                name="channel",
+                type=str,
+                description="channel: email or sms",
+                required=False,
+            ),
         ],
         responses={
             200: NotificationLogListResponseSerializer,
@@ -185,6 +191,7 @@ class NotificationLogCRUDView(APIView):
                 "from_date": request.query_params.get("from_date"),
                 "to_date": request.query_params.get("to_date"),
                 "search": request.query_params.get("search"),
+                "channel": request.query_params.get("channel"),
             }
             filters = filter_cleaner(filters)
 

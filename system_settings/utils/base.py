@@ -375,8 +375,10 @@ def default_loan_term_months():
 # ============================================================
 
 def email_enabled():
-    return get_bool("email_enabled", SettingType.NOTIFICATIONS, False)
-
+    value = get_bool("email_enabled", SettingType.NOTIFICATIONS, False)
+    if value is False:
+        logger.info("[Settings] email_enabled returned False (default or explicitly disabled).")
+    return value
 
 def sms_enabled():
     return get_bool("sms_enabled", SettingType.NOTIFICATIONS, False)

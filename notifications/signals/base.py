@@ -69,10 +69,10 @@ def notification_log_pre_save_capture_old(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=NotificationLog)
-def notification_log_post_save(sender, instance, created, **kwargs):
+def notification_log_post_save(sender, instance:NotificationLog, created, **kwargs):
     """Handle post-save events for NotificationLog."""
     try:
-        logger.info(f"[NotificationLogSignal] after_save: id={instance.id}, recipient_email={instance.recipient_email}, status={instance.status}, created={created}")
+        logger.info(f"[NotificationLogSignal] after_save: id={instance.id}, recipient={instance.recipient}, status={instance.status}, created={created}")
         
         service = NotificationLogStateTransitionService()
         

@@ -1,4 +1,3 @@
-# docker-compose.yml
 version: '3.8'
 
 services:
@@ -8,29 +7,34 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    env_file:
+      - .env
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - collectly_net
 
   redis:
     image: redis:7-alpine
     container_name: collectly_redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - redis_data:/data
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - collectly_net
+
 
   web:
     build: .
@@ -38,36 +42,41 @@ services:
     command: python manage.py runserver 0.0.0.0:8001
     volumes:
       - .:/app
-      - shared_temp:/shared_temp 
+      - shared_temp:/shared_temp
+      - static_data:/app/static
+      - media_data:/app/media
     ports:
       - "8001:8001"
-    environment:
-      - DJANGO_SETTINGS_MODULE=core.settings.dev
-      - DATABASE_URL=${POSTGRES_URL}
-      - REDIS_URL=redis://redis:6379/0
-      - TMPDIR=/shared_temp
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - collectly_net
 
   celery:
     build: .
     container_name: collectly_celery
-    command: celery -A core worker --loglevel=info --without-gossip --without-mingle --without-heartbeat
+    command: celery -A core worker --loglevel=info --concurrency=4 --without-gossip --without-mingle --without-heartbeat
     volumes:
       - .:/app
-    environment:
-      - DJANGO_SETTINGS_MODULE=core.settings.dev
-      - DATABASE_URL=${POSTGRES_URL}
-      - REDIS_URL=redis://redis:6379/0
-      - TMPDIR=/shared_temp
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - collectly_net
 
   celery-beat:
     build: .
@@ -75,18 +84,24 @@ services:
     command: celery -A core beat --loglevel=info
     volumes:
       - .:/app
-      - shared_temp:/shared_temp 
-    environment:
-      - DJANGO_SETTINGS_MODULE=core.settings.dev
-      - DATABASE_URL=${POSTGRES_URL}
-      - REDIS_URL=redis://redis:6379/0
+      - shared_temp:/shared_temp
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - collectly_net
 
 volumes:
   postgres_data:
   redis_data:
   shared_temp:
+  static_data:
+  media_data:
+
+networks:
+  collectly_net:
+    driver: bridge

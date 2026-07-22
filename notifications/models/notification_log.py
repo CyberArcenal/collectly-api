@@ -18,6 +18,7 @@ class NotificationLog(BaseModel):
         RESEND = 'resend', 'Resend'
     
     recipient_email = models.EmailField(
+        null=True, blank=True,
         help_text="Recipient email address"
     )
     channel = models.CharField(

@@ -50,6 +50,8 @@ class NotificationLogService:
                     Q(subject__icontains=search) |
                     Q(payload__icontains=search)
                 )
+            if filters.get('channel'):   
+                qs = qs.filter(channel=filters['channel'])
         
         # Apply sorting
         sort_by = camel_to_snake(sort_by)
@@ -67,27 +69,76 @@ class NotificationLogService:
         """
         Create a new notification log.
         """
-        log_entry = NotificationLog.objects.create(
-        channel=data.get('channel', NotificationLog.Channel.EMAIL),
-        recipient=data['recipient'],
-        subject=data.get('subject'),
-        payload=data.get('payload'),
-        status=NotificationLog.Status.QUEUED
-    )
-        
-        # Audit log
-        if user:
-            log_audit_event(
-                request=request,
-                user=user,
-                action_type='notification_log_create',
-                model_name='NotificationLog',
-                object_id=str(log_entry.id),
-                changes={'data': data}
+        # ============================================================
+        # LOG ENTRY
+        # ============================================================
+        logger.info(
+            f"[NotificationLogService.create] Called with data={data}, user={user}"
+        )
+
+        try:
+            channel = data.get('channel', NotificationLog.Channel.EMAIL)
+            recipient = data.get('recipient')
+            
+            # Determine recipient_email only for email channels
+            recipient_email = data.get('recipient_email')  # allow override
+            if channel == NotificationLog.Channel.EMAIL and not recipient_email:
+                recipient_email = recipient  # use the recipient as email
+
+            # ============================================================
+            # LOG THE DETERMINED VALUES
+            # ============================================================
+            logger.info(
+                f"[NotificationLogService.create] channel={channel}, "
+                f"recipient={recipient}, recipient_email={recipient_email}, "
+                f"subject={data.get('subject')}, payload length={len(data.get('payload', ''))}"
             )
-        
-        logger.info(f"Notification log created: {log_entry.id}")
-        return log_entry
+
+            # ============================================================
+            # CREATE THE LOG ENTRY
+            # ============================================================
+            log_entry = NotificationLog.objects.create(
+                channel=channel,
+                recipient=recipient,
+                recipient_email=recipient_email,
+                subject=data.get('subject'),
+                payload=data.get('payload'),
+                status=NotificationLog.Status.QUEUED
+            )
+
+            # ============================================================
+            # LOG SUCCESS
+            # ============================================================
+            logger.info(
+                f"[NotificationLogService.create] Successfully created log entry with id={log_entry.id}"
+            )
+
+            # Audit log (if user provided)
+            if user:
+                log_audit_event(
+                    request=request,
+                    user=user,
+                    action_type='notification_log_create',
+                    model_name='NotificationLog',
+                    object_id=str(log_entry.id),
+                    changes={'data': data}
+                )
+                logger.debug(
+                    f"[NotificationLogService.create] Audit event logged for log {log_entry.id}"
+                )
+
+            return log_entry
+
+        except Exception as e:
+            # ============================================================
+            # LOG ANY EXCEPTION
+            # ============================================================
+            logger.error(
+                f"[NotificationLogService.create] Exception while creating notification log: {e}",
+                exc_info=True
+            )
+            # Re-raise to let the caller handle it (or fail the transaction)
+            raise
 
     @staticmethod
     @transaction.atomic
