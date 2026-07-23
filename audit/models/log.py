@@ -262,6 +262,12 @@ class AuditLog(models.Model):
         
         ("apply_forgiveness", "Apply Forgiveness"),
         ("debt_forgiveness", "Debt Forgiveness"),
+        ("trigger_penalty_scheduler", "Trigger Penalty Scheduler"),
+        ("trigger_overdue_updater", "Trigger Overdue Updater"),
+        ("trigger_interest_accrual", "Trigger Interest Accrual"),
+        ("trigger_overdue_corrector", "Trigger Overdue Corrector"),
+        ("trigger_zero_balance_fixer", "Trigger Zero Balance Fixer"),
+        
     )
 
     event_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
